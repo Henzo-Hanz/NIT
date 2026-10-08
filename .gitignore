@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Projeto (loop Django + React + specs)
+.loop-env/
+backend/.venv/
+frontend/node_modules/
+frontend/dist/
+*.env
+!.env.example
