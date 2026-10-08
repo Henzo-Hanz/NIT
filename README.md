@@ -1,6 +1,6 @@
 # NIT
 
-Dashboard informativo em mapa sobre espécies litorâneas do, com área de
+Dashboard informativo em mapa sobre espécies litorâneas, com área de
 pesquisadores credenciados para submissão de resultados (`.xlsx`, `.csv` e
 outros formatos). Projeto do Governo do Estado do Piauí, em parceria com a
 FAPEPI e universidades, reunindo áreas diversas — biologia, engenharia de
