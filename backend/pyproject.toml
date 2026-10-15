@@ -1,0 +1,34 @@
+[project]
+name = "nit"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "Henzo Hanz", email = "henzohanz@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "django>=5.2,<5.3",
+    "django-environ>=0.14.0",
+    "django-filter>=26.2",
+    "djangorestframework>=3.18.3",
+    "drf-spectacular[sidecar]>=0.30.0",
+    "psycopg[binary]>=3.3.6",
+]
+
+[project.scripts]
+nit = "nit:main"
+
+[build-system]
+requires = ["uv_build>=0.12.15,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "django-debug-toolbar>=8.0.0",
+    "factory-boy>=3.3.3",
+    "pre-commit>=4.7.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "pytest-django>=4.14.0",
+    "ruff>=0.17.1",
+]
