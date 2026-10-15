@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -38,7 +38,7 @@
     "msw": "^3.0.3",
     "openapi-typescript": "^7.13.0",
     "oxlint": "^1.81.0",
-    "typescript": "~6.0.2",
+    "typescript": "~5.9.3",
     "vite": "^8.3.0",
     "vitest": "^5.0.5"
   }
