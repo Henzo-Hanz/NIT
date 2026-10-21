@@ -1,6 +1,14 @@
 {
   "spec_id": "SPEC-0002",
-  "fase": "front",
+  "fase": "entregue",
   "gate": null,
-  "tentativa": 0
+  "tentativa": 1,
+  "pr_url": null,
+  "card_url": null,
+  "desvios": [
+    "Fase back sem CAs: entregue trivialmente; gates back N/A (não há o que gatear em escopo back vazio)",
+    "Fallback: implementer-front sem ferramentas de escrita; runner executou a fase direto, escopo frontend/ e gates sem dispensa",
+    "Branch SPEC-0002 criada sobre SPEC-0001 (dependência de código do SeloStatus/Ping); PR empilhado com base SPEC-0001",
+    "2 warnings de lint não-bloqueantes (fast-refresh em MapView/button shadcn; set-state-in-effect em HeaderBar)"
+  ]
 }
