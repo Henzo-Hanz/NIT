@@ -1,0 +1,94 @@
+{
+  "id": "SPEC-0001",
+  "prompt_original": "vamos conectar agora o front ao back, eles não parecem estar carregando e ouvindo um ao outro.",
+  "objetivo": "Conectar o frontend React ao backend Django via primeiro endpoint real (/api/ping/) consumido pela UI, com indicação visual de conexão ok/indisponível.",
+  "escopo": {
+    "back": [
+      "Criar app Django 'core' com endpoint GET /api/ping/ retornando 200 {\"status\": \"ok\"} e 405 para outros métodos",
+      "Registrar o app 'core' em INSTALLED_APPS e incluir as rotas /api/ no NIT/urls.py"
+    ],
+    "front": [
+      "Criar módulo client de API (fetch nativo) usando caminho relativo /api (sem origem hardcoded)",
+      "Configurar proxy do Vite: server.proxy de /api -> http://localhost:8000",
+      "Substituir a página inicial por uma que carregue o ping e exiba selo de status: conectado (ok) ou indisponível (falha)"
+    ]
+  },
+  "fora_de_escopo": [
+    "CORS / django-cors-headers (dev usa proxy do Vite; prod é tema transversal para spec futura)",
+    "Autenticação e permissões",
+    "Cliente tipado com openapi-fetch/openapi-typescript (aguardar openapi.json real do back)",
+    "Swagger/dr-spectacular além do que já existe",
+    "Deploy e produção"
+  ],
+  "criterios_aceitacao": [
+    {
+      "id": "CA-1",
+      "camada": "back",
+      "descricao": "Dado que o backend Django está rodando, quando GET /api/ping/ é chamado, então responde 200 com JSON {\"status\": \"ok\"}."
+    },
+    {
+      "id": "CA-2",
+      "camada": "back",
+      "descricao": "Dado o endpoint /api/ping/, quando é chamado com POST (ou PUT/DELETE/PATCH), então responde 405 Method Not Allowed (allow: GET)."
+    },
+    {
+      "id": "CA-3",
+      "camada": "front",
+      "descricao": "Dado o módulo client de API do front, quando uma chamada é construída, então usa caminho relativo /api/ping (sem origem absoluta hardcoded), condição exigida pelo proxy do Vite."
+    },
+    {
+      "id": "CA-4",
+      "camada": "front",
+      "descricao": "Dado que o backend responde 200 {\"status\": \"ok\"}, quando a página carrega o selo de status, então exibe estado de conectado (texto visível 'conectado')."
+    },
+    {
+      "id": "CA-5",
+      "camada": "front",
+      "descricao": "Dado que a chamada ao backend falha (rede fora ou resposta não-ok), quando a página carrega o selo de status, então exibe estado indisponível (texto visível 'indisponível') sem quebrar a aplicação."
+    }
+  ],
+  "contrato_api_rascunho": [
+    {
+      "metodo": "GET",
+      "rota": "/api/ping/",
+      "request": {},
+      "response": {
+        "status": "ok"
+      },
+      "erros": [
+        "405 para métodos != GET"
+      ]
+    }
+  ],
+  "ja_existe_na_codebase": [
+    "backend/NIT/: projeto Django 5.2 funcional (manage.py check ok) com DRF, django-filter, drf-spectacular instalados e rotas de schema (/api/schema/, swagger-ui, redoc) — nenhum endpoint de API de produto",
+    "backend/NIT/settings.py: sem configuração de CORS (nem django-cors-headers instalado)",
+    "frontend/src/App.tsx: template original do Vite (contador) — nenhuma chamada de API (grep por fetch/axios/api não achou uso)",
+    "frontend/vite.config.ts: sem server.proxy",
+    "frontend/package.json: @tanstack/react-query, openapi-fetch e msw já presentes como dependências (ainda não usados)",
+    "nada relacionado encontrado além disso (busca: fetch, api, proxy, cors, ping)"
+  ],
+  "laya_consultado": false,
+  "premissas": [
+    "Backend em desenvolvimento roda em http://localhost:8000 (manage.py runserver, padrão do Django)",
+    "Conexão em dev usa proxy do Vite, dispensando CORS; CORS para produção fica em spec futura (registrado em fora_de_escopo)",
+    "Client de API usa fetch nativo em módulo dedicado (src/lib/api.ts); adoção de openapi-fetch fica para specs futuras com openapi.json real",
+    "Selo de status na página inicial substitui o template Vite; design visual básico (não é spec de UI/UX)"
+  ],
+  "perguntas_abertas": [],
+  "dependencias": {
+    "front_depende_de_back": true
+  },
+  "perguntas_iteracao": [
+    {
+      "id": "PI-1",
+      "camada": "front",
+      "pergunta": "O estado offline é claramente distinto do online (texto/cor diferentes), sem ambiguidade?",
+      "esperado": true
+    }
+  ],
+  "status": "aprovada",
+  "aprovada_por": "hanz_dev",
+  "aprovada_em": "2026-10-21 11h15 (São Paulo)",
+  "hash_aprovacao": "b670553fe985560dbad1de66b67e82c5bd4f79f930e60517cd1c7c0e254754cd"
+}
