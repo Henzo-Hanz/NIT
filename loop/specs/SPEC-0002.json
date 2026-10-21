@@ -1,0 +1,95 @@
+{
+  "id": "SPEC-0002",
+  "prompt_original": "ok, agora vamos para o projeto de fato , quero começar com a parte estética primeiro, use de identidade visual/referência os seguintes prints dos sites: https://pedea.sema.ce.gov.br/portal/ [Image 1] , [Image 2] , https://dados.pi.gov.br/observatorio/dados-economicos/ [Image 3] , [Image 4] , e planeje uma implementação básica com mapa usando shadcnUI. Respostas do refino: 1 híbrido com modo claro e escuro, 2 postergar (modal), 3 sim mock só pra exibição.",
+  "objetivo": "Shell estético base do NIT: mapa full-screen estilo PEDEA (controles flutuantes) + identidade institucional à la dadosPI, com design tokens claro/escuro e componentes shadcn/ui, em front puro.",
+  "escopo": {
+    "back": [],
+    "front": [
+      "Design tokens duplos (claro/escuro) em Tailwind v4 @theme + CSS vars, mapados nos tokens shadcn (primário azul institucional, accent teal oceano)",
+      "Header institucional fixo: wordmark 'NIT' provisório + tagline 'Governo do Piauí · FAPEPI', nav (Início · Observatório · Pesquisadores · Acesso do Gestor), toggle de tema e SeloStatus reaproveitado da SPEC-0001",
+      "MapView com maplibre-gl vanilla: basemap raster público Carto Positron (sem API key), centro no litoral do Piauí (zoom ~6), controles flutuantes arredondados à esquerda (+/−/reset/geolocalizar) com Button/Toggle shadcn",
+      "Painel de camadas mock (Card flutuante à direita) com Toggles de exibição em pt-BR",
+      "Footer fixo com attribution de tiles (OpenStreetMap/Carto) e links Termos e Condições + Aviso de Privacidade",
+      "Modo escuro persistente: alternância via classe html.dark + localStorage"
+    ]
+  },
+  "fora_de_escopo": [
+    "Modal de boas-vindas (postergado pelo humano no refino)",
+    "Dados reais no mapa (shapes/markers do litoral, espécies, UCs)",
+    "Dashboard Observatório dos prints 3-4 (candidato a SPEC-0003)",
+    "Backend/autenticação (a conexão ping da SPEC-0001 já basta)",
+    "i18n e tradução",
+    "Logo definitivo e sistema de identidade oficial (usa wordmark provisório)",
+    "Auditoria WCAG completa e dark mode específico para mobile"
+  ],
+  "criterios_aceitacao": [
+    {
+      "id": "CA-1",
+      "camada": "front",
+      "descricao": "Dado que a home carrega, quando o MapView monta, então o container full-screen do mapa é renderizado, os controles +/− estão visíveis e o centro inicial está no litoral do Piauí (zoom ~6) [MapLibre mockado no teste]."
+    },
+    {
+      "id": "CA-2",
+      "camada": "front",
+      "descricao": "Dado o header institucional, quando a home carrega, então exibe o wordmark 'NIT', a tagline 'Governo do Piauí · FAPEPI', os 4 itens de nav (Início, Observatório, Pesquisadores, Acesso do Gestor) e o SeloStatus (conectado/indisponível)."
+    },
+    {
+      "id": "CA-3",
+      "camada": "front",
+      "descricao": "Dado o painel de camadas mock, quando o usuário alterna uma camada, então o toggle muda de estado on/off na lista exibida."
+    },
+    {
+      "id": "CA-4",
+      "camada": "front",
+      "descricao": "Dado o footer fixo, quando a home carrega, então exibe attribution dos tiles (OpenStreetMap/Carto) e os links 'Termos e Condições' e 'Aviso de Privacidade'."
+    },
+    {
+      "id": "CA-5",
+      "camada": "front",
+      "descricao": "Dado que o basemap está indisponível (fetch de tiles falha), quando o mapa inicializa, então a UI não quebra e o container exibe estado vazio com mensagem, mantendo header/footer/painéis."
+    },
+    {
+      "id": "CA-6",
+      "camada": "front",
+      "descricao": "Dado o toggle de tema no header, quando o usuário alterna claro↔escuro, então a UI inteira (header/painéis/footer) troca via classe html.dark, a preferência persiste em localStorage após reload e, com storage limpo, o tema inicial é claro."
+    }
+  ],
+  "contrato_api_rascunho": [],
+  "ja_existe_na_codebase": [
+    "frontend/src/components/SeloStatus.tsx + frontend/src/lib/api.ts: selo conectado/indisponível da SPEC-0001 já implementado e testado (reutilizado no header)",
+    "frontend/src/App.tsx: home minimalista da SPEC-0001 (será substituída pelo shell com mapa)",
+    "frontend/src/components/ui/: apenas button.tsx (shadcn); cn() em src/lib/utils.ts",
+    "frontend/package.json: tailwindcss 4 + @tailwindcss/vite instalados, @base-ui/react, react-router, lucide-react presentes; maplibre-gl AINDA NÃO instalada (premissa: npm install durante a fase)",
+    "Nada relacionado a MapView/dark mode/camadas encontrado (busca: maplibre, map, dark, theme, camadas, toggle)"
+  ],
+  "laya_consultado": false,
+  "premissas": [
+    "Paleta híbrida escolhida pelo humano: azul institucional (dadosPI) como primário + teal 'oceano' como accent, em pares claro/escuro",
+    "maplibre-gl vanilla (sem react-wrapper) instalada via npm durante a fase front",
+    "Basemap raster público Carto Positron sem API key (limites de uso da comunidade aceitos no MVP)",
+    "No modo escuro apenas a UI muda; o basemap raster permanece claro (PI-2)",
+    "Geist mantida; wordmark 'NIT' provisório em texto até logo oficial"
+  ],
+  "perguntas_abertas": [],
+  "dependencias": {
+    "front_depende_de_back": false
+  },
+  "perguntas_iteracao": [
+    {
+      "id": "PI-1",
+      "camada": "front",
+      "pergunta": "Os controles do mapa seguem o estilo flutuante, arredondado e empilhado à esquerda como no PEDEA (Image 2)?",
+      "esperado": true
+    },
+    {
+      "id": "PI-2",
+      "camada": "front",
+      "pergunta": "No modo escuro apenas a UI (header/painéis/footer) muda e o basemap raster permanece claro?",
+      "esperado": true
+    }
+  ],
+  "status": "aprovada",
+  "aprovada_por": "hanz_dev",
+  "aprovada_em": "2026-10-21 12h29 (São Paulo)",
+  "hash_aprovacao": "3c0db90173aed1e3997f9dd93256b83c9a4681270ab966b1ec6366774e2ec211"
+}
