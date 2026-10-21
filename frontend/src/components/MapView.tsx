@@ -5,16 +5,28 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 export const CENTRO_LITORAL_PI: [number, number] = [-41.75, -2.9]
 export const ZOOM_INICIAL = 6
 
+const CARTO_KEY = import.meta.env.VITE_CARTO_API_KEY as string | undefined
+
+const tiles = CARTO_KEY
+  ? [
+      'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+      'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+      'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+    ]
+  : [
+      'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+      'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+      'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+    ]
+
 const estilo = {
   version: 8 as const,
   sources: {
     basemap: {
       type: 'raster' as const,
-      tiles: [
-        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-        'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-        'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-      ],
+      tiles: CARTO_KEY
+        ? tiles.map((t) => `${t}?key=${CARTO_KEY}`)
+        : tiles,
       tileSize: 256,
       attribution: '© OpenStreetMap © CARTO',
     },
