@@ -1,6 +1,11 @@
 {
   "spec_id": "SPEC-0001",
-  "fase": "back",
+  "fase": "entregue",
   "gate": null,
-  "tentativa": 0
+  "tentativa": 1,
+  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/1",
+  "card_url": "https://trello.com/c/vGb8sORe/5-spec-0001-ping-conectando-front-ao-back",
+  "desvios": [
+    "Fallback sem subagents: implementer-back sem ferramentas de escrita/execução; runner executou as fases diretamente mantendo escopo por pasta (registrado no runbook runner.md)"
+  ]
 }
