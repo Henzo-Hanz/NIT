@@ -3,8 +3,8 @@
   "fase": "entregue",
   "gate": null,
   "tentativa": 1,
-  "pr_url": null,
-  "card_url": null,
+  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/2",
+  "card_url": "https://trello.com/c/e3qQvtHr/6-spec-0002-shell-estético-mapa-front",
   "desvios": [
     "Fase back sem CAs: entregue trivialmente; gates back N/A (não há o que gatear em escopo back vazio)",
     "Fallback: implementer-front sem ferramentas de escrita; runner executou a fase direto, escopo frontend/ e gates sem dispensa",
