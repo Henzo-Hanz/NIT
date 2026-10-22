@@ -1,10 +1,19 @@
 {
   "spec_id": "SPEC-0003",
-  "fase": "back",
-  "gate": 1,
+  "fase": "entregue",
+  "gate": null,
   "tentativa": 1,
-  "pr_url": null,
-  "card_url": null,
+  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/3",
+  "card_url": "https://trello.com/c/VoUKgunO/7-spec-0003-backend-mockado-de-biodiversidade",
+  "api_entregues": [
+    "GET /api/especies/",
+    "GET /api/especies/:slug/ (404 [borda])",
+    "GET /api/geometrias/?tipo=ponto|linha|poligono (GeoJSON FeatureCollection; 400 [borda])",
+    "management command: python manage.py seed_demo [--recriar]"
+  ],
+  "gates": {
+    "back": { "gate1": "aprovado (6 CAs, 20 testes)", "gate2": "aprovado (suíte 2.2s; listas em 1 query)", "gate3": "aprovado", "tentativa": 1 }
+  },
   "aprovacao": {
     "data": "2026-10-22 11h38 (São Paulo)",
     "por": "hanz_dev",
@@ -12,7 +21,10 @@
     "origem": "comando explícito no chat ('Aprove a spec abaixo em meu nome — SPEC-0003'); rascunho + defaults do refino apresentados antes"
   },
   "desvios": [
-    "SPEC-0002 mesclada: PRs #1 e #2 MESCLADOS na main; usuário fez commits diretos de README na main (0acc579); branch SPEC-0003 criada a partir da main alinhada",
-    "Fallback ~= SPEC-0002: implementer-back sem ferramentas de escrita/vba; runner executará a fase direto, escopo backend/ e gates sem dispensa"
+    "Fallback (como SPEC-0002): implementer-back sem ferramentas de escrita; runner executou a fase direto, escopo backend/ e gates sem dispensa",
+    "SPEC-0002 mesclada: main alinhada em 0acc579 (commits de README do humano); branch SPEC-0003 baseada na main",
+    "Push 403 do Henzo-Lopes no início da entrega resolvido com gh auth switch -u Henzo-Hanz + gh auth setup-git",
+    "Destaques do run-loop: 2 erros de JSON na spec corrigidos no validate (string quebrada + tab bruto); migrate faltou após makemigrations no primeiro seed",
+    "SPEC-0004 (front: pin pop-up Parnaíba '223 espécies', fichas /especie/:slug com foto/descrição/infos e CAMADAS filtrando por tipo) é o próximo passo natural"
   ]
 }
