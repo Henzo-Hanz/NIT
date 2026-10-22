@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" role="img" aria-label="Caranguejo-uçá (placeholder ilustrativo)">
+  <rect width="240" height="180" rx="12" fill="#e6f4f3"/>
+  <path d="M76 98 L34 66 L56 56 Z" fill="#0e7490"/>
+  <path d="M164 98 L206 66 L184 56 Z" fill="#0e7490"/>
+  <ellipse cx="120" cy="106" rx="52" ry="38" fill="#155e75"/>
+  <circle cx="99" cy="86" r="7" fill="#0f172a"/>
+  <circle cx="141" cy="86" r="7" fill="#0f172a"/>
+  <path d="M82 136 L64 158 M158 136 L176 158 M106 142 L102 166 M134 142 L138 166" stroke="#155e75" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <text x="120" y="172" font-family="sans-serif" font-size="12" text-anchor="middle" fill="#134e4a">Caranguejo-uçá · Ucides cordatus</text>
+</svg>

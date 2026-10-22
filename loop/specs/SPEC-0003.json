@@ -1,0 +1,146 @@
+{
+  "id": "SPEC-0003",
+  "prompt_original": "próximo passo é conseguirmos delimitar espaços, pontos, linhas e polígonos no mapa, usando as apis que temos atualmente. usando essa api do carto, conseguimos guardar o que no backend? a minha ideia pro próximo passo é mockar alguns dados pra ter exemplos de filtros e exibição no mapa, por exemplo: na imagem V0.png onde tem o ponto parnaíba tenha pinado uma informação tipo: '223 espécies de caranguejos encontradas' e ao clicar nisso a gente tem 3 opções de caranguejos (caranguejo-sirgeijo, caranguejo maria farinha e caranguejeiro-laranja-do-norte), cada um com uma páginazinha com o mesmo estilo geral com foto centralizada, um parágrafo de descrição e algumas infos abaixo (inventadas) só pra ter uma ideia do estilo. Respostas do refino (defaults aceitos por silêncio na aprovação): 1) pilha separada em SPEC-0003 (back) + SPEC-0004 (front); 2) sirgeijo = caranguejo-uçá (Ucides cordatus), 'caranguejeiro-laranja-do-norte' mantido como popular mockado; 3) imagens = placeholders locais SVG; 4) pin só Parnaíba (total 223 fixo) + 1 linha + 1 polígono mockados; 5) CAMADAS filtrará por tipo de geometria na SPEC-0004 (front).",
+  "objetivo": "Backend mockado do NIT: três espécies de caranguejo (uçá, maria-farinha e 'caranguejeiro-laranja-do-norte' como popular) e geometrias de exemplo (ponto/linha/polígono) servidas por REST/GeoJSON com filtros, plausíveis para a fase front (SPEC-0004) de exibição e filtros no mapa.",
+  "escopo": {
+    "back": [
+      "App Django 'biodiversidade': model Especie (slug único, nome_popular, nome_cientifico opcional, descricao, infos JSON, imagem), model Geometria (nome, tipo ponto|linha|poligono, geojson JSON, descricao opcional, especie opcional) com migrations",
+      "Management command seed_demo (idempotente, com opção de recriar) semeadura: 3 espécies com infos inventadas + 3 geometrias (ponto Parnaíba com total 223, 1 linha, 1 polígono) + placeholders SVG das espécies em midia/ do app",
+      "Endpoints REST (DRF): GET /api/especies (lista), GET /api/especies/:slug (detalhe, 404 para slug inexistente), GET /api/geometrias (GeoJSON FeatureCollection) com filtro ?tipo=ponto|linha|poligono e 400 para tipo inválido",
+      "Registro do app em INSTALLED_APPS e include das rotas /api/ no NIT/urls.py"
+    ],
+    "front": []
+  },
+  "fora_de_escopo": [
+    "Autenticação/permissões (endpoints públicos de leitura, como o ping)",
+    "Ferramenta de desenho/edição de geometrias no mapa (draw)",
+    "Integração com SQL API / Data Warehouse do Carto (basemap continua proxy/basemap)",
+    "Fotos oficiais das espécies (placeholders SVG)",
+    "Postgres/PostGIS (SQLite do MVP conforme settings)",
+    "Todo o front da interação no mapa e fichas de espécie (candidato a SPEC-0004)"
+  ],
+  "criterios_aceitacao": [
+    {
+      "id": "CA-1",
+      "camada": "back",
+      "descricao": "Dado o backend com seed_demo executado, quando GET /api/especies, então responde 200 com lista de 3 espécies contendo slug, nome_popular, nome_cientifico (ou null) e imagem."
+    },
+    {
+      "id": "CA-2",
+      "camada": "back",
+      "descricao": "Dado o detail de espécie, quando GET /api/especies/caranguejo-uca, então 200 com nome_popular, nome_cientifico 'Ucides cordatus', descricao em 1 parágrafo, infos JSON e imagem; quando GET /api/especies/slug-inexistente, então 404 [borda]."
+    },
+    {
+      "id": "CA-3",
+      "camada": "back",
+      "descricao": "Dado o seed_demo, quando GET /api/geometrias, então FeatureCollection GeoJSON inclui o ponto de Parnaíba com properties.tipo 'ponto' e properties.total 223 (e descrição '223 espécies de caranguejos encontradas')."
+    },
+    {
+      "id": "CA-4",
+      "camada": "back",
+      "descricao": "Dado o seed_demo, quando GET /api/geometrias?tipo=ponto, então 200 e todas as features retornadas têm properties.tipo 'ponto'; análogo para linha e poligono."
+    },
+    {
+      "id": "CA-5",
+      "camada": "back",
+      "descricao": "Dado GET /api/geometrias?tipo=inexistente, então responde 400 com erro explicando tipos válidos [borda]."
+    },
+    {
+      "id": "CA-6",
+      "camada": "back",
+      "descricao": "Dado o seed_demo, quando consultadas as 3 espécies, cada uma referencia um placeholder SVG existente em midia/ do app (arquivo presente e não vazio)."
+    }
+  ],
+  "contrato_api_rascunho": [
+    {
+      "metodo": "GET",
+      "rota": "/api/especies",
+      "request": {},
+      "response": [
+        {
+          "slug": "caranguejo-uca",
+          "nome_popular": "Caranguejo-uçá",
+          "nome_cientifico": "Ucides cordatus",
+          "imagem": "biodiversidade/midia/caranguejo-uca.svg"
+        }
+      ],
+      "erros": []
+    },
+    {
+      "metodo": "GET",
+      "rota": "/api/especies/:slug",
+      "request": {},
+      "response": {
+        "slug": "caranguejo-uca",
+        "nome_popular": "Caranguejo-uçá",
+        "nome_cientifico": "Ucides cordatus",
+        "descricao": "um parágrafo",
+        "infos": {
+          "tamanho_max_cm": 9.0,
+          "habitat": "Manguezal",
+          "periodo_coleta": "noite de lua nova",
+          " curiosidades": "..."
+        },
+        "imagem": "biodiversidade/midia/caranguejo-uca.svg"
+      },
+      "erros": [
+        "404 slug inexistente"
+      ]
+    },
+    {
+      "metodo": "GET",
+      "rota": "/api/geometrias",
+      "request": {
+        "tipo": "ponto|linha|poligono (opcional)"
+      },
+      "response": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {
+              "id": 1,
+              "nome": "Parnaíba",
+              "tipo": "ponto",
+              "total": 223,
+              "especie_slug": null
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -41.7767,
+                -2.9035
+              ]
+            }
+          }
+        ]
+      },
+      "erros": [
+        "400 tipo inválido"
+      ]
+    }
+  ],
+  "ja_existe_na_codebase": [
+    "backend/core: app da SPEC-0001 com ping; NIT/urls.py já inclui core em /api/ (incluir biodiversidade ao lado)",
+    "settings.py: DRF, django-filter e REST_FRAMEWORK/SPECTACULAR já configurados; SQLite do MVP",
+    "Nenhum modelo de produto além do ping (busca: model, especie, geometria, seed, geojson não achou nada)",
+    "frontend/: MapLibre integrado na SPEC-0002 (nada a alterar nesta spec back)"
+  ],
+  "laya_consultado": false,
+  "premissas": [
+    "Mapa divisão proposta no refino: SPEC-0003 (back) e SPEC-0004 (front interação+fichas); aprovado por silêncio",
+    "Mocks determinísticos via seed_demo; coordenadas aproximadas (Parnaíba -2.9035/-41.7767); polígono e linha inventados representando litoral do PI",
+    "Nomes científicos só para caranguejo-uçá (Ucides cordatus) e maria-farinha (Ocypode quadrata); 'caranguejeiro-laranja-do-norte' apenas nome popular mockado",
+    "Placeholders SVG ilustrativos (não fotos oficiais) nas fichas de espécie",
+    "Endpoints públicos de leitura (AllowAny), padrão do ping da SPEC-0001"
+  ],
+  "perguntas_abertas": [],
+  "dependencias": {
+    "front_depende_de_back": true
+  },
+  "perguntas_iteracao": [],
+  "status": "aprovada",
+  "aprovada_por": "hanz_dev",
+  "aprovada_em": "2026-10-22 11h38 (São Paulo)",
+  "hash_aprovacao": "a1d8eaf16487f81367284d394aadadeb716565fa1b4e662182aa951e124bc028"
+}

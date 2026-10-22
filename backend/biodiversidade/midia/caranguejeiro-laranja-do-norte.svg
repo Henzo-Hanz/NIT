@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" role="img" aria-label="Caranguejeiro-laranja-do-norte (placeholder ilustrativo, registro popular)">
+  <rect width="240" height="180" rx="12" fill="#fff7ed"/>
+  <path d="M82 96 L44 70 L62 58 Z" fill="#ea580c"/>
+  <path d="M158 96 L196 70 L178 58 Z" fill="#ea580c"/>
+  <ellipse cx="120" cy="104" rx="50" ry="36" fill="#c2410c"/>
+  <circle cx="100" cy="84" r="6.5" fill="#1c1917"/>
+  <circle cx="140" cy="84" r="6.5" fill="#1c1917"/>
+  <path d="M86 134 L68 156 M154 134 L172 156 M108 138 L104 162 M132 138 L136 162" stroke="#c2410c" stroke-width="6.5" fill="none" stroke-linecap="round"/>
+  <text x="120" y="172" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#7c2d12">Caranguejeiro-laranja-do-norte · registro popular</text>
+</svg>

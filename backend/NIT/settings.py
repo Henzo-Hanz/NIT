@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django_filters',
     'rest_framework',
     'core',
+    'biodiversidade',
     'drf_spectacular_sidecar', # aqui é somente pra servir o swagerUI localmente caso o acesso à internet esteja bloqueado, caso contrário pode ser comentado (prod)
     'drf_spectacular',
 
