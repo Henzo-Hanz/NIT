@@ -36,4 +36,4 @@ Acompanhamento: [Kanban do NIT — Status do Projeto](https://trello.com/b/Y46Sx
 
 ## Aparência Atual :
 
-[Aparência](images/image.png)
+![Aparência](https://github.com/Henzo-Hanz/NIT/tree/main/images)
