@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django_filters',
     'rest_framework',
+    'core',
     'drf_spectacular_sidecar', # aqui é somente pra servir o swagerUI localmente caso o acesso à internet esteja bloqueado, caso contrário pode ser comentado (prod)
     'drf_spectacular',
 
