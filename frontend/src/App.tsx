@@ -1,13 +1,16 @@
-import { SeloStatus } from '@/components/SeloStatus'
+import { MapView } from '@/components/MapView'
+import { HeaderBar } from '@/components/HeaderBar'
+import { CamadasPanel } from '@/components/CamadasPanel'
+import { FooterBar } from '@/components/FooterBar'
 
 function App() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4">
-      <h1 className="text-3xl font-bold">NIT</h1>
-      <p className="text-xl">
-        Backend: <SeloStatus />
-      </p>
-    </main>
+    <div className="relative h-screen w-full overflow-hidden">
+      <MapView />
+      <HeaderBar />
+      <CamadasPanel />
+      <FooterBar />
+    </div>
   )
 }
 
