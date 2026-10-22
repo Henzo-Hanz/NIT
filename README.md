@@ -33,3 +33,7 @@ Acompanhamento: [Kanban do NIT — Status do Projeto](https://trello.com/b/Y46Sx
 - `frontend/` — React + Vite SPA (a criar)
 - `loop/` — specs, scripts e gates do loop
 - `docs/` — decisões de arquitetura e referências
+
+## Aparência Atual :
+
+[Aparência](image.png)
