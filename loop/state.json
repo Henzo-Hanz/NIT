@@ -1,15 +1,23 @@
 {
   "spec_id": "SPEC-0002",
-  "fase": "entregue",
+  "fase": "mesclada",
   "gate": null,
   "tentativa": 1,
   "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/2",
   "card_url": "https://trello.com/c/e3qQvtHr/6-spec-0002-shell-estético-mapa-front",
+  "pr_url_spec0001": "https://github.com/Henzo-Hanz/NIT/pull/1",
+  "card_url_spec0001": "https://trello.com/c/vGb8sORe/5-spec-0001-ping-conectando-front-ao-back",
+  "merge": {
+    "estado": "PRs #1 e #2 MESCLADOS; main em e5ccf52 (2026-10-22)",
+    "rota": "usuário mesclou PR #2 dentro de SPEC-0001 (base empilhada); PR #1 reaberto e mesclado na main como delegação explícita do humano",
+    "sanidade": "13/13 testes front + 7/7 back na main mesclada"
+  },
   "desvios": [
     "Fase back sem CAs: entregue trivialmente; gates back N/A (não há o que gatear em escopo back vazio)",
     "Fallback: implementer-front sem ferramentas de escrita; runner executou a fase direto, escopo frontend/ e gates sem dispensa",
     "Branch SPEC-0002 criada sobre SPEC-0001 (dependência de código do SeloStatus/Ping); PR empilhado com base SPEC-0001",
     "2 warnings de lint não-bloqueantes (fast-refresh em MapView/button shadcn; set-state-in-effect em HeaderBar)",
-    "Pos-delivery: fix do worker MIME (optimizeDeps) e basemap Carto Voyager com VITE_CARTO_API_KEY em frontend/.env.local — premissa da spec (keyless Positron) derrubada pelo humano e tratada como premissa reportada"
+    "Pos-delivery: fix do worker MIME (optimizeDeps) e basemap Carto Voyager com VITE_CARTO_API_KEY em frontend/.env.local — premissa da spec (keyless Positron) derrubada pelo humano e tratada como premissa reportada",
+    "Merge executado por agente como delegação explícita do humano (chat 2026-10-22 'faça pra mim'): roto da regra 'merge é humano' mantida no espírito — decisão e ordem foram do humano; PR #1 reaberto (estava CLOSED não-mergeado) e mesclado na main"
   ]
 }
