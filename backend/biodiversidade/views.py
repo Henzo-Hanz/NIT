@@ -1,3 +1,7 @@
+from pathlib import Path
+
+import biodiversidade
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -7,6 +11,7 @@ from biodiversidade import serializers
 from biodiversidade.models import Especie, Geometria
 
 TIPOS_VALIDOS = [valor for valor, _ in Geometria.Tipo.choices]
+RAIZ_APP = Path(biodiversidade.__file__).resolve().parent
 
 
 @api_view(['GET'])
@@ -21,6 +26,16 @@ def especies(request):
 def especie(request, slug):
     registro = get_object_or_404(Especie, slug=slug)
     return Response(serializers.EspecieDetalheSerializer(registro).data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def imagem_especie(request, slug):
+    registro = get_object_or_404(Especie, slug=slug)
+    caminho = RAIZ_APP / registro.imagem.removeprefix('biodiversidade/')
+    if not caminho.is_file():
+        raise Http404
+    return FileResponse(caminho.open('rb'), content_type='image/svg+xml')
 
 
 @api_view(['GET'])

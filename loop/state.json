@@ -1,30 +1,20 @@
 {
-  "spec_id": "SPEC-0003",
-  "fase": "entregue",
-  "gate": null,
+  "spec_id": "SPEC-0004",
+  "fase": "back",
+  "gate": 1,
   "tentativa": 1,
-  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/3",
-  "card_url": "https://trello.com/c/VoUKgunO/7-spec-0003-backend-mockado-de-biodiversidade",
-  "api_entregues": [
-    "GET /api/especies/",
-    "GET /api/especies/:slug/ (404 [borda])",
-    "GET /api/geometrias/?tipo=ponto|linha|poligono (GeoJSON FeatureCollection; 400 [borda])",
-    "management command: python manage.py seed_demo [--recriar]"
-  ],
-  "gates": {
-    "back": { "gate1": "aprovado (6 CAs, 20 testes)", "gate2": "aprovado (suíte 2.2s; listas em 1 query)", "gate3": "aprovado", "tentativa": 1 }
-  },
+  "pr_url": null,
+  "card_url": null,
   "aprovacao": {
-    "data": "2026-10-22 11h38 (São Paulo)",
+    "data": "2026-10-23 09h05 (S\u00e3o Paulo)",
     "por": "hanz_dev",
-    "hash": "a1d8eaf16487f81367284d394aadadeb716565fa1b4e662182aa951e124bc028",
-    "origem": "comando explícito no chat ('Aprove a spec abaixo em meu nome — SPEC-0003'); rascunho + defaults do refino apresentados antes"
+    "hash": "000f7e2eb4feb7c6c87a1c33bc6f3199d6ea49fbacd6f80abe45c35b59ee3a0e",
+    "origem": "comando expl\u00edcito no chat ('Aprove a spec abaixo em meu nome \u2014 SPEC-0004' + 'Execute o run-loop'); rascunho + fluxo do pin (pin > bolha com contagem + bot\u00e3o Ver esp\u00e9cies > lista das 3 na bolha > modal centralizado) apresentado no refino"
   },
   "desvios": [
-    "Fallback (como SPEC-0002): implementer-back sem ferramentas de escrita; runner executou a fase direto, escopo backend/ e gates sem dispensa",
-    "SPEC-0002 mesclada: main alinhada em 0acc579 (commits de README do humano); branch SPEC-0003 baseada na main",
-    "Push 403 do Henzo-Lopes no início da entrega resolvido com gh auth switch -u Henzo-Hanz + gh auth setup-git",
-    "Destaques do run-loop: 2 erros de JSON na spec corrigidos no validate (string quebrada + tab bruto); migrate faltou após makemigrations no primeiro seed",
-    "SPEC-0004 (front: pin pop-up Parnaíba '223 espécies', fichas /especie/:slug com foto/descrição/infos e CAMADAS filtrando por tipo) é o próximo passo natural"
+    "PR #3 (SPEC-0003) ainda n\u00e3o mesclado: branch SPEC-0004 recriada com base empilhada em origin/SPEC-0003 (precedente da SPEC-0002); PR #4 ter\u00e1 base SPEC-0003 \u2014 revisor humano mescla em cascata",
+    "Nota: estado_referencia na spec menciona main com 0003 incorretamente \u2014 reflexo de refino anterior ao descobrimento do PR #3 aberto; escopo t\u00e9cnico inalterado",
+    "Fallback (como SPEC-0002/0003): implementer-back/front sem ferramentas de escrita; runner executa as fases direto, escopo por pasta e gates sem dispensa",
+    "Conflito de stash em loop/state.json resolvido descartando o stash e regravando o estado na branch correta"
   ]
 }
