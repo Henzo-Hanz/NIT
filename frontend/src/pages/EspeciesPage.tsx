@@ -66,7 +66,7 @@ export function EspeciesPage() {
             <img
               alt={item.nome_popular}
               src={`/api/especies/${item.slug}/imagem/`}
-              className="mx-auto mb-2.5 block h-28 w-auto rounded-lg border object-contain"
+              className="mx-auto mb-2.5 block h-28 w-auto rounded-lg border"
             />
             <h3 className="text-sm font-bold">{item.nome_popular}</h3>
             {item.nome_cientifico && (

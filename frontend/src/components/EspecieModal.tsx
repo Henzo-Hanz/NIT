@@ -79,18 +79,16 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
             )}
             {ficha && (
               <>
-                <div className="mx-auto w-fit overflow-hidden rounded-2xl border border-border bg-accent ring-2 ring-primary/20">
-                  <img
-                    data-testid="foto-especie"
-                    alt={ficha.nome_popular}
-                    src={`/api/especies/${slug}/imagem/`}
-                    className="block max-h-64 object-contain"
-                  />
-                </div>
+                <img
+                  data-testid="foto-especie"
+                  alt={ficha.nome_popular}
+                  src={`/api/especies/${slug}/imagem/`}
+                  className="mx-auto block max-h-64 max-w-full self-center rounded-2xl border border-border bg-accent ring-2 ring-primary/20"
+                />
                 {ficha.nome_cientifico && (
                   <p
                     data-testid="nome-cientifico"
-                    className="inline-flex items-center rounded-full bg-primary/10 px-3.5 py-1.5 text-xs italic text-primary"
+                    className="inline-flex items-center self-start rounded-full bg-primary/10 px-3.5 py-1.5 text-xs italic text-primary"
                   >
                     <span className="mr-1 not-italic font-semibold tracking-wide">Nome Científico:</span>
                     {ficha.nome_cientifico}
