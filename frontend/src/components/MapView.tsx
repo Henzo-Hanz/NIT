@@ -13,39 +13,34 @@ import {
 export const CENTRO_LITORAL_PI: [number, number] = [-41.75, -2.9]
 export const ZOOM_INICIAL = 6
 
-const CARTO_KEY = import.meta.env.VITE_CARTO_API_KEY as string | undefined
+const TILES_VOYAGER = [
+  'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+  'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+  'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+]
 
-const tiles = CARTO_KEY
-  ? [
-      'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-      'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-      'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-    ]
-  : [
-      'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-      'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-      'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-    ]
-
-const estilo = {
-  version: 8 as const,
-  sources: {
-    basemap: {
-      type: 'raster' as const,
-      tiles: CARTO_KEY
-        ? tiles.map((t) => `${t}?key=${CARTO_KEY}`)
-        : tiles,
-      tileSize: 256,
-      attribution: '© OpenStreetMap © CARTO',
+function construirEstilo(apiKey: string | undefined) {
+  const tiles = apiKey
+    ? TILES_VOYAGER.map((tile) => `${tile}?key=${apiKey}`)
+    : TILES_VOYAGER
+  return {
+    version: 8 as const,
+    sources: {
+      basemap: {
+        type: 'raster' as const,
+        tiles,
+        tileSize: 256,
+        attribution: '© OpenStreetMap © CARTO',
+      },
     },
-  },
-  layers: [
-    {
-      id: 'basemap',
-      type: 'raster' as const,
-      source: 'basemap',
-    },
-  ],
+    layers: [
+      {
+        id: 'basemap',
+        type: 'raster' as const,
+        source: 'basemap',
+      },
+    ],
+  }
 }
 
 const TIPO_POR_CAMADA: Record<string, TipoGeometria> = {
@@ -79,6 +74,10 @@ export function MapView({
   const [especies, setEspecies] = useState<EspecieResumo[] | null>(null)
   const [posBolha, setPosBolha] = useState<{ x: number; y: number } | null>(null)
   const [erro, setErro] = useState(false)
+  const cartoKey = import.meta.env.VITE_CARTO_API_KEY as string | undefined
+  const [estiloAtual, setEstiloAtual] = useState(() => construirEstilo(cartoKey))
+  const [reiniciar, setReiniciar] = useState(0)
+  const podeTentarSemKey = useRef(Boolean(cartoKey))
 
   useEffect(() => {
     let vivo = true
@@ -98,13 +97,21 @@ export function MapView({
     }
     const map = new MapLibreMap({
       container: containerRef.current,
-      style: estilo,
+      style: estiloAtual,
       center: CENTRO_LITORAL_PI,
       zoom: ZOOM_INICIAL,
       attributionControl: false,
     })
     mapRef.current = map
-    map.on('error', () => setErro(true))
+    map.on('error', () => {
+      if (podeTentarSemKey.current) {
+        podeTentarSemKey.current = false
+        setEstiloAtual(construirEstilo(undefined))
+        setReiniciar((atual) => atual + 1)
+        return
+      }
+      setErro(true)
+    })
     map.on('load', () => setCarregado(true))
     map.on('move', () => {
       if (bolhaRef.current && coordenadaRef.current) {
@@ -124,7 +131,7 @@ export function MapView({
       setListagemAberta(false)
       setPosBolha(null)
     }
-  }, [])
+  }, [reiniciar, estiloAtual])
 
   useEffect(() => {
     const map = mapRef.current
