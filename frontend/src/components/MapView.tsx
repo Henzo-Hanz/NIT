@@ -302,7 +302,7 @@ export function MapView({
           </button>
           {listagemAberta ? (
             <div data-testid="lista-especies-bolha">
-              <div className="flex items-center gap-1 bg-primary px-2 py-1.5 text-primary-foreground">
+              <div className="flex items-center gap-1 bg-primary px-3 py-2 text-primary-foreground">
                 <button
                   type="button"
                   data-testid="bolha-voltar"
@@ -316,7 +316,7 @@ export function MapView({
                   Caranguejos do litoral
                 </h3>
               </div>
-              <ul className="flex max-h-56 flex-col overflow-y-auto p-1 no-scrollbar">
+              <ul className="flex max-h-56 flex-col overflow-y-auto p-2 no-scrollbar">
                 {(especies ?? []).map((item) => (
                   <li key={item.slug}>
                     <Button

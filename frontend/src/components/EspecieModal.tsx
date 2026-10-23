@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { ArrowLeft, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { buscarEspecie, type EspecieDetalhe } from '@/lib/api'
@@ -48,7 +48,7 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
           aria-label="Ficha da espécie"
           className="no-scrollbar"
         >
-          <div className="flex shrink-0 items-center justify-between gap-3 bg-primary px-5 py-3 text-primary-foreground">
+          <div className="flex shrink-0 items-center justify-between gap-3 bg-primary px-6 py-3.5 text-primary-foreground">
             <h2 data-testid="nome-popular-modal" className="truncate text-lg font-bold">
               {ficha ? ficha.nome_popular : 'Carregando…'}
             </h2>
@@ -63,7 +63,7 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
               <X className="size-4" />
             </Button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar p-5" aria-live="polite">
+          <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar p-6" aria-live="polite">
             {indisponivel && (
               <p
                 data-testid="modal-indisponivel"
@@ -85,38 +85,42 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
                 {ficha.nome_cientifico && (
                   <p
                     data-testid="nome-cientifico"
-                    className="mt-3 inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs italic text-primary"
+                    className="mt-4 inline-flex rounded-full bg-primary/10 px-3.5 py-1.5 text-xs italic text-primary"
                   >
+                    <span className="mr-1 not-italic font-semibold tracking-wide">Nome Científico:</span>
                     {ficha.nome_cientifico}
                   </p>
                 )}
                 <p
                   data-testid="descricao-especie"
-                  className="mt-3 text-sm leading-relaxed text-foreground"
+                  className="mt-4 text-sm leading-relaxed text-foreground"
                 >
                   {ficha.descricao}
                 </p>
-                <dl className="mt-4 grid gap-2 sm:grid-cols-2">
+                <dl
+                  className={`mt-6 grid gap-3 ${Object.entries(ficha.infos ?? {}).length > 1 ? 'sm:grid-cols-2' : ''}`}
+                >
                   {Object.entries(ficha.infos ?? {}).map(([chave, valor]) => (
                     <div
                       key={chave}
                       data-testid="info-especie"
-                      className="rounded-xl border border-primary/15 bg-accent/40 p-3 transition-shadow hover:shadow-md"
+                      className="rounded-xl border border-primary/15 bg-accent/40 p-3.5 transition-shadow hover:shadow-md"
                     >
                       <dt className="text-[0.7rem] font-semibold uppercase tracking-wide text-primary/80">
                         {chave.replace(/_/g, ' ')}
                       </dt>
-                      <dd className="mt-0.5 text-sm">{String(valor)}</dd>
+                      <dd className="mt-1 text-sm">{String(valor)}</dd>
                     </div>
                   ))}
                 </dl>
-                <div className="mt-5 flex justify-end">
+                <div className="mt-6 flex justify-center">
                   <Button
                     variant="default"
                     size="sm"
                     data-testid="voltar-mapa"
                     onClick={onFechar}
                   >
+                    <ArrowLeft className="size-4" aria-hidden="true" />
                     Voltar ao mapa
                   </Button>
                 </div>

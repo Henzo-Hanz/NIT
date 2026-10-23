@@ -37,13 +37,13 @@ export function EspeciesPage() {
         variant="ghost"
         size="sm"
         data-testid="voltar-inicio"
-        className="-ml-2 mb-1 text-muted-foreground hover:text-foreground"
+        className="-ml-2 mb-2 text-muted-foreground hover:text-foreground"
         onClick={() => navegar('/inicio')}
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
         Voltar ao mapa
       </Button>
-      <h1 data-testid="especies-titulo" className="mb-4 text-2xl font-bold">
+      <h1 data-testid="especies-titulo" className="mb-3 text-xl font-bold">
         Espécies do litoral do Piauí
       </h1>
       {indisponivel && (
@@ -54,21 +54,21 @@ export function EspeciesPage() {
           Listagem indisponível no momento. Verifique a conexão.
         </p>
       )}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(especies ?? []).map((item) => (
           <button
             key={item.slug}
             type="button"
             data-testid={`card-especie-${item.slug}`}
             onClick={() => setSlugAberto(item.slug)}
-            className="rounded-2xl border bg-background p-4 text-left shadow-sm transition hover:shadow-md"
+            className="rounded-xl border bg-background p-3 text-left shadow-sm transition hover:shadow-md"
           >
             <img
               alt={item.nome_popular}
               src={`/api/especies/${item.slug}/imagem/`}
-              className="mx-auto mb-3 block h-32 w-auto rounded-xl border object-contain"
+              className="mx-auto mb-2.5 block h-28 w-auto rounded-lg border object-contain"
             />
-            <h3 className="font-bold">{item.nome_popular}</h3>
+            <h3 className="text-sm font-bold">{item.nome_popular}</h3>
             {item.nome_cientifico && (
               <p className="text-xs italic text-muted-foreground">{item.nome_cientifico}</p>
             )}
