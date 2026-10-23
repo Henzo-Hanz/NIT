@@ -22,6 +22,8 @@
   },
   "desvios": [
     "P\u00f3s-delivery (debug systematic): `npm run dev -- --host` falhava via hostname (fedora/fedora.local) \u2014 Vite 8 bloqueava header Host com 403 'Blocked request' p\u00e1gina+proxy /api (IPs passavam); fix raiz em frontend/vite.config.ts: server.allowedHosts=[os.hostname(), '.local'], mantendo bloqueio de dom\u00ednios arbitr\u00e1rios; verificado por curl (200/200 nos hosts leg\u00edtimos, 403 mantido p/ exemplo.com)",
+    "P\u00f3s-delivery (debug systematic, 2026-10-23): mapa n\u00e3o exibia via IP \u2014 key do Carto inv\u00e1lida hoje (403 'valid, authorized API key required' no voyager com ?key=; voyager an\u00f4nimo responde 200); fix raiz: MapView recria o mapa UMA vez com tiles an\u00f4nimos em erro com key (fallback degrada gracioso), CA_5_mapa_offline atualizado para cobrir retry+overlay; gates front 1-3 re-aprovados; commit 8c7d885",
+    "Acesso por hostname continua dependente de resolu\u00e7\u00e3o LAN: mDNS desligado na enp3s0f1 (resolvectl mdns = no; avahi ativo mas sem registro); habilitar com senha real: sudo resolvectl mdns enp3s0f1 yes \u2192 amigo usa http://fedora.local:5173 (Windows 10+/macOS/iOS); Android s\u00f3 por IP http://192.168.0.170:5173",
     "PR #3 (SPEC-0003) ainda aberto: branch/PR #4 criados com BASE EMPILHADA em origin/SPEC-0003 (precedente da SPEC-0002); revisar/mesclar #3 antes de #4",
     "Push 403 do Henzo-Lopes repetido: gh auth switch/setup-git reexecutado (account do gh alterna entre sessões)",
     "HeaderBar passou a usar react-router Link: testes antigos CA_2 (header) e CA_6 (tema) atualizados com MemoryRouter; CA_3 (camadas) reescrito para o painel real — evolução de testes registrada",
