@@ -21,6 +21,14 @@ RAIZ_APP = Path(biodiversidade.__file__).resolve().parent
 BASE_PHYLOPIC = 'https://api.phylopic.org'
 PASTA_ICONES = RAIZ_APP / 'midia' / 'icones'
 ERROS_REDE = (URLError, TimeoutError)
+# Vínculos escolhidos pelo usuário (lapidação 6d): silhueta do caranguejo
+# Cancer primário (a mesma exibida no site) e do caranguejo clássico de
+# perfil para o genérico Brachyura.
+ICONES_PREFERIDOS = {
+    'cancer': '422060a1-0c7f-4428-b645-bdd26d815482',
+    'brachyura': 'fbb93c22-618f-4901-aade-2d07a9797e02',
+}
+URL_VETOR_BASE = 'https://images.phylopic.org/images'
 
 
 @api_view(['GET'])
@@ -76,9 +84,13 @@ def _procurar_imagem_por_nomes(nomes):
             itens = _pegar_json(
                 f'{BASE_PHYLOPIC}/nodes?build={build}&page=0&filter_name={quote(busca)}'
             ).get('_links', {}).get('items', [])
-            uuid_no = _uuid_de_href(itens[0].get('href') if itens else None)
+            item = itens[0] if itens else None
+            uuid_no = _uuid_de_href(item.get('href') if item else None)
             if uuid_no is None:
                 continue
+            pref = ICONES_PREFERIDOS.get(str(item.get('title', '')).lower().strip())
+            if pref:
+                return f'{URL_VETOR_BASE}/{pref}/vector.svg'
             imagens = _pegar_json(
                 f'{BASE_PHYLOPIC}/images?build={build}&page=0&filter_node={uuid_no}&embed_items=true'
             ).get('_embedded', {}).get('items', [])
@@ -107,7 +119,7 @@ def icone_especie(request, slug):
             [registro.nome_cientifico, registro.nome_cientifico.split()[0]]
             if registro.nome_cientifico
             else []
-        ) + ['Brachyura']
+        ) + ['cancer', 'brachyura']
         try:
             url = _procurar_imagem_por_nomes(nomes)
         except ERROS_REDE:

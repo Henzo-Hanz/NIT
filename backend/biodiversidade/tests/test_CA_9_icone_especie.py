@@ -54,7 +54,7 @@ class HelpersPhylopicTest(TestCase):
         respostas = [
             {'build': 560},
             {'_links': {'items': []}},
-            {'_links': {'items': [{'href': '/nodes/dddddddd-0000-0000-0000-000000000000'}]}},
+            {'_links': {'items': [{'href': '/nodes/dddddddd-0000-0000-0000-000000000000', 'title': 'Outro'}]}},
             {'_embedded': {'items': []}},
             {'_embedded': {'primaryImage': {'_links': {'vectorFile': {'href': 'https://images/vector2.svg'}}}}},
         ]
@@ -66,6 +66,30 @@ class HelpersPhylopicTest(TestCase):
             self.assertEqual(
                 views._procurar_imagem_por_nomes(['algum', 'outro']),
                 'https://images/vector2.svg',
+            )
+
+    def test_preferidas_por_nome_sao_respeitadas(self):
+        respostas = [
+            {'build': 560},
+            {
+                '_links': {
+                    'items': [
+                        {
+                            'href': '/nodes/8880ea7d-e9cb-4104-b0d7-8ca2c45e4a30?build=560',
+                            'title': 'Cancer',
+                        }
+                    ]
+                }
+            },
+        ]
+
+        def pegar_json_fake(_url):
+            return respostas.pop(0)
+
+        with patch.object(views, '_pegar_json', side_effect=pegar_json_fake):
+            self.assertEqual(
+                views._procurar_imagem_por_nomes(['cancer']),
+                f'{views.URL_VETOR_BASE}/{views.ICONES_PREFERIDOS["cancer"]}/vector.svg',
             )
 
 
@@ -88,7 +112,8 @@ class CA9IconeEspecieTest(TestCase):
             destino.write_bytes(conteudo)
 
         def procurar_fake(nomes):
-            self.assertIn('Brachyura', nomes)
+            self.assertIn('cancer', nomes)
+            self.assertIn('brachyura', nomes)
             self.assertIn('Ucides cordatus', nomes)
             return 'https://images/vector.svg'
 
