@@ -20,6 +20,21 @@ const TILES_VOYAGER = [
   'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
 ]
 
+function conectarFallbackDoIcone(pin: HTMLElement, icone: HTMLImageElement) {
+  const mostrarFallback = () => {
+    icone.remove()
+    pin
+      .querySelectorAll('[data-fallback-crab], [data-fallback-crab-patas], [data-fallback-crab-olho]')
+      .forEach((parte) => {
+        ;(parte as HTMLElement).removeAttribute('style')
+      })
+  }
+  icone.addEventListener('error', mostrarFallback)
+  if (icone.complete && icone.naturalWidth === 0) {
+    mostrarFallback()
+  }
+}
+
 function construirEstilo(apiKey: string | undefined) {
   const tiles = apiKey
     ? TILES_VOYAGER.map((tile) => `${tile}?key=${apiKey}`)
@@ -194,11 +209,11 @@ export function MapView({
         '<svg width="34" height="46" viewBox="0 0 34 46" class="drop-shadow-md">' +
         '<path d="M17 1C8.2 1 1 8.2 1 17c0 7.41 6.49 15.33 12.39 21.83C14.39 42.83 15.63 44 17 44s2.61-1.17 3.61-2.17C26.51 32.33 33 24.41 33 17 33 8.2 25.8 1 17 1Z" class="fill-destructive"/>' +
         '<circle cx="17" cy="17" r="10" class="fill-background"/>' +
-        '<g class="fill-destructive">' +
+        '<g data-fallback-crab class="fill-destructive" style="display: none">' +
         '<circle cx="12" cy="12.65" r="2.1"/><circle cx="22" cy="12.65" r="2.1"/>' +
         '<ellipse cx="17" cy="17.75" rx="4.5" ry="3.1"/>' +
         '</g>' +
-        '<g class="stroke-destructive" fill="none" stroke-width="1.5" stroke-linecap="round">' +
+        '<g data-fallback-crab-patas class="stroke-destructive" fill="none" stroke-width="1.5" stroke-linecap="round" style="display: none">' +
         '<path d="M13.6 15.35Q12.6 14.35 12.2 13.25"/>' +
         '<path d="M20.4 15.35Q21.4 14.35 21.8 13.25"/>' +
         '<path d="M13.5 18.95 10.6 20.55"/>' +
@@ -208,9 +223,14 @@ export function MapView({
         '<path d="M13.4 20.75 11.6 23.45"/>' +
         '<path d="M23.4 20.75 22.4 23.45"/>' +
         '</g>' +
-        '<circle cx="15.3" cy="16.05" r="0.75" class="fill-background"/>' +
-        '<circle cx="18.7" cy="16.05" r="0.75" class="fill-background"/>' +
-        '</svg>'
+        '<circle data-fallback-crab-olho cx="15.3" cy="16.05" r="0.75" class="fill-background" style="display: none"/>' +
+        '<circle data-fallback-crab-olho cx="18.7" cy="16.05" r="0.75" class="fill-background" style="display: none"/>' +
+        '</svg>' +
+        '<img data-icono-phylopic alt="" aria-hidden="true" src="/api/especies/caranguejo-uca/icone/" width="18" height="14" class="pointer-events-none absolute left-[8px] top-[10px] select-none" />'
+      const iconoPhylopic = el.querySelector('img[data-icono-phylopic]')
+      if (iconoPhylopic) {
+        conectarFallbackDoIcone(el, iconoPhylopic as HTMLImageElement)
+      }
       el.addEventListener('click', () => {
         const ponto = map.project(coordenada)
         setPosBolha({ x: ponto.x, y: ponto.y })

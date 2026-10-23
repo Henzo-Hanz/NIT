@@ -149,4 +149,27 @@ describe('CA-4: pin de Parnaíba abre bolha com a contagem', () => {
     expect(screen.getByTestId('ver-especies')).toBeInTheDocument()
     expect(screen.queryByTestId('lista-especies-bolha')).toBeNull()
   })
+
+  it('pin usa a silhueta PhyloPic e cai no crab desenhado quando a imagem falha', async () => {
+    configurarFetch({ '/api/geometrias/': FEATURE_COLLECTION })
+    render(<MapView />)
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-testid="pin-parnaiba"]')).not.toBeNull()
+    })
+    const pin = document.querySelector('[data-testid="pin-parnaiba"]') as HTMLElement
+    const icone = pin.querySelector('img[data-icono-phylopic]') as HTMLImageElement
+    expect(icone.getAttribute('src')).toBe('/api/especies/caranguejo-uca/icone/')
+    const partesFallback = Array.from(
+      pin.querySelectorAll('[data-fallback-crab], [data-fallback-crab-patas], [data-fallback-crab-olho]'),
+    )
+    expect(partesFallback.length).toBeGreaterThan(0)
+    for (const parte of partesFallback) {
+      expect((parte as HTMLElement).hasAttribute('style')).toBe(true)
+    }
+    icone.dispatchEvent(new Event('error'))
+    expect(pin.querySelector('img[data-icono-phylopic]')).toBeNull()
+    for (const parte of partesFallback) {
+      expect((parte as HTMLElement).hasAttribute('style')).toBe(false)
+    }
+  })
 })
