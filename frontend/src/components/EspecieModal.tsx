@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, X } from 'lucide-react'
+import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { buscarEspecie, type EspecieDetalhe } from '@/lib/api'
@@ -12,6 +13,7 @@ interface EspecieModalProps {
 export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
   const [ficha, setFicha] = useState<EspecieDetalhe | null>(null)
   const [indisponivel, setIndisponivel] = useState(false)
+  const entradasInfos = ficha ? Object.entries(ficha.infos ?? {}) : []
 
   useEffect(() => {
     let vivo = true
@@ -63,7 +65,10 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
               <X className="size-4" />
             </Button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar p-6" aria-live="polite">
+          <div
+            className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-6 no-scrollbar"
+            aria-live="polite"
+          >
             {indisponivel && (
               <p
                 data-testid="modal-indisponivel"
@@ -85,7 +90,7 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
                 {ficha.nome_cientifico && (
                   <p
                     data-testid="nome-cientifico"
-                    className="mt-4 inline-flex rounded-full bg-primary/10 px-3.5 py-1.5 text-xs italic text-primary"
+                    className="inline-flex items-center rounded-full bg-primary/10 px-3.5 py-1.5 text-xs italic text-primary"
                   >
                     <span className="mr-1 not-italic font-semibold tracking-wide">Nome Científico:</span>
                     {ficha.nome_cientifico}
@@ -93,27 +98,34 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
                 )}
                 <p
                   data-testid="descricao-especie"
-                  className="mt-4 text-sm leading-relaxed text-foreground"
+                  className="text-sm leading-relaxed text-foreground"
                 >
                   {ficha.descricao}
                 </p>
                 <dl
-                  className={`mt-6 grid gap-3 ${Object.entries(ficha.infos ?? {}).length > 1 ? 'sm:grid-cols-2' : ''}`}
+                  className={`grid gap-3 ${entradasInfos.length > 1 ? 'sm:grid-cols-2' : ''}`}
                 >
-                  {Object.entries(ficha.infos ?? {}).map(([chave, valor]) => (
-                    <div
-                      key={chave}
-                      data-testid="info-especie"
-                      className="rounded-xl border border-primary/15 bg-accent/40 p-3.5 transition-shadow hover:shadow-md"
-                    >
-                      <dt className="text-[0.7rem] font-semibold uppercase tracking-wide text-primary/80">
-                        {chave.replace(/_/g, ' ')}
-                      </dt>
-                      <dd className="mt-1 text-sm">{String(valor)}</dd>
-                    </div>
-                  ))}
+                  {entradasInfos.map(([chave, valor], indice) => {
+                    const ultimoSolitario =
+                      indice === entradasInfos.length - 1 && entradasInfos.length > 1 && entradasInfos.length % 2 === 1
+                    return (
+                      <div
+                        key={chave}
+                        data-testid="info-especie"
+                        className={cn(
+                          'rounded-xl border border-primary/15 bg-accent/40 p-3.5 transition-shadow hover:shadow-md',
+                          ultimoSolitario && 'sm:col-span-2',
+                        )}
+                      >
+                        <dt className="text-[0.7rem] font-semibold uppercase tracking-wide text-primary/80">
+                          {chave.replace(/_/g, ' ')}
+                        </dt>
+                        <dd className="mt-1 text-sm">{String(valor)}</dd>
+                      </div>
+                    )
+                  })}
                 </dl>
-                <div className="mt-6 flex justify-center">
+                <div className="flex justify-center">
                   <Button
                     variant="default"
                     size="sm"
