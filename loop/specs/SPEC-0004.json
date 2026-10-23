@@ -1,0 +1,112 @@
+{
+  "id": "SPEC-0004",
+  "prompt_original": "O usuário aprovou os defaults do refino com correção explícita no fluxo do pin: \"tudo o que vc assumiu ta certo, mas antes, no 2, eu quero que o pin seja apenas um pin, ai clicar uma pequena bolha abre com a mensagem da quantidade de carangueijos, e abaixo um botão 'Ver espécies' e aí ele mostra os 3 que mencionei, e cada opção é um botão modal de fato, que fica no meio da tela com todas as sessões que mencionei\". Base (pedido da SPEC-0003, parte front): delimitar espaços, pontos, linhas e polígonos no mapa com as APIs atuais, usando os mocks do backend entregue (ponto Parnaíba com 223 espécies de caranguejos, linha de costa e polígono APA) e ficha de espécie no estilo geral (foto centralizada, parágrafo descritivo e infos inventadas) para caranguejo-uçá (sirgeijo), maria-farinha e caranguejeiro-laranja-do-norte. Decisões do refino: (1a) imagens via endpoint no back GET /api/especies/:slug/imagem/ (fonte única); (2) fluxo do pin conforme citação acima (ficha em MODAL centralizado sobre o mapa, sem rota dedicada); (3a) item Espécies do header navega a rota real /especies com listagem (cards) das 3 fichas.",
+  "objetivo": "Front da interação mapa-dados da spec anterior: geometrias do backend visíveis no mapa, pin de Parnaíba com bolha de contagem e lista das 3 espécies, ficha de espécie em modal centralizado (foto, parágrafo, infos), filtros reais de tipo no painel de camadas e listagem /especies no design planejado na SPEC-0002; inclui mini-fase back (1 endpoint) para servir os placeholders de imagem.",
+  "estado_referencia": "0acc579 (main contém SPEC-0001/0002/0003) + react-router 8.4.0 e msw já no package.json",
+  "escopo": {
+    "back": [
+      "Endpoint GET /api/especies/:slug/imagem/ servindo o placeholder SVG da espécie (FileResponse, Content-Type image/svg+xml; 404 para slug inexistente)",
+      "Testes por CA: backend/**/test_CA_1_imagem_especie.py, backend/**/test_CA_2_imagem_404.py (+ perf/query de imagem)"
+    ],
+    "front": [
+      "MapView: busca /api/geometrias ao montar e adiciona source GeoJSON + layers para ponto (circle), linha (line) e polígono (fill) sobre o basemap da SPEC-0002",
+      "Pin de Parnaíba (marker) clicável: bolha pequena com '223 espécies de caranguejos encontradas' + botão 'Ver espécies'; a seguir a bolha mostra as 3 espécies (nome popular) e cada opção abre o modal da ficha; bolha fecha ao abrir o modal",
+      "EspecieModal: modal centralizado sobre o mapa com foto centralizada (endpoint de imagem), nome popular, nome científico quando houver, parágrafo de descrição e sessão de infos em cards/dl; fechamento por X, tecla Esc e botão Voltar ao mapa",
+      "Rota /especies (react-router já instalado): listagem das 3 espécies em cards; clicar card abre o mesmo EspecieModal; item Espécies do HeaderBar aponta à rota (demais itens permanecem âncora)",
+      "CamadasPanel: substituir mocks por 3 filtros reais por tipo (Pontos/Linhas/Polígonos), todos ligados no carregamento; alternância liga/desliga a layer correspondente no mapa",
+      "Testes front: arquivos CA_3_geometrias_mapa, CA_4_pin_bolha, CA_5_lista_bolha, CA_6_ficha_modal, CA_7_camadas_filtros, CA_8_rota_especies; reescrita do CA_3_camadas.test.tsx da SPEC-0002 para o painel real"
+    ]
+  },
+  "fora_de_escopo": [
+    "Ferramenta de desenho/edição de geometrias no mapa (draw)",
+    "Fotos oficiais (manter SVGs placeholders do backend)",
+    "Rota dedicada por espécie (ficha é modal centralizado, decisão do usuário)",
+    "Itens de nav do header além de Espécies (continuam âncoras mock)",
+    "PostGIS/Postgres, autenticação, paginação",
+    "Novo design que fuja do design system da SPEC-0002"
+  ],
+  "criterios_aceitacao": [
+    {
+      "id": "CA-1",
+      "camada": "back",
+      "descricao": "Dado o backend com seed_demo executado, quando GET /api/especies/caranguejo-uca/imagem/, então responde 200 com Content-Type image/svg+xml; análogo para caranguejo-maria-farinha e caranguejeiro-laranja-do-norte."
+    },
+    {
+      "id": "CA-2",
+      "camada": "back",
+      "descricao": "Dado GET /api/especies/slug-inexistente/imagem/, então responde 404 [borda]."
+    },
+    {
+      "id": "CA-3",
+      "camada": "front",
+      "descricao": "Dado o MapView montado com /api/geometrias respondendo o FeatureCollection mockado, então o mapa ganha source GeoJSON com as 3 geometrias e layers para ponto, linha e polígono."
+    },
+    {
+      "id": "CA-4",
+      "camada": "front",
+      "descricao": "Dado o mapa com geometrias, quando clicado o pin de Parnaíba, então abre bolha pequena com '223 espécies de caranguejos encontradas' e botão Ver espécies; a bolha fecha ao abrir o modal [borda]."
+    },
+    {
+      "id": "CA-5",
+      "camada": "front",
+      "descricao": "Dado a bolha aberta, quando clicado Ver espécies, então a bolha mostra as 3 espécies com nome popular e cada opção é um botão que abre o modal da ficha correspondente."
+    },
+    {
+      "id": "CA-6",
+      "camada": "front",
+      "descricao": "Dado o modal da ficha aberto para caranguejo-uca, então mostra foto centralizada (img apontando ao endpoint de imagem), nome popular, nome científico, parágrafo de descrição e infos em cards/dl; fechamento por botão e tecla Esc retorna ao mapa sem traço do modal."
+    },
+    {
+      "id": "CA-7",
+      "camada": "front",
+      "descricao": "Dado o CamadasPanel com filtros reais, então os 3 filtros iniciam ligados e a alternância de cada tipo altera a visibilidade da layer correspondente no mapa."
+    },
+    {
+      "id": "CA-8",
+      "camada": "front",
+      "descricao": "Dado o header, quando clicado o item Espécies, então navega a /especies com listagem das 3 espécies em cards, e cada card abre o mesmo modal centralizado da ficha."
+    }
+  ],
+  "contrato_api_rascunho": [
+    {
+      "metodo": "GET",
+      "rota": "/api/especies/:slug/imagem/",
+      "request": {},
+      "response": "bytes do placeholder SVG com Content-Type image/svg+xml",
+      "erros": [
+        "404 slug inexistente"
+      ]
+    },
+    {
+      "metodo": "GET",
+      "rota": "/api/geometrias",
+      "request": {},
+      "response": "FeatureCollection (já entregue na SPEC-0003, consumido aqui)",
+      "erros": []
+    }
+  ],
+  "ja_existe_na_codebase": [
+    "backend: /api/especies/, /api/especies/:slug/, /api/geometrias/?tipo= e seed_demo entregues na SPEC-0003; placeholders SVG em biodiversidade/midia/ (nada os serve via HTTP ainda)",
+    "frontend: react-router 8.4.0, @tanstack/react-query e msw já no package.json (nenhuma dependência nova); MapView só basemap (sem sources ou dados); CamadasPanel com mocks; App sem rotas; HeaderBar com 4 itens de nav mock",
+    "components/ui: apenas button.tsx; dialog/card podem ser adicionados via shadcn CLI sem dependência npm nova",
+    "testes front: MapFake por export nomeado Map (vim mock maplibre-gl); back: test_CA_<n>_*.py com seed via call_command"
+  ],
+  "laya_consultado": false,
+  "premissas": [
+    "Fluxo do pin exatamente como decidido pelo usuário: pin simples clicável, bolha pequena com a contagem e o botão Ver espécies, os 3 nomes na própria bolha após o botão, e cada opção abre modal centralizado com foto, parágrafo e infos",
+    "A ficha é modal sobre o mapa (sem rota dedicada); rota /especies lista e reabre o mesmo modal (decisões 2 e 3a do refino)",
+    "CAMADAS iniciam com os 3 tipos ligados; desligar um tipo esconde a layer correspondente (visibilidade layout)",
+    "msw intercepta /api/* nos testes front; MapFake estendido para addSource/addLayer/marker nos novos testes",
+    "Anti-fluxo com falhas mostrado e coerente com o usado no SeloStatus: bolha e modal têm placeholders de indisponível (planejamento integrado de estados de erro)",
+    "Pic da atribuição de fonte do maplibre Marker/Popup não entra: bolha feita em DOM React posicionado no container (sem depender de Popup)"
+  ],
+  "perguntas_abertas": [],
+  "dependencias": {
+    "front_depende_de_back": true
+  },
+  "perguntas_iteracao": [],
+  "status": "aprovada",
+  "aprovada_por": "hanz_dev",
+  "aprovada_em": "2026-10-23 09h05 (São Paulo)",
+  "hash_aprovacao": "000f7e2eb4feb7c6c87a1c33bc6f3199d6ea49fbacd6f80abe45c35b59ee3a0e"
+}
