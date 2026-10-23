@@ -31,10 +31,12 @@ class HelpersPhylopicTest(TestCase):
             },
             {
                 '_embedded': {
-                    'primaryImage': {
-                        'uuid': 'bbbbbbbb-0000-0000-0000-000000000000',
-                        '_links': {'vectorFile': {'href': 'https://images/vector1.svg'}},
-                    }
+                    'items': [
+                        {
+                            'uuid': 'bbbbbbbb-0000-0000-0000-000000000000',
+                            '_links': {'vectorFile': {'href': 'https://images/vector1.svg'}},
+                        }
+                    ]
                 }
             },
         ]
@@ -53,6 +55,7 @@ class HelpersPhylopicTest(TestCase):
             {'build': 560},
             {'_links': {'items': []}},
             {'_links': {'items': [{'href': '/nodes/dddddddd-0000-0000-0000-000000000000'}]}},
+            {'_embedded': {'items': []}},
             {'_embedded': {'primaryImage': {'_links': {'vectorFile': {'href': 'https://images/vector2.svg'}}}}},
         ]
 

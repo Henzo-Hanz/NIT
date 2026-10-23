@@ -79,6 +79,13 @@ def _procurar_imagem_por_nomes(nomes):
             uuid_no = _uuid_de_href(itens[0].get('href') if itens else None)
             if uuid_no is None:
                 continue
+            imagens = _pegar_json(
+                f'{BASE_PHYLOPIC}/images?build={build}&page=0&filter_node={uuid_no}&embed_items=true'
+            ).get('_embedded', {}).get('items', [])
+            if imagens:
+                url_vetor = imagens[0].get('_links', {}).get('vectorFile', {}).get('href')
+                if url_vetor:
+                    return url_vetor
             no = _pegar_json(f'{BASE_PHYLOPIC}/nodes/{uuid_no}?embed_primaryImage=true&build={build}')
             imagem = no.get('_embedded', {}).get('primaryImage')
             url_vetor = imagem.get('_links', {}).get('vectorFile', {}).get('href') if imagem else None
