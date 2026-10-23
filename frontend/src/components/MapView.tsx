@@ -20,7 +20,7 @@ const TILES_VOYAGER = [
   'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
 ]
 
-function conectarFallbackDoIcone(pin: HTMLElement, icone: HTMLImageElement) {
+function conectarFallbackDoIcone(pin: HTMLElement, icone: Element) {
   const mostrarFallback = () => {
     icone.remove()
     pin
@@ -30,9 +30,6 @@ function conectarFallbackDoIcone(pin: HTMLElement, icone: HTMLImageElement) {
       })
   }
   icone.addEventListener('error', mostrarFallback)
-  if (icone.complete && icone.naturalWidth === 0) {
-    mostrarFallback()
-  }
 }
 
 function construirEstilo(apiKey: string | undefined) {
@@ -206,9 +203,10 @@ export function MapView({
       el.setAttribute('aria-label', 'Parnaíba')
       el.className = 'relative cursor-pointer select-none'
       el.innerHTML =
-        '<svg width="34" height="46" viewBox="0 0 34 46" class="drop-shadow-md">' +
+        '<svg width="46" height="62" viewBox="0 0 34 46" class="drop-shadow-md">' +
         '<path d="M17 1C8.2 1 1 8.2 1 17c0 7.41 6.49 15.33 12.39 21.83C14.39 42.83 15.63 44 17 44s2.61-1.17 3.61-2.17C26.51 32.33 33 24.41 33 17 33 8.2 25.8 1 17 1Z" class="fill-destructive"/>' +
         '<circle cx="17" cy="17" r="10" class="fill-background"/>' +
+        '<image data-icono-phylopic x="7" y="9.5" width="20" height="15" href="/api/especies/caranguejo-uca/icone/"/>' +
         '<g data-fallback-crab class="fill-destructive" style="display: none">' +
         '<circle cx="12" cy="12.65" r="2.1"/><circle cx="22" cy="12.65" r="2.1"/>' +
         '<ellipse cx="17" cy="17.75" rx="4.5" ry="3.1"/>' +
@@ -225,11 +223,10 @@ export function MapView({
         '</g>' +
         '<circle data-fallback-crab-olho cx="15.3" cy="16.05" r="0.75" class="fill-background" style="display: none"/>' +
         '<circle data-fallback-crab-olho cx="18.7" cy="16.05" r="0.75" class="fill-background" style="display: none"/>' +
-        '</svg>' +
-        '<img data-icono-phylopic alt="" aria-hidden="true" src="/api/especies/caranguejo-uca/icone/" width="18" height="14" class="pointer-events-none absolute left-[8px] top-[10px] select-none" />'
-      const iconoPhylopic = el.querySelector('img[data-icono-phylopic]')
+        '</svg>'
+      const iconoPhylopic = el.querySelector('image[data-icono-phylopic]')
       if (iconoPhylopic) {
-        conectarFallbackDoIcone(el, iconoPhylopic as HTMLImageElement)
+        conectarFallbackDoIcone(el, iconoPhylopic)
       }
       el.addEventListener('click', () => {
         const ponto = map.project(coordenada)

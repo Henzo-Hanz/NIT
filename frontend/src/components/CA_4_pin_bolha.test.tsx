@@ -157,8 +157,8 @@ describe('CA-4: pin de Parnaíba abre bolha com a contagem', () => {
       expect(document.querySelector('[data-testid="pin-parnaiba"]')).not.toBeNull()
     })
     const pin = document.querySelector('[data-testid="pin-parnaiba"]') as HTMLElement
-    const icone = pin.querySelector('img[data-icono-phylopic]') as HTMLImageElement
-    expect(icone.getAttribute('src')).toBe('/api/especies/caranguejo-uca/icone/')
+    const icone = pin.querySelector('image[data-icono-phylopic]')
+    expect(icone?.getAttribute('href')).toBe('/api/especies/caranguejo-uca/icone/')
     const partesFallback = Array.from(
       pin.querySelectorAll('[data-fallback-crab], [data-fallback-crab-patas], [data-fallback-crab-olho]'),
     )
@@ -166,8 +166,8 @@ describe('CA-4: pin de Parnaíba abre bolha com a contagem', () => {
     for (const parte of partesFallback) {
       expect((parte as HTMLElement).hasAttribute('style')).toBe(true)
     }
-    icone.dispatchEvent(new Event('error'))
-    expect(pin.querySelector('img[data-icono-phylopic]')).toBeNull()
+    icone?.dispatchEvent(new Event('error'))
+    expect(pin.querySelector('image[data-icono-phylopic]')).toBeNull()
     for (const parte of partesFallback) {
       expect((parte as HTMLElement).hasAttribute('style')).toBe(false)
     }
