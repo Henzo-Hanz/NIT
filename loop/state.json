@@ -1,20 +1,31 @@
 {
   "spec_id": "SPEC-0004",
-  "fase": "back",
-  "gate": 1,
+  "fase": "entregue",
+  "gate": null,
   "tentativa": 1,
-  "pr_url": null,
-  "card_url": null,
+  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/4",
+  "card_url": "https://trello.com/c/ZC9FQpch/spec-0004-mapa-interativo-pin-bolha-de-parnaíba-fichas-em-modal",
+  "api_entregues": [
+    "GET /api/especies/:slug/imagem/ (FileResponse SVG; 404 [borda])",
+    "Front consumes: GET /api/geometrias (source GeoJSON + layers), GET /api/especies (bolha e listagem), GET /api/especies/:slug (modal)"
+  ],
+  "gates": {
+    "back": { "gate1": "aprovado (CA-1/CA-2 imagem)", "gate2": "aprovado (suíte 1.9s)", "gate3": "aprovado", "tentativa": 1 },
+    "front": { "gate1": "aprovado (CA-3..CA-8; 22 testes vitest)", "gate2": "aprovado (suíte 2.8s)", "gate3": "aprovado", "tentativa": 1 }
+  },
+  "fluxo_pin": "pin simples > bolha pequena com '223 espécies de caranguejos encontradas' + botão 'Ver espécies ▾' > as 3 espécies listadas na própria bolha > cada opção abre modal centralizado (foto central, parágrafo, infos em cards) sobre o mapa",
   "aprovacao": {
-    "data": "2026-10-23 09h05 (S\u00e3o Paulo)",
+    "data": "2026-10-23 09h05 (São Paulo)",
     "por": "hanz_dev",
     "hash": "000f7e2eb4feb7c6c87a1c33bc6f3199d6ea49fbacd6f80abe45c35b59ee3a0e",
-    "origem": "comando expl\u00edcito no chat ('Aprove a spec abaixo em meu nome \u2014 SPEC-0004' + 'Execute o run-loop'); rascunho + fluxo do pin (pin > bolha com contagem + bot\u00e3o Ver esp\u00e9cies > lista das 3 na bolha > modal centralizado) apresentado no refino"
+    "origem": "comando explícito no chat ('Aprove a spec abaixo em meu nome — SPEC-0004' + 'Execute o run-loop'); fluxo do pin definido pelo usuário no refino"
   },
   "desvios": [
-    "PR #3 (SPEC-0003) ainda n\u00e3o mesclado: branch SPEC-0004 recriada com base empilhada em origin/SPEC-0003 (precedente da SPEC-0002); PR #4 ter\u00e1 base SPEC-0003 \u2014 revisor humano mescla em cascata",
-    "Nota: estado_referencia na spec menciona main com 0003 incorretamente \u2014 reflexo de refino anterior ao descobrimento do PR #3 aberto; escopo t\u00e9cnico inalterado",
-    "Fallback (como SPEC-0002/0003): implementer-back/front sem ferramentas de escrita; runner executa as fases direto, escopo por pasta e gates sem dispensa",
-    "Conflito de stash em loop/state.json resolvido descartando o stash e regravando o estado na branch correta"
+    "PR #3 (SPEC-0003) ainda aberto: branch/PR #4 criados com BASE EMPILHADA em origin/SPEC-0003 (precedente da SPEC-0002); revisar/mesclar #3 antes de #4",
+    "Push 403 do Henzo-Lopes repetido: gh auth switch/setup-git reexecutado (account do gh alterna entre sessões)",
+    "HeaderBar passou a usar react-router Link: testes antigos CA_2 (header) e CA_6 (tema) atualizados com MemoryRouter; CA_3 (camadas) reescrito para o painel real — evolução de testes registrada",
+    "Test-ids do painel ficaram no singular (camada-ponto/camada-linha/camada-poligono); layers do mapa ficaram no plural (camada-pontos/linhas/poligonos)",
+    "Bundle >1MB (maplibre) gera aviso de chunk no build — code-splitting fora de escopo; inteiro documentado no PR",
+    "Fallback (como SPEC-0002/0003): runner executou fases direto, escopo por pasta, gates sem dispensa"
   ]
 }
