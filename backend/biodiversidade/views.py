@@ -1,4 +1,5 @@
 from pathlib import Path
+import mimetypes
 
 import biodiversidade
 from django.http import FileResponse, Http404
@@ -35,7 +36,8 @@ def imagem_especie(request, slug):
     caminho = RAIZ_APP / registro.imagem.removeprefix('biodiversidade/')
     if not caminho.is_file():
         raise Http404
-    return FileResponse(caminho.open('rb'), content_type='image/svg+xml')
+    dispositivo, _ = mimetypes.guess_type(caminho.name)
+    return FileResponse(caminho.open('rb'), content_type=dispositivo or 'application/octet-stream')
 
 
 @api_view(['GET'])

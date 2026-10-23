@@ -17,5 +17,6 @@ describe('CA-2: header institucional com nav e selo de status', () => {
     expect(screen.getByTestId('nav-pesquisadores')).toBeInTheDocument()
     expect(screen.getByTestId('nav-acesso-do-gestor')).toBeInTheDocument()
     expect(screen.getByTestId('selo-status')).toBeInTheDocument()
+    expect(screen.getByTestId('logo-gov-pi')).toHaveAttribute('src', '/images/logos/logo_gov_pi.png')
   })
 })

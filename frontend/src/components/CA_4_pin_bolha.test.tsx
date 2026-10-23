@@ -90,8 +90,7 @@ afterEach(() => {
 })
 
 describe('CA-4: pin de Parnaíba abre bolha com a contagem', () => {
-  it('clique no pin abre bolha pequena com a mensagem e o botão Ver espécies', async () => {
-    const usuario = userEvent.setup()
+  it('clique no pin abre bolha pequena com a mensagem e o botão Ver espécies', async () => {    const usuario = userEvent.setup()
     configurarFetch({ '/api/geometrias/': FEATURE_COLLECTION })
     const { rerender } = render(<MapView />)
     await vi.waitFor(() => {
@@ -109,5 +108,45 @@ describe('CA-4: pin de Parnaíba abre bolha com a contagem', () => {
 
     rerender(<MapView modalAberto />)
     expect(screen.queryByTestId('bolha-parnaiba')).toBeNull()
+  })
+
+  it('botão fechar bolha e a tecla Esc fecham a bolha', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch({ '/api/geometrias/': FEATURE_COLLECTION })
+    render(<MapView />)
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-testid="pin-parnaiba"]')).not.toBeNull()
+    })
+    const pin = document.querySelector('[data-testid="pin-parnaiba"]') as HTMLElement
+    await usuario.click(pin)
+    expect(screen.getByTestId('bolha-parnaiba')).toBeInTheDocument()
+    await usuario.click(screen.getByTestId('fechar-bolha'))
+    expect(screen.queryByTestId('bolha-parnaiba')).toBeNull()
+    await usuario.click(pin)
+    expect(screen.getByTestId('bolha-parnaiba')).toBeInTheDocument()
+    await usuario.keyboard('{Escape}')
+    expect(screen.queryByTestId('bolha-parnaiba')).toBeNull()
+  })
+
+  it('seta de voltar na listagem retorna para a contagem', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch({
+      '/api/geometrias/': FEATURE_COLLECTION,
+      '/api/especies/': [
+        { slug: 'caranguejo-uca', nome_popular: 'Caranguejo-uçá' },
+        { slug: 'caranguejo-maria-farinha', nome_popular: 'Maria-farinha' },
+      ],
+    })
+    render(<MapView />)
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-testid="pin-parnaiba"]')).not.toBeNull()
+    })
+    const pin = document.querySelector('[data-testid="pin-parnaiba"]') as HTMLElement
+    await usuario.click(pin)
+    await usuario.click(screen.getByTestId('ver-especies'))
+    await screen.findByTestId('lista-especies-bolha')
+    await usuario.click(screen.getByTestId('bolha-voltar'))
+    expect(screen.getByTestId('ver-especies')).toBeInTheDocument()
+    expect(screen.queryByTestId('lista-especies-bolha')).toBeNull()
   })
 })

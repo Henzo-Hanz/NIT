@@ -18,7 +18,7 @@ const DialogPopup = ({
 }: ComponentProps<typeof DialogPrimitive.Popup>) => (
   <DialogPrimitive.Popup
     className={cn(
-      "fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[min(92vw,540px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-background p-6 shadow-2xl outline-none",
+      "fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[min(92vw,540px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl outline-none",
       className,
     )}
     {...props}

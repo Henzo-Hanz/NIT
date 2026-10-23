@@ -33,6 +33,12 @@ export function HeaderBar() {
         <span data-testid="tagline-nit" className="border-l border-primary-foreground/30 pl-2 text-xs opacity-90">
           Governo do Piauí · FAPEPI
         </span>
+        <img
+          data-testid="logo-gov-pi"
+          src="/images/logos/logo_gov_pi.png"
+          alt="Governo do Estado do Piauí"
+          className="h-8 w-auto rounded-full bg-white p-0.5"
+        />
       </div>
       <nav data-testid="nav-nit" aria-label="Navegação principal" className="hidden gap-1 md:flex">
         {ITENS_NAV.map((item) => {

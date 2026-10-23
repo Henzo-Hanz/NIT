@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ChevronDown, X } from 'lucide-react'
 import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Button } from '@/components/ui/button'
@@ -232,6 +233,19 @@ export function MapView({
     setListagemAberta(false)
   }
 
+  useEffect(() => {
+    if (!bolhaAberta || modalAberto) {
+      return
+    }
+    const aoTeclear = (evento: KeyboardEvent) => {
+      if (evento.key === 'Escape') {
+        fecharBolha()
+      }
+    }
+    document.addEventListener('keydown', aoTeclear)
+    return () => document.removeEventListener('keydown', aoTeclear)
+  }, [bolhaAberta, modalAberto])
+
   const comMapa = (acao: (map: MapLibreMap) => void) => () => {
     if (mapRef.current) {
       acao(mapRef.current)
@@ -259,22 +273,42 @@ export function MapView({
       {bolhaAberta && !modalAberto && posBolha && (
         <div
           data-testid="bolha-parnaiba"
-          className="absolute z-30 w-64 rounded-2xl border bg-background p-3 shadow-xl -translate-x-1/2"
-          style={{ left: posBolha.x, top: posBolha.y - 48 }}
+          className="absolute z-30 w-72 -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-background shadow-xl"
+          style={{ left: posBolha.x, top: posBolha.y - 56 }}
         >
+          <button
+            type="button"
+            data-testid="fechar-bolha"
+            aria-label="Fechar bolha"
+            className="absolute right-1.5 top-1.5 z-10 rounded-md bg-background/80 p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            onClick={fecharBolha}
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
           {listagemAberta ? (
             <div data-testid="lista-especies-bolha">
-              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                Caranguejos do litoral
-              </h3>
-              <ul className="flex flex-col gap-1">
+              <div className="flex items-center gap-1 bg-primary px-2 py-1.5 text-primary-foreground">
+                <button
+                  type="button"
+                  data-testid="bolha-voltar"
+                  aria-label="Voltar para a contagem"
+                  className="rounded-md p-1 text-lg leading-none transition-colors hover:bg-primary-foreground/15 focus-visible:ring-2 focus-visible:ring-primary-foreground focus-visible:outline-none"
+                  onClick={() => setListagemAberta(false)}
+                >
+                  ←
+                </button>
+                <h3 className="flex-1 truncate text-xs font-bold uppercase tracking-wide">
+                  Caranguejos do litoral
+                </h3>
+              </div>
+              <ul className="flex max-h-56 flex-col overflow-y-auto p-1 no-scrollbar">
                 {(especies ?? []).map((item) => (
                   <li key={item.slug}>
                     <Button
                       variant="ghost"
                       size="sm"
                       data-testid={`especie-opcao-${item.slug}`}
-                      className="w-full justify-start"
+                      className="w-full justify-start rounded-lg hover:bg-accent"
                       onClick={() => {
                         fecharBolha()
                         onAbrirEspecie?.(item.slug)
@@ -287,18 +321,19 @@ export function MapView({
               </ul>
             </div>
           ) : (
-            <>
-              <p className="text-sm font-medium leading-snug">{contagemParnaiba}</p>
+            <div className="p-3">
+              <p className="text-sm font-medium leading-snug text-foreground">{contagemParnaiba}</p>
               <Button
-                variant="outline"
+                variant="default"
                 size="sm"
                 data-testid="ver-especies"
-                className="mt-2 w-full"
+                className="mt-2 w-full justify-between"
                 onClick={abrirLista}
               >
-                Ver espécies ▾
+                Ver espécies
+                <ChevronDown className="size-3.5" aria-hidden="true" />
               </Button>
-            </>
+            </div>
           )}
         </div>
       )}

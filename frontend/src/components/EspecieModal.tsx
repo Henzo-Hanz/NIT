@@ -46,9 +46,10 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
         <Dialog.Popup
           data-testid="modal-especie"
           aria-label="Ficha da espécie"
+          className="no-scrollbar"
         >
-          <div className="flex items-start justify-between gap-4">
-            <h2 data-testid="nome-popular-modal" className="text-xl font-bold text-foreground">
+          <div className="flex shrink-0 items-center justify-between gap-3 bg-primary px-5 py-3 text-primary-foreground">
+            <h2 data-testid="nome-popular-modal" className="truncate text-lg font-bold">
               {ficha ? ficha.nome_popular : 'Carregando…'}
             </h2>
             <Button
@@ -57,11 +58,12 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
               data-testid="fechar-especie"
               aria-label="Fechar ficha"
               onClick={onFechar}
+              className="text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
             >
               <X className="size-4" />
             </Button>
           </div>
-          <div aria-live="polite">
+          <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar p-5" aria-live="polite">
             {indisponivel && (
               <p
                 data-testid="modal-indisponivel"
@@ -72,7 +74,7 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
             )}
             {ficha && (
               <>
-                <div className="overflow-hidden rounded-2xl border bg-accent">
+                <div className="overflow-hidden rounded-2xl border border-border bg-accent ring-2 ring-primary/20">
                   <img
                     data-testid="foto-especie"
                     alt={ficha.nome_popular}
@@ -83,7 +85,7 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
                 {ficha.nome_cientifico && (
                   <p
                     data-testid="nome-cientifico"
-                    className="mt-3 inline-flex rounded-full bg-muted px-3 py-1 text-xs italic text-muted-foreground"
+                    className="mt-3 inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs italic text-primary"
                   >
                     {ficha.nome_cientifico}
                   </p>
@@ -99,9 +101,9 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
                     <div
                       key={chave}
                       data-testid="info-especie"
-                      className="rounded-xl border bg-card p-3"
+                      className="rounded-xl border border-primary/15 bg-accent/40 p-3 transition-shadow hover:shadow-md"
                     >
-                      <dt className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <dt className="text-[0.7rem] font-semibold uppercase tracking-wide text-primary/80">
                         {chave.replace(/_/g, ' ')}
                       </dt>
                       <dd className="mt-0.5 text-sm">{String(valor)}</dd>
@@ -110,7 +112,7 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
                 </dl>
                 <div className="mt-5 flex justify-end">
                   <Button
-                    variant="outline"
+                    variant="default"
                     size="sm"
                     data-testid="voltar-mapa"
                     onClick={onFechar}
