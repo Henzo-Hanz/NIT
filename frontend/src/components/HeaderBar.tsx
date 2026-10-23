@@ -1,10 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { SeloStatus } from '@/components/SeloStatus'
 import { alternarTema, iniciarTema, temaSalvo, type Tema } from '@/lib/tema'
-import { useEffect } from 'react'
 
-const ITENS_NAV = ['Início', 'Observatório', 'Pesquisadores', 'Acesso do Gestor'] as const
+type ItemNav = { rotulo: string; caminho?: string }
+
+const ITENS_NAV: ItemNav[] = [
+  { rotulo: 'Início' },
+  { rotulo: 'Espécies', caminho: '/especies' },
+  { rotulo: 'Pesquisadores' },
+  { rotulo: 'Acesso do Gestor' },
+]
 
 export function HeaderBar() {
   const [tema, setTema] = useState<Tema>('claro')
@@ -28,17 +35,32 @@ export function HeaderBar() {
         </span>
       </div>
       <nav data-testid="nav-nit" aria-label="Navegação principal" className="hidden gap-1 md:flex">
-        {ITENS_NAV.map((item) => (
-          <Button
-            key={item}
-            variant="ghost"
-            size="sm"
-            data-testid={`nav-${item.toLowerCase().replace(/\s+/g, '-')}`}
-            className="text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
-          >
-            {item}
-          </Button>
-        ))}
+        {ITENS_NAV.map((item) => {
+          const testid = `nav-${item.rotulo.toLowerCase().replace(/\s+/g, '-')}`
+          if (item.caminho) {
+            return (
+              <Link
+                key={item.rotulo}
+                to={item.caminho}
+                data-testid={testid}
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
+              >
+                {item.rotulo}
+              </Link>
+            )
+          }
+          return (
+            <Button
+              key={item.rotulo}
+              variant="ghost"
+              size="sm"
+              data-testid={testid}
+              className="text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
+            >
+              {item.rotulo}
+            </Button>
+          )
+        })}
       </nav>
       <div className="flex items-center gap-3">
         <SeloStatus />

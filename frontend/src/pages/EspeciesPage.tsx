@@ -1,0 +1,67 @@
+import { useEffect, useState } from 'react'
+import { EspecieModal } from '@/components/EspecieModal'
+import { buscarEspecies, type EspecieResumo } from '@/lib/api'
+
+export function EspeciesPage() {
+  const [especies, setEspecies] = useState<EspecieResumo[] | null>(null)
+  const [indisponivel, setIndisponivel] = useState(false)
+  const [slugAberto, setSlugAberto] = useState<string | null>(null)
+
+  useEffect(() => {
+    let vivo = true
+    buscarEspecies().then((dados) => {
+      if (!vivo) {
+        return
+      }
+      if (dados) {
+        setEspecies(dados)
+      } else {
+        setIndisponivel(true)
+      }
+    })
+    return () => {
+      vivo = false
+    }
+  }, [])
+
+  return (
+    <section
+      data-testid="pagina-especies"
+      className="absolute inset-0 z-10 overflow-y-auto px-4 pb-10 pt-16"
+    >
+      <h1 data-testid="especies-titulo" className="mb-4 text-2xl font-bold">
+        Espécies do litoral do Piauí
+      </h1>
+      {indisponivel && (
+        <p
+          data-testid="especies-indisponivel"
+          className="rounded-lg border bg-background p-4 text-sm text-muted-foreground"
+        >
+          Listagem indisponível no momento. Verifique a conexão.
+        </p>
+      )}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {(especies ?? []).map((item) => (
+          <button
+            key={item.slug}
+            type="button"
+            data-testid={`card-especie-${item.slug}`}
+            onClick={() => setSlugAberto(item.slug)}
+            className="rounded-2xl border bg-background p-4 text-left shadow-sm transition hover:shadow-md"
+          >
+            <img
+              alt={item.nome_popular}
+              src={`/api/especies/${item.slug}/imagem/`}
+              className="mb-3 h-32 w-full rounded-xl border object-contain p-2"
+            />
+            <h3 className="font-bold">{item.nome_popular}</h3>
+            {item.nome_cientifico && (
+              <p className="text-xs italic text-muted-foreground">{item.nome_cientifico}</p>
+            )}
+          </button>
+        ))}
+      </div>
+      {slugAberto && <EspecieModal slug={slugAberto} onFechar={() => setSlugAberto(null)} />}
+    </section>
+  )
+}
