@@ -21,6 +21,7 @@
     "origem": "comando explícito no chat ('Aprove a spec abaixo em meu nome — SPEC-0004' + 'Execute o run-loop'); fluxo do pin definido pelo usuário no refino"
   },
   "desvios": [
+    "P\u00f3s-delivery (debug systematic): `npm run dev -- --host` falhava via hostname (fedora/fedora.local) \u2014 Vite 8 bloqueava header Host com 403 'Blocked request' p\u00e1gina+proxy /api (IPs passavam); fix raiz em frontend/vite.config.ts: server.allowedHosts=[os.hostname(), '.local'], mantendo bloqueio de dom\u00ednios arbitr\u00e1rios; verificado por curl (200/200 nos hosts leg\u00edtimos, 403 mantido p/ exemplo.com)",
     "PR #3 (SPEC-0003) ainda aberto: branch/PR #4 criados com BASE EMPILHADA em origin/SPEC-0003 (precedente da SPEC-0002); revisar/mesclar #3 antes de #4",
     "Push 403 do Henzo-Lopes repetido: gh auth switch/setup-git reexecutado (account do gh alterna entre sessões)",
     "HeaderBar passou a usar react-router Link: testes antigos CA_2 (header) e CA_6 (tema) atualizados com MemoryRouter; CA_3 (camadas) reescrito para o painel real — evolução de testes registrada",
