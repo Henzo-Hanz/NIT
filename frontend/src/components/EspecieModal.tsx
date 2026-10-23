@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
 import { buscarEspecie, type EspecieDetalhe } from '@/lib/api'
 
 interface EspecieModalProps {
@@ -30,94 +32,97 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
     }
   }, [slug])
 
-  useEffect(() => {
-    const aoTeclear = (evento: KeyboardEvent) => {
-      if (evento.key === 'Escape') {
-        onFechar()
-      }
-    }
-    document.addEventListener('keydown', aoTeclear)
-    return () => document.removeEventListener('keydown', aoTeclear)
-  }, [onFechar])
-
   return (
-    <div
-      data-testid="modal-especie"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Ficha da espécie"
-      className="absolute inset-0 z-40 flex items-center justify-center p-4"
+    <Dialog.Root
+      open
+      onOpenChange={(aberto) => {
+        if (!aberto) {
+          onFechar()
+        }
+      }}
     >
-      <button
-        type="button"
-        data-testid="modal-fundo"
-        aria-label="Fechar ficha"
-        onClick={onFechar}
-        className="absolute inset-0 bg-foreground/40"
-      />
-      <div className="relative z-10 max-h-[80vh] w-[min(92vw,520px)] overflow-y-auto rounded-2xl border bg-background p-6 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
-          <h2 data-testid="nome-popular-modal" className="text-xl font-bold">{ficha ? ficha.nome_popular : 'Carregando…'}</h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            data-testid="fechar-especie"
-            aria-label="Fechar ficha"
-            onClick={onFechar}
-          >
-            ✕
-          </Button>
-        </div>
-        {indisponivel && (
-          <p
-            data-testid="modal-indisponivel"
-            className="py-8 text-center text-sm text-muted-foreground"
-          >
-            Ficha indisponível no momento. Verifique a conexão.
-          </p>
-        )}
-        {ficha && (
-          <>
-            <img
-              data-testid="foto-especie"
-              alt={ficha.nome_popular}
-              src={`/api/especies/${slug}/imagem/`}
-              className="mx-auto my-4 h-44 w-auto rounded-2xl border bg-accent object-contain p-2"
-            />
-            {ficha.nome_cientifico && (
+      <Dialog.Portal>
+        <Dialog.Backdrop data-testid="modal-fundo" onClick={onFechar} />
+        <Dialog.Popup
+          data-testid="modal-especie"
+          aria-label="Ficha da espécie"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <h2 data-testid="nome-popular-modal" className="text-xl font-bold text-foreground">
+              {ficha ? ficha.nome_popular : 'Carregando…'}
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              data-testid="fechar-especie"
+              aria-label="Fechar ficha"
+              onClick={onFechar}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+          <div aria-live="polite">
+            {indisponivel && (
               <p
-                data-testid="nome-cientifico"
-                className="mb-2 text-center text-sm italic text-muted-foreground"
+                data-testid="modal-indisponivel"
+                className="py-10 text-center text-sm text-muted-foreground"
               >
-                {ficha.nome_cientifico}
+                Ficha indisponível no momento. Verifique a conexão.
               </p>
             )}
-            <p data-testid="descricao-especie" className="text-sm leading-relaxed">
-              {ficha.descricao}
-            </p>
-            <dl className="mt-4 grid gap-2 sm:grid-cols-2">
-              {Object.entries(ficha.infos ?? {}).map(([chave, valor]) => (
-                <div key={chave} data-testid="info-especie" className="rounded-lg border p-3">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {chave.replace(/_/g, ' ')}
-                  </dt>
-                  <dd className="mt-0.5 text-sm">{String(valor)}</dd>
+            {ficha && (
+              <>
+                <div className="overflow-hidden rounded-2xl border bg-accent">
+                  <img
+                    data-testid="foto-especie"
+                    alt={ficha.nome_popular}
+                    src={`/api/especies/${slug}/imagem/`}
+                    className="mx-auto block max-h-64 w-full object-contain"
+                  />
                 </div>
-              ))}
-            </dl>
-            <div className="mt-4 flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid="voltar-mapa"
-                onClick={onFechar}
-              >
-                Voltar ao mapa
-              </Button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+                {ficha.nome_cientifico && (
+                  <p
+                    data-testid="nome-cientifico"
+                    className="mt-3 inline-flex rounded-full bg-muted px-3 py-1 text-xs italic text-muted-foreground"
+                  >
+                    {ficha.nome_cientifico}
+                  </p>
+                )}
+                <p
+                  data-testid="descricao-especie"
+                  className="mt-3 text-sm leading-relaxed text-foreground"
+                >
+                  {ficha.descricao}
+                </p>
+                <dl className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {Object.entries(ficha.infos ?? {}).map(([chave, valor]) => (
+                    <div
+                      key={chave}
+                      data-testid="info-especie"
+                      className="rounded-xl border bg-card p-3"
+                    >
+                      <dt className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {chave.replace(/_/g, ' ')}
+                      </dt>
+                      <dd className="mt-0.5 text-sm">{String(valor)}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <div className="mt-5 flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    data-testid="voltar-mapa"
+                    onClick={onFechar}
+                  >
+                    Voltar ao mapa
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }

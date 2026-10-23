@@ -188,16 +188,20 @@ export function MapView({
       el.type = 'button'
       el.setAttribute('data-testid', 'pin-parnaiba')
       el.setAttribute('aria-label', 'Parnaíba')
-      el.textContent = '🦀'
-      el.className =
-        'flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-primary text-lg shadow-md'
+      el.className = 'relative cursor-pointer select-none'
+      el.innerHTML =
+        '<svg width="34" height="46" viewBox="0 0 34 46" class="drop-shadow-md">' +
+        '<path d="M17 1C8.2 1 1 8.2 1 17c0 7.41 6.49 15.33 12.39 21.83C14.39 42.83 15.63 44 17 44s2.61-1.17 3.61-2.17C26.51 32.33 33 24.41 33 17 33 8.2 25.8 1 17 1Z" class="fill-destructive"/>' +
+        '<circle cx="17" cy="17" r="10" class="fill-background"/>' +
+        '</svg>' +
+        '<span aria-hidden="true" class="absolute left-1/2 top-[9px] -translate-x-1/2 text-base leading-none">🦀</span>'
       el.addEventListener('click', () => {
         const ponto = map.project(coordenada)
         setPosBolha({ x: ponto.x, y: ponto.y })
         bolhaRef.current = true
         setBolhaAberta(true)
       })
-      pinRef.current = new Marker({ element: el }).setLngLat(coordenada).addTo(map)
+      pinRef.current = new Marker({ element: el, anchor: 'bottom' }).setLngLat(coordenada).addTo(map)
     }
     setFontePronta(true)
   }, [carregado, geometrias])
