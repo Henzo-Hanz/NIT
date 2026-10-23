@@ -7,7 +7,7 @@ import { alternarTema, iniciarTema, temaSalvo, type Tema } from '@/lib/tema'
 type ItemNav = { rotulo: string; caminho?: string }
 
 const ITENS_NAV: ItemNav[] = [
-  { rotulo: 'Início' },
+  { rotulo: 'Início', caminho: '/inicio' },
   { rotulo: 'Espécies', caminho: '/especies' },
   { rotulo: 'Pesquisadores' },
   { rotulo: 'Acesso do Gestor' },
@@ -26,18 +26,15 @@ export function HeaderBar() {
       data-testid="header-nit"
       className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-4 bg-primary px-4 py-2 text-primary-foreground shadow"
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <span data-testid="wordmark-nit" className="text-xl font-bold tracking-tight">
           NIT
         </span>
-        <span data-testid="tagline-nit" className="border-l border-primary-foreground/30 pl-2 text-xs opacity-90">
-          Governo do Piauí · FAPEPI
-        </span>
         <img
-          data-testid="logo-gov-pi"
-          src="/images/logos/logo_gov_pi.png"
-          alt="Governo do Estado do Piauí"
-          className="h-8 w-auto rounded-full bg-white p-0.5"
+          data-testid="logo-institucional"
+          src="/images/logos/logo_unificada.png"
+          alt="FAPEPI e Governo do Estado do Piauí"
+          className="h-9 w-auto rounded-md"
         />
       </div>
       <nav data-testid="nav-nit" aria-label="Navegação principal" className="hidden gap-1 md:flex">

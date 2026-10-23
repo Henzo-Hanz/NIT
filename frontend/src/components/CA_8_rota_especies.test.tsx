@@ -125,5 +125,8 @@ describe('CA-8: rota /especies com listagem que abre o modal', () => {
     )
     await usuario.click(screen.getByTestId('fechar-especie'))
     expect(screen.queryByTestId('modal-especie')).toBeNull()
+    await usuario.click(screen.getByTestId('voltar-inicio'))
+    expect(await screen.findByTestId('mapa')).toBeInTheDocument()
+    expect(screen.queryByTestId('especies-titulo')).toBeNull()
   })
 })

@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
+import { ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { EspecieModal } from '@/components/EspecieModal'
 import { buscarEspecies, type EspecieResumo } from '@/lib/api'
 
@@ -6,6 +9,7 @@ export function EspeciesPage() {
   const [especies, setEspecies] = useState<EspecieResumo[] | null>(null)
   const [indisponivel, setIndisponivel] = useState(false)
   const [slugAberto, setSlugAberto] = useState<string | null>(null)
+  const navegar = useNavigate()
 
   useEffect(() => {
     let vivo = true
@@ -29,6 +33,16 @@ export function EspeciesPage() {
       data-testid="pagina-especies"
       className="absolute inset-0 z-10 overflow-y-auto px-4 pb-10 pt-16"
     >
+      <Button
+        variant="ghost"
+        size="sm"
+        data-testid="voltar-inicio"
+        className="-ml-2 mb-1 text-muted-foreground hover:text-foreground"
+        onClick={() => navegar('/inicio')}
+      >
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        Voltar ao mapa
+      </Button>
       <h1 data-testid="especies-titulo" className="mb-4 text-2xl font-bold">
         Espécies do litoral do Piauí
       </h1>
@@ -52,7 +66,7 @@ export function EspeciesPage() {
             <img
               alt={item.nome_popular}
               src={`/api/especies/${item.slug}/imagem/`}
-              className="mb-3 h-32 w-full rounded-xl border object-contain p-2"
+              className="mx-auto mb-3 block h-32 w-auto rounded-xl border object-contain"
             />
             <h3 className="font-bold">{item.nome_popular}</h3>
             {item.nome_cientifico && (

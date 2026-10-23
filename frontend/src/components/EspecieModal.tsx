@@ -74,12 +74,12 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
             )}
             {ficha && (
               <>
-                <div className="overflow-hidden rounded-2xl border border-border bg-accent ring-2 ring-primary/20">
+                <div className="mx-auto w-fit overflow-hidden rounded-2xl border border-border bg-accent ring-2 ring-primary/20">
                   <img
                     data-testid="foto-especie"
                     alt={ficha.nome_popular}
                     src={`/api/especies/${slug}/imagem/`}
-                    className="mx-auto block max-h-64 w-full object-contain"
+                    className="block max-h-64 object-contain"
                   />
                 </div>
                 {ficha.nome_cientifico && (

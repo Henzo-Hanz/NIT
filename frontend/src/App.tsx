@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { MapView } from '@/components/MapView'
 import { HeaderBar } from '@/components/HeaderBar'
 import { CamadasPanel } from '@/components/CamadasPanel'
@@ -42,7 +42,8 @@ function App() {
     <BrowserRouter>
       <div className="relative h-screen w-full overflow-hidden">
         <Routes>
-          <Route path="/" element={<HomeMapa />} />
+          <Route path="/" element={<Navigate to="/inicio" replace />} />
+          <Route path="/inicio" element={<HomeMapa />} />
           <Route path="/especies" element={<EspeciesPage />} />
         </Routes>
         <HeaderBar />
