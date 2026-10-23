@@ -21,11 +21,11 @@ RAIZ_APP = Path(biodiversidade.__file__).resolve().parent
 BASE_PHYLOPIC = 'https://api.phylopic.org'
 PASTA_ICONES = RAIZ_APP / 'midia' / 'icones'
 ERROS_REDE = (URLError, TimeoutError)
-# Vínculos escolhidos pelo usuário (lapidação 6d): silhueta do caranguejo
-# Cancer primário (a mesma exibida no site) e do caranguejo clássico de
-# perfil para o genérico Brachyura.
+# Vínculos escolhidos pelo usuário (lapidações 6c/6e): 2ª imagem do gênero
+# Cancer (carapaça larga com garras laterais — a busca "crab" no site) e o
+# caranguejo clássico de perfil para o genérico Brachyura.
 ICONES_PREFERIDOS = {
-    'cancer': '422060a1-0c7f-4428-b645-bdd26d815482',
+    'cancer': '604d2670-7bf3-4543-b8e3-fbf8e370a530',
     'brachyura': 'fbb93c22-618f-4901-aade-2d07a9797e02',
 }
 URL_VETOR_BASE = 'https://images.phylopic.org/images'
