@@ -229,10 +229,7 @@ def consulta_area(request):
     if ordenar not in (None, 'mais', 'menos'):
         return Response({'erro': "ordenar deve ser 'mais', 'menos' ou null."}, status=400)
 
-    registros = Geometria.objects.select_related('especie').filter(
-        tipo='ponto',
-        especie__isnull=False,
-    )
+    registros = Geometria.objects.select_related('especie').filter(tipo='ponto')
     termo = (animal or '').strip()
     if termo:
         registros = registros.filter(
@@ -272,9 +269,17 @@ def consulta_area(request):
         chave = (registro.nome, tuple(coordenadas))
         grupo = grupos.get(chave)
         if grupo is None:
-            grupo = {'id': registro.id, 'descricao': registro.descricao, 'especies': {}}
+            grupo = {
+                'id': registro.id,
+                'descricao': registro.descricao,
+                'especies': {},
+                'total_sem_especie': None,
+            }
             grupos[chave] = grupo
-        grupo['especies'].setdefault(registro.especie.slug, registro.especie.nome_popular)
+        if registro.especie is None:
+            grupo['total_sem_especie'] = registro.propriedades.get('total', 0)
+        else:
+            grupo['especies'].setdefault(registro.especie.slug, registro.especie.nome_popular)
 
     contagens = {}
     features = []
@@ -285,6 +290,10 @@ def consulta_area(request):
                 {'slug': slug, 'nome_popular': nome_popular, 'localidades': set()},
             )
             contagem['localidades'].add((nome, coordenadas))
+        if grupo['especies']:
+            total = len(grupo['especies'])
+        else:
+            total = grupo['total_sem_especie'] or 0
         features.append(
             {
                 'type': 'Feature',
@@ -293,7 +302,7 @@ def consulta_area(request):
                     'nome': nome,
                     'descricao': grupo['descricao'],
                     'especie_slugs': list(grupo['especies']),
-                    'total': len(grupo['especies']),
+                    'total': total,
                 },
                 'geometry': {'type': 'Point', 'coordinates': list(coordenadas)},
             }

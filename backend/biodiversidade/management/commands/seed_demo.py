@@ -151,41 +151,6 @@ GEOMETRIAS = [
         'especie_slug': None,
         'geojson': {'type': 'Point', 'coordinates': [-41.7767, -2.9035]},
     },
-    {
-        'nome': 'Linha de costa amostral',
-        'tipo': 'linha',
-        'descricao': 'Transecto simplificado da linha de costa para protótipo',
-        'propriedades': {},
-        'especie_slug': None,
-        'geojson': {
-            'type': 'LineString',
-            'coordinates': [
-                [-41.86, -2.87],
-                [-41.82, -2.94],
-                [-41.78, -3.01],
-                [-41.74, -3.1],
-            ],
-        },
-    },
-    {
-        'nome': 'APA Delta do Parnaíba (mock)',
-        'tipo': 'poligono',
-        'descricao': 'Simplificação retangular da área protegida para demonstração',
-        'propriedades': {},
-        'especie_slug': None,
-        'geojson': {
-            'type': 'Polygon',
-            'coordinates': [
-                [
-                    [-41.95, -2.75],
-                    [-41.4, -2.75],
-                    [-41.4, -3.2],
-                    [-41.95, -3.2],
-                    [-41.95, -2.75],
-                ]
-            ],
-        },
-    },
 ] + [
     {
         'nome': localidade['nome'],

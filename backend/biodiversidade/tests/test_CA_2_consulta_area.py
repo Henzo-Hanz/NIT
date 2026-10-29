@@ -52,6 +52,10 @@ class CA2ConsultaAreaTest(TestCase):
             {feature['properties']['nome'] for feature in features},
             {'Jericoacoara', 'Camocim'},
         )
+        self.assertNotIn(
+            'Parnaíba',
+            {feature['properties']['nome'] for feature in features},
+        )
         for feature in features:
             self.assertEqual(feature['geometry']['type'], 'Point')
         por_nome = {feature['properties']['nome']: feature for feature in features}
@@ -84,24 +88,41 @@ class CA2ConsultaAreaTest(TestCase):
             },
         )
 
-    def test_sem_poligono_retorna_todos_os_pontos_com_especie(self):
+    def test_sem_poligono_retorna_todos_os_pontos_inclusive_paranaiba(self):
         resposta = self._post({'poligono': None})
         self.assertEqual(resposta.status_code, 200)
         dados = resposta.json()
         features = dados['pontos']['features']
-        self.assertEqual(len(features), 3)
+        self.assertEqual(len(features), 4)
         self.assertEqual(
             {feature['properties']['nome'] for feature in features},
-            {'Jericoacoara', 'Camocim', 'Luís Correia'},
+            {'Jericoacoara', 'Camocim', 'Luís Correia', 'Parnaíba'},
         )
-        self.assertNotIn(
-            'Parnaíba',
-            {feature['properties']['nome'] for feature in features},
+        por_nome = {feature['properties']['nome']: feature for feature in features}
+        paranaiba = por_nome['Parnaíba']['properties']
+        self.assertEqual(paranaiba['total'], 223)
+        self.assertEqual(paranaiba['especie_slugs'], [])
+        self.assertEqual(
+            paranaiba['descricao'],
+            '223 espécies de caranguejos encontradas',
         )
         especies = {item['slug']: item for item in dados['especies']}
         self.assertEqual(especies['caranguejo-uca']['contagem'], 3)
         self.assertEqual(especies['aratu']['contagem'], 1)
         self.assertEqual(especies['siri-azul']['contagem'], 1)
+
+    def test_filtro_animal_nao_inclui_o_ponto_paranaiba(self):
+        for termo in ('maria', 'caranguejo'):
+            with self.subTest(termo=termo):
+                resposta = self._post({'poligono': None, 'animal': termo})
+                self.assertEqual(resposta.status_code, 200)
+                dados = resposta.json()
+                nomes = {
+                    feature['properties']['nome']
+                    for feature in dados['pontos']['features']
+                }
+                self.assertNotIn('Parnaíba', nomes)
+                self.assertTrue(nomes)
 
     def test_buraco_do_poligono_exclui_ponto_interno(self):
         poligono_com_buraco = {

@@ -93,6 +93,32 @@ class CA3ConsultaAreaTest(TestCase):
         nomes = [item['nome_popular'] for item in resposta.json()['especies']]
         self.assertEqual(nomes, sorted(nomes))
 
+    def test_poligono_que_engloba_o_paranaiba_devolve_o_ponto_com_total_223(self):
+        poligono_paranaiba = {
+            'type': 'Polygon',
+            'coordinates': [
+                [
+                    [-42.2, -2.5],
+                    [-41.2, -2.5],
+                    [-41.2, -3.3],
+                    [-42.2, -3.3],
+                    [-42.2, -2.5],
+                ]
+            ],
+        }
+        resposta = self._post({'poligono': poligono_paranaiba})
+        self.assertEqual(resposta.status_code, 200)
+        features = resposta.json()['pontos']['features']
+        por_nome = {feature['properties']['nome']: feature for feature in features}
+        self.assertIn('Parnaíba', por_nome)
+        paranaiba = por_nome['Parnaíba']['properties']
+        self.assertEqual(paranaiba['total'], 223)
+        self.assertEqual(paranaiba['especie_slugs'], [])
+        self.assertEqual(
+            por_nome['Parnaíba']['geometry']['coordinates'],
+            [-41.7767, -2.9035],
+        )
+
     def test_corpos_invalidos_retornam_400_com_erro(self):
         casos_invalidos = {
             'poligono_tipo_errado': {

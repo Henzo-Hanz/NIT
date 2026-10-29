@@ -34,6 +34,26 @@ class CA1AreaSeedPontosTest(TestCase):
                 self.assertGreaterEqual(latitudes, LAT_MIN)
                 self.assertLessEqual(latitudes, LAT_MAX)
 
+    def test_seed_nao_contem_geometrias_de_linha_ou_poligono(self):
+        self.assertFalse(
+            Geometria.objects.filter(tipo__in=('linha', 'poligono')).exists()
+        )
+
+    def test_ponto_paranaiba_permanece_no_seed_com_total_223(self):
+        resposta = self.client.get('/api/geometrias/')
+        self.assertEqual(resposta.status_code, 200)
+        dados = json.loads(resposta.content)
+        paranaiba = [
+            feature
+            for feature in dados['features']
+            if feature['properties']['nome'] == 'Parnaíba'
+        ]
+        self.assertEqual(len(paranaiba), 1)
+        propriedades = paranaiba[0]['properties']
+        self.assertEqual(propriedades['tipo'], 'ponto')
+        self.assertEqual(propriedades['especie_slug'], None)
+        self.assertEqual(propriedades['total'], 223)
+
     def test_especies_lista_contem_os_tres_slugs_novos(self):
         resposta = self.client.get('/api/especies/')
         self.assertEqual(resposta.status_code, 200)
