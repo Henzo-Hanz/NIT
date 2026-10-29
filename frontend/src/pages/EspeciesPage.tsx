@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EspecieModal } from '@/components/EspecieModal'
+import { FotoEspecie } from '@/components/FotoEspecie'
 import { buscarEspecies, type EspecieResumo } from '@/lib/api'
 
 export function EspeciesPage() {
@@ -63,9 +64,10 @@ export function EspeciesPage() {
             onClick={() => setSlugAberto(item.slug)}
             className="rounded-xl border bg-background p-3 text-left shadow-sm transition hover:shadow-md"
           >
-            <img
+            <FotoEspecie
+              slug={item.slug}
+              imagem={item.imagem}
               alt={item.nome_popular}
-              src={`/api/especies/${item.slug}/imagem/`}
               className="mx-auto mb-2.5 block h-28 w-auto rounded-lg border"
             />
             <h3 className="text-sm font-bold">{item.nome_popular}</h3>

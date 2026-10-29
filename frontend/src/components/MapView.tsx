@@ -1,13 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent as MouseEvento } from 'react'
 import { ChevronDown, ArrowLeft, X } from 'lucide-react'
 import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Button } from '@/components/ui/button'
+import { FerramentasToolbar, type ModoFerramenta } from '@/components/FerramentasToolbar'
+import { FiltroAnimaisPanel, type FiltroEspecie } from '@/components/FiltroAnimaisPanel'
 import {
   buscarGeometrias,
   buscarEspecies,
+  consultarArea,
+  type ConsultaArea,
   type FeatureCollectionGeometrias,
   type EspecieResumo,
+  type PontoDaArea,
+  type PolygonGeoJSON,
   type TipoGeometria,
 } from '@/lib/api'
 
@@ -30,6 +36,32 @@ function conectarFallbackDoIcone(pin: HTMLElement, icone: Element) {
       })
   }
   icone.addEventListener('error', mostrarFallback)
+}
+
+function htmlDoPin(slugIcone: string) {
+  return (
+    '<svg width="46" height="62" viewBox="0 0 34 46" class="drop-shadow-md">' +
+    '<path d="M17 1C8.2 1 1 8.2 1 17c0 7.41 6.49 15.33 12.39 21.83C14.39 42.83 15.63 44 17 44s2.61-1.17 3.61-2.17C26.51 32.33 33 24.41 33 17 33 8.2 25.8 1 17 1Z" class="fill-destructive"/>' +
+    '<circle cx="17" cy="17" r="10" fill="#ffffff"/>' +
+    `<image data-icono-phylopic x="7" y="9.5" width="20" height="15" href="/api/especies/${slugIcone}/icone/"/>` +
+    '<g data-fallback-crab class="fill-destructive" style="display: none">' +
+    '<circle cx="12" cy="12.65" r="2.1"/><circle cx="22" cy="12.65" r="2.1"/>' +
+    '<ellipse cx="17" cy="17.75" rx="4.5" ry="3.1"/>' +
+    '</g>' +
+    '<g data-fallback-crab-patas class="stroke-destructive" fill="none" stroke-width="1.5" stroke-linecap="round" style="display: none">' +
+    '<path d="M13.6 15.35Q12.6 14.35 12.2 13.25"/>' +
+    '<path d="M20.4 15.35Q21.4 14.35 21.8 13.25"/>' +
+    '<path d="M13.5 18.95 10.6 20.55"/>' +
+    '<path d="M20.5 18.95 23.4 20.55"/>' +
+    '<path d="M13.2 19.95 10.9 22.2"/>' +
+    '<path d="M20.8 19.95 23.1 22.2"/>' +
+    '<path d="M13.4 20.75 11.6 23.45"/>' +
+    '<path d="M23.4 20.75 22.4 23.45"/>' +
+    '</g>' +
+    '<circle data-fallback-crab-olho cx="15.3" cy="16.05" r="0.75" fill="#ffffff" style="display: none"/>' +
+    '<circle data-fallback-crab-olho cx="18.7" cy="16.05" r="0.75" fill="#ffffff" style="display: none"/>' +
+    '</svg>'
+  )
 }
 
 function construirEstilo(apiKey: string | undefined) {
@@ -78,9 +110,14 @@ export function MapView({
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const pinRef = useRef<Marker | null>(null)
+  const pinAreaRef = useRef<Marker | null>(null)
   const coordenadaRef = useRef<[number, number] | null>(null)
   const bolhaRef = useRef(false)
   const fonteProntaRef = useRef(false)
+  const modoRef = useRef<ModoFerramenta>('arrastar')
+  const pontosDesenhoRef = useRef<number[][]>([])
+  const desenhandoRef = useRef(false)
+  const resultadoRef = useRef<ConsultaArea | null>(null)
   const [carregado, setCarregado] = useState(false)
   const [fontePronta, setFontePronta] = useState(false)
   const [geometrias, setGeometrias] = useState<FeatureCollectionGeometrias | null>(null)
@@ -89,10 +126,92 @@ export function MapView({
   const [especies, setEspecies] = useState<EspecieResumo[] | null>(null)
   const [posBolha, setPosBolha] = useState<{ x: number; y: number } | null>(null)
   const [erro, setErro] = useState(false)
+  const [modo, setModo] = useState<ModoFerramenta>('arrastar')
+  const [colapsada, setColapsada] = useState(false)
+  const [poligono, setPoligono] = useState<PolygonGeoJSON | null>(null)
+  const [resultado, setResultado] = useState<ConsultaArea | null>(null)
+  const [filtro, setFiltro] = useState<FiltroEspecie>('todas')
+  const [animalDigitado, setAnimalDigitado] = useState('')
+  const [animalAplicado, setAnimalAplicado] = useState('')
+  const [especieSelecionada, setEspecieSelecionada] = useState<string | null>(null)
+  const [pontoAtivo, setPontoAtivo] = useState<PontoDaArea | null>(null)
+  const [listagemAreaAberta, setListagemAreaAberta] = useState(false)
+  const [posBolhaArea, setPosBolhaArea] = useState<{ x: number; y: number } | null>(null)
+  const [posicoesPontos, setPosicoesPontos] = useState<Record<string, { x: number; y: number }>>({})
   const cartoKey = import.meta.env.VITE_CARTO_API_KEY as string | undefined
   const [estiloAtual, setEstiloAtual] = useState(() => construirEstilo(cartoKey))
   const [reiniciar, setReiniciar] = useState(0)
   const podeTentarSemKey = useRef(Boolean(cartoKey))
+
+  useEffect(() => {
+    resultadoRef.current = resultado
+  }, [resultado])
+
+  const atualizarPosicoes = useCallback((mapa: MapLibreMap) => {
+    const pontos = resultadoRef.current?.pontos.features ?? []
+    const novas: Record<string, { x: number; y: number }> = {}
+    for (const ponto of pontos) {
+      const projetado = mapa.project(ponto.geometry.coordinates)
+      novas[String(ponto.properties.id)] = { x: projetado.x, y: projetado.y }
+    }
+    setPosicoesPontos(novas)
+  }, [])
+
+  const coordenadaDoEvento = (evento: MouseEvento<HTMLDivElement>): [number, number] => {
+    const mapa = mapRef.current
+    const rect = containerRef.current?.getBoundingClientRect()
+    const x = evento.clientX - (rect?.left ?? 0)
+    const y = evento.clientY - (rect?.top ?? 0)
+    if (!mapa) {
+      return [x, y]
+    }
+    const bruto = mapa.unproject([x, y]) as unknown
+    if (Array.isArray(bruto)) {
+      return [Number(bruto[0]), Number(bruto[1])]
+    }
+    const lngLat = bruto as { lng?: number; lat?: number } | undefined
+    return [Number(lngLat?.lng), Number(lngLat?.lat)]
+  }
+
+  const aoMouseDown = (evento: MouseEvento<HTMLDivElement>) => {
+    if (modo !== 'desenhar') {
+      return
+    }
+    pontosDesenhoRef.current = [coordenadaDoEvento(evento)]
+    desenhandoRef.current = true
+  }
+
+  const aoMouseMove = (evento: MouseEvento<HTMLDivElement>) => {
+    if (modo !== 'desenhar' || !desenhandoRef.current) {
+      return
+    }
+    const pontos = pontosDesenhoRef.current
+    const ponto = coordenadaDoEvento(evento)
+    const ultimo = pontos[pontos.length - 1]
+    if (!ultimo || ultimo[0] !== ponto[0] || ultimo[1] !== ponto[1]) {
+      pontos.push(ponto)
+    }
+  }
+
+  const aoMouseUp = () => {
+    if (modo !== 'desenhar' || !desenhandoRef.current) {
+      return
+    }
+    desenhandoRef.current = false
+    const pontos = pontosDesenhoRef.current
+    pontosDesenhoRef.current = []
+    const distintos: number[][] = []
+    for (const ponto of pontos) {
+      const ultimo = distintos[distintos.length - 1]
+      if (!ultimo || ultimo[0] !== ponto[0] || ultimo[1] !== ponto[1]) {
+        distintos.push(ponto)
+      }
+    }
+    if (distintos.length < 3) {
+      return
+    }
+    setPoligono({ type: 'Polygon', coordinates: [[...distintos, distintos[0]]] })
+  }
 
   useEffect(() => {
     let vivo = true
@@ -133,10 +252,20 @@ export function MapView({
         const ponto = map.project(coordenadaRef.current)
         setPosBolha({ x: ponto.x, y: ponto.y })
       }
+      if (resultadoRef.current) {
+        atualizarPosicoes(map)
+      }
     })
+    if (modoRef.current === 'desenhar') {
+      map.dragPan?.disable?.()
+    } else {
+      map.dragPan?.enable?.()
+    }
     return () => {
       pinRef.current?.remove()
       pinRef.current = null
+      pinAreaRef.current?.remove()
+      pinAreaRef.current = null
       fonteProntaRef.current = false
       map.remove()
       mapRef.current = null
@@ -146,7 +275,7 @@ export function MapView({
       setListagemAberta(false)
       setPosBolha(null)
     }
-  }, [reiniciar, estiloAtual])
+  }, [reiniciar, estiloAtual, atualizarPosicoes])
 
   useEffect(() => {
     const map = mapRef.current
@@ -204,32 +333,12 @@ export function MapView({
       el.setAttribute('data-testid', 'pin-parnaiba')
       el.setAttribute('aria-label', 'Parnaíba')
       el.className = 'relative cursor-pointer select-none'
-      el.innerHTML =
-        '<svg width="46" height="62" viewBox="0 0 34 46" class="drop-shadow-md">' +
-        '<path d="M17 1C8.2 1 1 8.2 1 17c0 7.41 6.49 15.33 12.39 21.83C14.39 42.83 15.63 44 17 44s2.61-1.17 3.61-2.17C26.51 32.33 33 24.41 33 17 33 8.2 25.8 1 17 1Z" class="fill-destructive"/>' +
-        '<circle cx="17" cy="17" r="10" fill="#ffffff"/>' +
-        '<image data-icono-phylopic x="7" y="9.5" width="20" height="15" href="/api/especies/caranguejo-uca/icone/"/>' +
-        '<g data-fallback-crab class="fill-destructive" style="display: none">' +
-        '<circle cx="12" cy="12.65" r="2.1"/><circle cx="22" cy="12.65" r="2.1"/>' +
-        '<ellipse cx="17" cy="17.75" rx="4.5" ry="3.1"/>' +
-        '</g>' +
-        '<g data-fallback-crab-patas class="stroke-destructive" fill="none" stroke-width="1.5" stroke-linecap="round" style="display: none">' +
-        '<path d="M13.6 15.35Q12.6 14.35 12.2 13.25"/>' +
-        '<path d="M20.4 15.35Q21.4 14.35 21.8 13.25"/>' +
-        '<path d="M13.5 18.95 10.6 20.55"/>' +
-        '<path d="M20.5 18.95 23.4 20.55"/>' +
-        '<path d="M13.2 19.95 10.9 22.2"/>' +
-        '<path d="M20.8 19.95 23.1 22.2"/>' +
-        '<path d="M13.4 20.75 11.6 23.45"/>' +
-        '<path d="M23.4 20.75 22.4 23.45"/>' +
-        '</g>' +
-        '<circle data-fallback-crab-olho cx="15.3" cy="16.05" r="0.75" fill="#ffffff" style="display: none"/>' +
-        '<circle data-fallback-crab-olho cx="18.7" cy="16.05" r="0.75" fill="#ffffff" style="display: none"/>' +
-        '</svg>'
+      el.innerHTML = htmlDoPin('caranguejo-uca')
       const iconoPhylopic = el.querySelector('image[data-icono-phylopic]')
       if (iconoPhylopic) {
         conectarFallbackDoIcone(el, iconoPhylopic)
       }
+      el.addEventListener('mousedown', (evento) => evento.stopPropagation())
       el.addEventListener('click', () => {
         const ponto = map.project(coordenada)
         setPosBolha({ x: ponto.x, y: ponto.y })
@@ -254,6 +363,73 @@ export function MapView({
       map.setLayoutProperty(idCamada, 'visibility', camadasAtivas[tipo] ? 'visible' : 'none')
     }
   }, [fontePronta, camadasAtivas])
+
+  useEffect(() => {
+    modoRef.current = modo
+    const map = mapRef.current
+    if (!map) {
+      return
+    }
+    if (modo === 'desenhar') {
+      map.dragPan?.disable?.()
+    } else {
+      map.dragPan?.enable?.()
+    }
+  }, [modo, carregado])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !poligono) {
+      return
+    }
+    const fonte = map.getSource?.('area-desenhada') as
+      | { setData?: (dados: unknown) => void }
+      | undefined
+    if (fonte?.setData) {
+      fonte.setData(poligono)
+      return
+    }
+    map.addSource('area-desenhada', { type: 'geojson', data: poligono })
+    map.addLayer({
+      id: 'camada-area',
+      type: 'fill',
+      source: 'area-desenhada',
+      paint: {
+        'fill-color': '#0ea5a4',
+        'fill-opacity': 0.2,
+        'fill-outline-color': '#0f766e',
+      },
+    } as never)
+  }, [poligono, carregado])
+
+  useEffect(() => {
+    const temporizador = setTimeout(() => setAnimalAplicado(animalDigitado), 200)
+    return () => clearTimeout(temporizador)
+  }, [animalDigitado])
+
+  useEffect(() => {
+    let vivo = true
+    consultarArea({
+      poligono,
+      animal: filtro === 'especifica' ? animalAplicado.trim() || null : null,
+      ordenar: filtro === 'mais' ? 'mais' : filtro === 'menos' ? 'menos' : null,
+    }).then((dados) => {
+      if (vivo) {
+        setResultado(dados)
+      }
+    })
+    return () => {
+      vivo = false
+    }
+  }, [poligono, filtro, animalAplicado])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) {
+      return
+    }
+    atualizarPosicoes(map)
+  }, [resultado, carregado, atualizarPosicoes])
 
   const abrirLista = async () => {
     const dados = await buscarEspecies()
@@ -305,14 +481,167 @@ export function MapView({
     }
   }
 
+  const fecharBolhaArea = () => {
+    pinAreaRef.current?.remove()
+    pinAreaRef.current = null
+    setPontoAtivo(null)
+    setListagemAreaAberta(false)
+    setPosBolhaArea(null)
+  }
+
+  const abrirPonto = (ponto: PontoDaArea) => {
+    const map = mapRef.current
+    if (!map) {
+      return
+    }
+    pinAreaRef.current?.remove()
+    const el = document.createElement('button')
+    el.type = 'button'
+    el.setAttribute('data-testid', 'pin-area')
+    el.setAttribute('aria-label', ponto.properties.nome)
+    el.className = 'relative cursor-pointer select-none'
+    el.innerHTML = htmlDoPin(ponto.properties.especie_slugs[0] ?? 'caranguejo-uca')
+    const iconoPhylopic = el.querySelector('image[data-icono-phylopic]')
+    if (iconoPhylopic) {
+      conectarFallbackDoIcone(el, iconoPhylopic)
+    }
+    el.addEventListener('mousedown', (evento) => evento.stopPropagation())
+    pinAreaRef.current = new Marker({ element: el, anchor: 'bottom' })
+      .setLngLat(ponto.geometry.coordinates)
+      .addTo(map)
+    const projetado = map.project(ponto.geometry.coordinates)
+    setPosBolhaArea({ x: projetado.x, y: projetado.y })
+    setPontoAtivo(ponto)
+    setListagemAreaAberta(false)
+  }
+
   const pontoParanaiba = geometrias?.features.find(
     (feature) => feature.properties.nome === 'Parnaíba',
   )
   const contagemParnaiba = pontoParanaiba?.properties.descricao ?? ''
 
+  const pontosVisiveis = (resultado?.pontos.features ?? []).filter(
+    (ponto) =>
+      !especieSelecionada || ponto.properties.especie_slugs.includes(especieSelecionada),
+  )
+
+  const nomesDasEspecies = new Map(
+    (resultado?.especies ?? []).map((item) => [item.slug, item.nome_popular]),
+  )
+
   return (
     <div data-testid="mapa" className="absolute inset-0">
-      <div ref={containerRef} className="h-full w-full" />
+      <div
+        ref={containerRef}
+        data-testid="mapa-container"
+        data-poligono-desenhado={poligono ? JSON.stringify(poligono) : undefined}
+        className={`h-full w-full${modo === 'desenhar' ? ' cursor-crosshair' : ''}`}
+        onMouseDown={aoMouseDown}
+        onMouseMove={aoMouseMove}
+        onMouseUp={aoMouseUp}
+      />
+      <FerramentasToolbar
+        modo={modo}
+        aoEscolherModo={setModo}
+        colapsada={colapsada}
+        aoAlternarColapso={() => setColapsada((atual) => !atual)}
+      />
+      <FiltroAnimaisPanel
+        especies={resultado?.especies ?? []}
+        filtro={filtro}
+        aoEscolherFiltro={setFiltro}
+        animal={animalDigitado}
+        aoBuscarAnimal={setAnimalDigitado}
+        especieSelecionada={especieSelecionada}
+        aoSelecionarEspecie={setEspecieSelecionada}
+        escopo={poligono ? 'area' : 'brasil'}
+      />
+      {pontosVisiveis.map((ponto) => {
+        const posicao = posicoesPontos[String(ponto.properties.id)]
+        if (!posicao) {
+          return null
+        }
+        return (
+          <button
+            key={ponto.properties.id}
+            type="button"
+            data-testid="ponto-area"
+            aria-label={ponto.properties.nome}
+            className="absolute z-10 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-teal-600 shadow"
+            style={{ left: posicao.x, top: posicao.y }}
+            onClick={() => abrirPonto(ponto)}
+          />
+        )
+      })}
+      {pontoAtivo && !modalAberto && posBolhaArea && (
+        <div
+          data-testid="bolha-area"
+          className="absolute z-30 w-72 -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-background shadow-xl"
+          style={{ left: posBolhaArea.x, top: posBolhaArea.y - 56 }}
+        >
+          <button
+            type="button"
+            data-testid="fechar-bolha-area"
+            aria-label="Fechar bolha"
+            className="absolute right-1.5 top-1.5 z-10 rounded-md bg-background/80 p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            onClick={fecharBolhaArea}
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
+          {listagemAreaAberta ? (
+            <div data-testid="lista-especies-area">
+              <div className="flex items-center gap-1 bg-primary px-3 py-2 text-primary-foreground">
+                <button
+                  type="button"
+                  data-testid="bolha-area-voltar"
+                  aria-label="Voltar para a contagem"
+                  className="flex size-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-primary-foreground/15 focus-visible:ring-2 focus-visible:ring-primary-foreground focus-visible:outline-none"
+                  onClick={() => setListagemAreaAberta(false)}
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                </button>
+                <h3 className="flex-1 truncate text-xs font-bold uppercase tracking-wide">
+                  {pontoAtivo.properties.nome}
+                </h3>
+              </div>
+              <ul className="flex max-h-56 flex-col overflow-y-auto p-2 no-scrollbar">
+                {pontoAtivo.properties.especie_slugs.map((slug) => (
+                  <li key={slug}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      data-testid={`area-especie-${slug}`}
+                      className="w-full justify-start rounded-lg hover:bg-accent"
+                      onClick={() => {
+                        fecharBolhaArea()
+                        onAbrirEspecie?.(slug)
+                      }}
+                    >
+                      {nomesDasEspecies.get(slug) ?? slug}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="p-3">
+              <p className="text-sm font-medium leading-snug text-foreground">
+                {pontoAtivo.properties.total} espécies encontradas
+              </p>
+              <Button
+                variant="default"
+                size="sm"
+                data-testid="ver-especies-area"
+                className="mt-2 w-full justify-between"
+                onClick={() => setListagemAreaAberta(true)}
+              >
+                Ver espécies
+                <ChevronDown className="size-3.5" aria-hidden="true" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
       {erro && (
         <div
           data-testid="mapa-erro"
