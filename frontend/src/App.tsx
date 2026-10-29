@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router'
 import { MapView } from '@/components/MapView'
 import { HeaderBar } from '@/components/HeaderBar'
 import { FooterBar } from '@/components/FooterBar'
@@ -9,6 +9,7 @@ import { EspeciesPage } from '@/pages/EspeciesPage'
 function HomeMapa() {
   const [especieAberta, setEspecieAberta] = useState<string | null>(null)
   const [pedidoLista, setPedidoLista] = useState(0)
+  const navegar = useNavigate()
 
   const voltarParaLista = () => {
     setEspecieAberta(null)
@@ -21,6 +22,7 @@ function HomeMapa() {
         onAbrirEspecie={setEspecieAberta}
         modalAberto={especieAberta !== null}
         abrirListagemEm={pedidoLista}
+        onPesquisar={() => navegar('/especies')}
       />
       {especieAberta && (
         <EspecieModal

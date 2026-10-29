@@ -88,13 +88,25 @@ describe('CA-4: toolbar de ferramentas sob o header, recolhível e com modos', (
     expect(screen.getByTestId('ferramenta-desenhar')).toBeInTheDocument()
   })
 
-  it('a lupa de pesquisar existe mas está desabilitada', () => {
+  it('a lupa de pesquisar está habilitada e dispara a busca', async () => {
+    const usuario = userEvent.setup()
+    const aoPesquisar = vi.fn()
     configurarFetch()
-    render(<MapView />)
+    render(<MapView onPesquisar={aoPesquisar} />)
+
     const pesquisar = screen.getByTestId('ferramenta-pesquisar')
     expect(pesquisar).toBeInTheDocument()
-    expect(pesquisar).toBeDisabled()
-    expect(pesquisar).toHaveAttribute('aria-label', 'Pesquisar (em breve)')
+    expect(pesquisar).not.toBeDisabled()
+    await usuario.click(pesquisar)
+    expect(aoPesquisar).toHaveBeenCalledTimes(1)
+  })
+
+  it('sem a prop de busca o clique na lupa não quebra o mapa', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<MapView />)
+    await usuario.click(screen.getByTestId('ferramenta-pesquisar'))
+    expect(screen.getByTestId('mapa')).toBeInTheDocument()
   })
 
   it('alternar entre desenhar e arrastar marca o modo ativo, muda o cursor e o pan', async () => {

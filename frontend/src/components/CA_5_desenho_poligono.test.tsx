@@ -115,7 +115,7 @@ describe('CA-5: desenho livre de polígono sobre o mapa', () => {
     })
   })
 
-  it('um segundo desenho substitui o polígono anterior', async () => {
+  it('um segundo desenho adiciona uma nova área sem substituir a anterior', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
@@ -145,7 +145,10 @@ describe('CA-5: desenho livre de polígono sobre o mapa', () => {
 
     const fonte = instancia().getSource.mock.results[instancia().getSource.mock.results.length - 1]
       .value
-    expect(fonte.setData).toHaveBeenCalledWith(poligono)
+    const dados = fonte.setData.mock.calls.at(-1)?.[0]
+    expect(dados.features).toHaveLength(2)
+    expect(dados.features[0].geometry.coordinates[0][0]).toEqual([10, 10])
+    expect(dados.features[1].geometry.coordinates[0][0]).toEqual([40, 40])
   })
 
   it('no modo arrastar nada é desenhado e a consulta segue sem polígono', async () => {
