@@ -17,9 +17,15 @@ const CAMADAS_INICIAIS: Record<TipoGeometria, boolean> = {
 function HomeMapa() {
   const [camadasAtivas, setCamadasAtivas] = useState(CAMADAS_INICIAIS)
   const [especieAberta, setEspecieAberta] = useState<string | null>(null)
+  const [pedidoLista, setPedidoLista] = useState(0)
 
   const aoAlternar = (tipo: TipoGeometria) => {
     setCamadasAtivas((atual) => ({ ...atual, [tipo]: !atual[tipo] }))
+  }
+
+  const voltarParaLista = () => {
+    setEspecieAberta(null)
+    setPedidoLista((atual) => atual + 1)
   }
 
   return (
@@ -28,10 +34,15 @@ function HomeMapa() {
         camadasAtivas={camadasAtivas}
         onAbrirEspecie={setEspecieAberta}
         modalAberto={especieAberta !== null}
+        abrirListagemEm={pedidoLista}
       />
       <CamadasPanel camadasAtivas={camadasAtivas} aoAlternar={aoAlternar} />
       {especieAberta && (
-        <EspecieModal slug={especieAberta} onFechar={() => setEspecieAberta(null)} />
+        <EspecieModal
+          slug={especieAberta}
+          onFechar={() => setEspecieAberta(null)}
+          onVoltarLista={voltarParaLista}
+        />
       )}
     </>
   )

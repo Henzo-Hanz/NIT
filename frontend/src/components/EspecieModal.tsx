@@ -8,9 +8,10 @@ import { buscarEspecie, type EspecieDetalhe } from '@/lib/api'
 interface EspecieModalProps {
   slug: string
   onFechar: () => void
+  onVoltarLista?: () => void
 }
 
-export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
+export function EspecieModal({ slug, onFechar, onVoltarLista }: EspecieModalProps) {
   const [ficha, setFicha] = useState<EspecieDetalhe | null>(null)
   const [indisponivel, setIndisponivel] = useState(false)
   const entradasInfos = ficha ? Object.entries(ficha.infos ?? {}) : []
@@ -50,8 +51,20 @@ export function EspecieModal({ slug, onFechar }: EspecieModalProps) {
           aria-label="Ficha da espécie"
           className="no-scrollbar"
         >
-          <div className="flex shrink-0 items-center justify-between gap-3 bg-primary px-6 py-3.5 text-primary-foreground">
-            <h2 data-testid="nome-popular-modal" className="truncate text-lg font-bold">
+          <div className="flex shrink-0 items-center gap-2 bg-primary px-6 py-3.5 text-primary-foreground">
+            {onVoltarLista && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="voltar-lista"
+                aria-label="Voltar para a lista de caranguejos"
+                onClick={onVoltarLista}
+                className="text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
+              >
+                <ArrowLeft className="size-4" />
+              </Button>
+            )}
+            <h2 data-testid="nome-popular-modal" className="min-w-0 flex-1 truncate text-lg font-bold">
               {ficha ? ficha.nome_popular : 'Carregando…'}
             </h2>
             <Button

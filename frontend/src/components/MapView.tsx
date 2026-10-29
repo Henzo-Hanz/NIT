@@ -66,12 +66,14 @@ interface MapViewProps {
   camadasAtivas?: Record<TipoGeometria, boolean>
   onAbrirEspecie?: (slug: string) => void
   modalAberto?: boolean
+  abrirListagemEm?: number
 }
 
 export function MapView({
   camadasAtivas = { ponto: true, linha: true, poligono: true },
   onAbrirEspecie,
   modalAberto = false,
+  abrirListagemEm = 0,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
@@ -264,6 +266,25 @@ export function MapView({
     setBolhaAberta(false)
     setListagemAberta(false)
   }
+
+  useEffect(() => {
+    if (!abrirListagemEm) {
+      return
+    }
+    let vivo = true
+    buscarEspecies().then((dados) => {
+      if (!vivo) {
+        return
+      }
+      setEspecies(dados)
+      bolhaRef.current = true
+      setBolhaAberta(true)
+      setListagemAberta(true)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [abrirListagemEm])
 
   useEffect(() => {
     if (!bolhaAberta || modalAberto) {

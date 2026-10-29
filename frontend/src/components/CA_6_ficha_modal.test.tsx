@@ -70,4 +70,18 @@ describe('CA-6: ficha da espécie em modal centralizado', () => {
     await usuario.click(screen.getByTestId('fechar-especie'))
     expect(aoFechar).toHaveBeenCalledTimes(1)
   })
+
+  it('seta no topo esquerdo volta para a lista quando fornecida', async () => {
+    const aoVoltarLista = vi.fn()
+    configurarFetch({ '/api/especies/caranguejo-uca/': FICHA_UCA })
+    const { rerender } = render(<EspecieModal slug="caranguejo-uca" onFechar={vi.fn()} />)
+    await screen.findByTestId('foto-especie')
+    expect(screen.queryByTestId('voltar-lista')).toBeNull()
+    rerender(
+      <EspecieModal slug="caranguejo-uca" onFechar={vi.fn()} onVoltarLista={aoVoltarLista} />,
+    )
+    const usuario = userEvent.setup()
+    await usuario.click(screen.getByTestId('voltar-lista'))
+    expect(aoVoltarLista).toHaveBeenCalledTimes(1)
+  })
 })

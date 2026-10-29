@@ -79,6 +79,24 @@ const FICHA_UCA = {
   imagem: 'biodiversidade/midia/caranguejo-uca.svg',
 }
 
+const FEATURE_COLLECTION = {
+  type: 'FeatureCollection',
+  features: [
+    {
+      type: 'Feature',
+      properties: {
+        id: 1,
+        nome: 'Parnaíba',
+        tipo: 'ponto',
+        descricao: '223 espécies de caranguejos encontradas',
+        especie_slug: null,
+        total: 223,
+      },
+      geometry: { type: 'Point', coordinates: [-41.7767, -2.9035] },
+    },
+  ],
+}
+
 function configurarFetch(rotas: (string | Record<string, unknown>)[]) {
   const fetchFake = vi.fn(async (entrada: RequestInfo | URL) => {
     const rota = String(entrada)
@@ -128,5 +146,29 @@ describe('CA-8: rota /especies com listagem que abre o modal', () => {
     await usuario.click(screen.getByTestId('voltar-inicio'))
     expect(await screen.findByTestId('mapa')).toBeInTheDocument()
     expect(screen.queryByTestId('especies-titulo')).toBeNull()
+  })
+})
+
+describe('CA-8: seta do modal volta para a listagem de caranguejos no mapa', () => {
+  it('abre ficha pela lista da bolha e a seta reabre a lista', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch([
+      { '/api/ping/': { status: 'ok' } },
+      { '/api/geometrias/': FEATURE_COLLECTION },
+      { '/api/especies/': ESPECIES },
+      { '/api/especies/caranguejo-uca/': FICHA_UCA },
+    ])
+    render(<App />)
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-testid="pin-parnaiba"]')).not.toBeNull()
+    })
+    await usuario.click(document.querySelector('[data-testid="pin-parnaiba"]') as HTMLElement)
+    await usuario.click(screen.getByTestId('ver-especies'))
+    await usuario.click(await screen.findByTestId('especie-opcao-caranguejo-uca'))
+    expect(await screen.findByTestId('modal-especie')).toBeInTheDocument()
+    await usuario.click(screen.getByTestId('voltar-lista'))
+    expect(screen.queryByTestId('modal-especie')).toBeNull()
+    expect(await screen.findByTestId('lista-especies-bolha')).toBeInTheDocument()
+    expect(screen.getByTestId('especie-opcao-caranguejo-maria-farinha')).toBeInTheDocument()
   })
 })
