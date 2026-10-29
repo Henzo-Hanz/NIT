@@ -1,23 +1,30 @@
 {
-  "spec_id": "SPEC-0002",
-  "fase": "mesclada",
+  "spec_id": "SPEC-0003",
+  "fase": "entregue",
   "gate": null,
   "tentativa": 1,
-  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/2",
-  "card_url": "https://trello.com/c/e3qQvtHr/6-spec-0002-shell-estético-mapa-front",
-  "pr_url_spec0001": "https://github.com/Henzo-Hanz/NIT/pull/1",
-  "card_url_spec0001": "https://trello.com/c/vGb8sORe/5-spec-0001-ping-conectando-front-ao-back",
-  "merge": {
-    "estado": "PRs #1 e #2 MESCLADOS; main em e5ccf52 (2026-10-22)",
-    "rota": "usuário mesclou PR #2 dentro de SPEC-0001 (base empilhada); PR #1 reaberto e mesclado na main como delegação explícita do humano",
-    "sanidade": "13/13 testes front + 7/7 back na main mesclada"
+  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/3",
+  "card_url": "https://trello.com/c/VoUKgunO/7-spec-0003-backend-mockado-de-biodiversidade",
+  "api_entregues": [
+    "GET /api/especies/",
+    "GET /api/especies/:slug/ (404 [borda])",
+    "GET /api/geometrias/?tipo=ponto|linha|poligono (GeoJSON FeatureCollection; 400 [borda])",
+    "management command: python manage.py seed_demo [--recriar]"
+  ],
+  "gates": {
+    "back": { "gate1": "aprovado (6 CAs, 20 testes)", "gate2": "aprovado (suíte 2.2s; listas em 1 query)", "gate3": "aprovado", "tentativa": 1 }
+  },
+  "aprovacao": {
+    "data": "2026-10-22 11h38 (São Paulo)",
+    "por": "hanz_dev",
+    "hash": "a1d8eaf16487f81367284d394aadadeb716565fa1b4e662182aa951e124bc028",
+    "origem": "comando explícito no chat ('Aprove a spec abaixo em meu nome — SPEC-0003'); rascunho + defaults do refino apresentados antes"
   },
   "desvios": [
-    "Fase back sem CAs: entregue trivialmente; gates back N/A (não há o que gatear em escopo back vazio)",
-    "Fallback: implementer-front sem ferramentas de escrita; runner executou a fase direto, escopo frontend/ e gates sem dispensa",
-    "Branch SPEC-0002 criada sobre SPEC-0001 (dependência de código do SeloStatus/Ping); PR empilhado com base SPEC-0001",
-    "2 warnings de lint não-bloqueantes (fast-refresh em MapView/button shadcn; set-state-in-effect em HeaderBar)",
-    "Pos-delivery: fix do worker MIME (optimizeDeps) e basemap Carto Voyager com VITE_CARTO_API_KEY em frontend/.env.local — premissa da spec (keyless Positron) derrubada pelo humano e tratada como premissa reportada",
-    "Merge executado por agente como delegação explícita do humano (chat 2026-10-22 'faça pra mim'): roto da regra 'merge é humano' mantida no espírito — decisão e ordem foram do humano; PR #1 reaberto (estava CLOSED não-mergeado) e mesclado na main"
+    "Fallback (como SPEC-0002): implementer-back sem ferramentas de escrita; runner executou a fase direto, escopo backend/ e gates sem dispensa",
+    "SPEC-0002 mesclada: main alinhada em 0acc579 (commits de README do humano); branch SPEC-0003 baseada na main",
+    "Push 403 do Henzo-Lopes no início da entrega resolvido com gh auth switch -u Henzo-Hanz + gh auth setup-git",
+    "Destaques do run-loop: 2 erros de JSON na spec corrigidos no validate (string quebrada + tab bruto); migrate faltou após makemigrations no primeiro seed",
+    "SPEC-0004 (front: pin pop-up Parnaíba '223 espécies', fichas /especie/:slug com foto/descrição/infos e CAMADAS filtrando por tipo) é o próximo passo natural"
   ]
 }

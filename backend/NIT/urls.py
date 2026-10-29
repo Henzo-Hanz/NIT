@@ -33,6 +33,9 @@ urlpatterns += [
 
 from core import urls as core_urls
 
+from biodiversidade import urls as biodiversidade_urls
+
 urlpatterns += [
     path('api/', include(core_urls)),
+    path('api/', include(biodiversidade_urls)),
 ]
