@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, X } from 'lucide-react'
+import { ChevronDown, ArrowLeft, X } from 'lucide-react'
 import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Button } from '@/components/ui/button'
@@ -345,10 +345,10 @@ export function MapView({
                   type="button"
                   data-testid="bolha-voltar"
                   aria-label="Voltar para a contagem"
-                  className="rounded-md p-1 text-lg leading-none transition-colors hover:bg-primary-foreground/15 focus-visible:ring-2 focus-visible:ring-primary-foreground focus-visible:outline-none"
+                  className="flex size-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-primary-foreground/15 focus-visible:ring-2 focus-visible:ring-primary-foreground focus-visible:outline-none"
                   onClick={() => setListagemAberta(false)}
                 >
-                  ←
+                  <ArrowLeft className="size-4" aria-hidden="true" />
                 </button>
                 <h3 className="flex-1 truncate text-xs font-bold uppercase tracking-wide">
                   Caranguejos do litoral
