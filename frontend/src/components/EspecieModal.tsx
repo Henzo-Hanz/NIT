@@ -3,6 +3,7 @@ import { ArrowLeft, X } from 'lucide-react'
 import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
+import { FotoEspecie } from '@/components/FotoEspecie'
 import { buscarEspecie, type EspecieDetalhe } from '@/lib/api'
 
 interface EspecieModalProps {
@@ -92,10 +93,11 @@ export function EspecieModal({ slug, onFechar, onVoltarLista }: EspecieModalProp
             )}
             {ficha && (
               <>
-                <img
-                  data-testid="foto-especie"
+                <FotoEspecie
+                  slug={slug}
+                  imagem={ficha.imagem}
                   alt={ficha.nome_popular}
-                  src={`/api/especies/${slug}/imagem/`}
+                  testidFoto="foto-especie"
                   className="mx-auto block max-h-64 max-w-full self-center rounded-2xl border border-border bg-accent ring-2 ring-primary/20"
                 />
                 {ficha.nome_cientifico && (

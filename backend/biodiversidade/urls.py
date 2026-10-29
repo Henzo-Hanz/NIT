@@ -8,4 +8,5 @@ urlpatterns = [
     path('especies/<slug:slug>/imagem/', views.imagem_especie, name='especie-imagem'),
     path('especies/<slug:slug>/icone/', views.icone_especie, name='especie-icone'),
     path('geometrias/', views.geometrias, name='geometrias'),
+    path('consulta/area/', views.consulta_area, name='consulta-area'),
 ]

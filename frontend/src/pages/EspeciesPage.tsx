@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EspecieModal } from '@/components/EspecieModal'
+import { FotoEspecie } from '@/components/FotoEspecie'
 import { buscarEspecies, type EspecieResumo } from '@/lib/api'
 
 export function EspeciesPage() {
   const [especies, setEspecies] = useState<EspecieResumo[] | null>(null)
   const [indisponivel, setIndisponivel] = useState(false)
   const [slugAberto, setSlugAberto] = useState<string | null>(null)
+  const [busca, setBusca] = useState('')
   const navegar = useNavigate()
 
   useEffect(() => {
@@ -28,6 +30,14 @@ export function EspeciesPage() {
     }
   }, [])
 
+  const termo = busca.trim().toLowerCase()
+  const filtradas = (especies ?? []).filter(
+    (item) =>
+      !termo ||
+      item.nome_popular.toLowerCase().includes(termo) ||
+      (item.nome_cientifico ?? '').toLowerCase().includes(termo),
+  )
+
   return (
     <section
       data-testid="pagina-especies"
@@ -46,6 +56,15 @@ export function EspeciesPage() {
       <h1 data-testid="especies-titulo" className="mb-3 text-xl font-bold">
         Espécies do litoral do Piauí
       </h1>
+      <input
+        data-testid="busca-especies"
+        type="search"
+        value={busca}
+        placeholder="Buscar por nome popular ou científico"
+        aria-label="Buscar espécie por nome"
+        onChange={(evento) => setBusca(evento.target.value)}
+        className="mb-3 w-full max-w-sm rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
       {indisponivel && (
         <p
           data-testid="especies-indisponivel"
@@ -55,7 +74,7 @@ export function EspeciesPage() {
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {(especies ?? []).map((item) => (
+        {filtradas.map((item) => (
           <button
             key={item.slug}
             type="button"
@@ -63,9 +82,10 @@ export function EspeciesPage() {
             onClick={() => setSlugAberto(item.slug)}
             className="rounded-xl border bg-background p-3 text-left shadow-sm transition hover:shadow-md"
           >
-            <img
+            <FotoEspecie
+              slug={item.slug}
+              imagem={item.imagem}
               alt={item.nome_popular}
-              src={`/api/especies/${item.slug}/imagem/`}
               className="mx-auto mb-2.5 block h-28 w-auto rounded-lg border"
             />
             <h3 className="text-sm font-bold">{item.nome_popular}</h3>
@@ -75,6 +95,14 @@ export function EspeciesPage() {
           </button>
         ))}
       </div>
+      {especies !== null && filtradas.length === 0 && (
+        <p
+          data-testid="busca-vazia"
+          className="rounded-lg border bg-background p-4 text-sm text-muted-foreground"
+        >
+          Nenhuma espécie encontrada para a busca.
+        </p>
+      )}
       {slugAberto && <EspecieModal slug={slugAberto} onFechar={() => setSlugAberto(null)} />}
     </section>
   )
