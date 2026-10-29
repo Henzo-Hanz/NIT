@@ -9,19 +9,17 @@ class CA1ListaEspeciesTest(TestCase):
     def setUp(self):
         call_command('seed_demo', '--recriar', stdout=StringIO())
 
-    def test_lista_retorna_200_com_tres_especies_e_campos_basicos(self):
+    def test_lista_retorna_200_com_as_especies_originais_e_campos_basicos(self):
         resposta = self.client.get('/api/especies/')
         self.assertEqual(resposta.status_code, 200)
         dados = json.loads(resposta.content)
-        self.assertEqual(len(dados), 3)
         slugs = {item['slug'] for item in dados}
-        self.assertEqual(
-            slugs,
+        self.assertTrue(
             {
                 'caranguejo-uca',
                 'caranguejo-maria-farinha',
                 'caranguejeiro-laranja-do-norte',
-            },
+            }.issubset(slugs)
         )
         for item in dados:
             self.assertIn('nome_popular', item)

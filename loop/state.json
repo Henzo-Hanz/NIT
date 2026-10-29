@@ -1,30 +1,8 @@
 {
-  "spec_id": "SPEC-0003",
+  "spec_id": "SPEC-0005",
   "fase": "entregue",
   "gate": null,
-  "tentativa": 1,
-  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/3",
-  "card_url": "https://trello.com/c/VoUKgunO/7-spec-0003-backend-mockado-de-biodiversidade",
-  "api_entregues": [
-    "GET /api/especies/",
-    "GET /api/especies/:slug/ (404 [borda])",
-    "GET /api/geometrias/?tipo=ponto|linha|poligono (GeoJSON FeatureCollection; 400 [borda])",
-    "management command: python manage.py seed_demo [--recriar]"
-  ],
-  "gates": {
-    "back": { "gate1": "aprovado (6 CAs, 20 testes)", "gate2": "aprovado (suíte 2.2s; listas em 1 query)", "gate3": "aprovado", "tentativa": 1 }
-  },
-  "aprovacao": {
-    "data": "2026-10-22 11h38 (São Paulo)",
-    "por": "hanz_dev",
-    "hash": "a1d8eaf16487f81367284d394aadadeb716565fa1b4e662182aa951e124bc028",
-    "origem": "comando explícito no chat ('Aprove a spec abaixo em meu nome — SPEC-0003'); rascunho + defaults do refino apresentados antes"
-  },
-  "desvios": [
-    "Fallback (como SPEC-0002): implementer-back sem ferramentas de escrita; runner executou a fase direto, escopo backend/ e gates sem dispensa",
-    "SPEC-0002 mesclada: main alinhada em 0acc579 (commits de README do humano); branch SPEC-0003 baseada na main",
-    "Push 403 do Henzo-Lopes no início da entrega resolvido com gh auth switch -u Henzo-Hanz + gh auth setup-git",
-    "Destaques do run-loop: 2 erros de JSON na spec corrigidos no validate (string quebrada + tab bruto); migrate faltou após makemigrations no primeiro seed",
-    "SPEC-0004 (front: pin pop-up Parnaíba '223 espécies', fichas /especie/:slug com foto/descrição/infos e CAMADAS filtrando por tipo) é o próximo passo natural"
-  ]
+  "tentativa": 2,
+  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/5",
+  "card_url": "https://trello.com/c/b4eAdZNe/9-spec-0005-desenho-de-pol%C3%ADgono-no-mapa-consulta-de-esp%C3%A9cies-por-%C3%A1rea-back-front"
 }
