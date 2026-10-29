@@ -1,0 +1,200 @@
+{
+  "id": "SPEC-0005",
+  "prompt_original": "ok, agora vamos planejar coisa séria! vamos pra próxima spec, quero que o usuário possa desenhar polígonos no mapa e baseado nas cordenadas o backend vai saber quantas e quais especies tem , por exemplo usuário faz um quadrado que pega todo ceará e seu litoral + uma parte do piauí, eai o backend vai saber em todos os pontos onde teve animais e quais especies, mas ele não vai mostarar tudo ao mesmo tempo, terá como escolher um animal e depois disso se filtra em onde e quais especies se tem, um exemplo seria 3 pontos por todo o litoral do ceará + umas praias com algumas especies diferentes, cada um com 3 samples no mesmo padrão de estilo dos cards de carnagueijos. o usuário deve poder desenhar com o mouse qualquer polígono sobre o mapa de maneira livre e o backend deve ler a area determinada por ele. ainda não decidi o que fazer com as linhas mas os pontos serão mostrados pra que ao clicar neles seja exibido o pin que fizemos + o svg do animal especificado. e o mesmo fluxo que fizemos inicialmente com os carangueijos ja definido.\n\nRespostas do refino: (1) desenho livre com o mouse sem afetar a mobilidade do mapa, com menu de ferramentas estilo Excalidraw (2 ferramentas: desenhar e arrastar; o ícone pesquisar existe mas não será implementado agora) e esse menu pode ficar escondido embaixo do header existente; (2) 3 pontos separados na região, que só aparecem e são selecionáveis se o polígono englobar a posição deles; (3) no painel onde hoje ficam as camadas, 4 opções: todas as espécies, mais presente, menos presente e animal específico (campo de busca com nome aproximado); o escopo muda com o mapa: sem polígono é todo o Brasil, com polígono é só dentro dele; (4) pontos aparecem como pontos (sem pins); o pin sobe ao clicar no ponto e segue o fluxo existente (x espécies encontradas -> ver espécies -> lista -> card -> ficha); (5) espécies mockadas aleatórias sem fotos por enquanto, manter o fallback até o usuário enviar as imagens.",
+  "objetivo": "Desenho livre de polígono sobre o mapa com toolbar de ferramentas, consulta por área no backend (quais e quantas espécies e pontos dentro), painel de filtro por espécie com escopo Brasil/área e fluxo ponto -> pin -> bolha -> ficha, com dados mockados de pontos no litoral CE/PI.",
+  "estado_referencia": "branch SPEC-0004 (PR #4, commit 62abc9f); main com SPEC-0001/0002/0003 (PR #3 pendente de merge humano)",
+  "escopo": {
+    "back": [
+      "Seed ampliado: 3 pontos amostrais no litoral do Ceará/Piauí (coordenadas mock), cada um ligado a 1-4 espécies; ~3 espécies mock novas sem foto (imagem vazia) além das 3 existentes; /api/geometrias continua servindo as geometrias com especie_slug",
+      "Endpoint POST /api/consulta/area/: recebe GeoJSON Polygon (ou null) + animal (busca aproximada por nome popular/científico) + ordenar (mais|menos); seleciona os pontos (Geometria tipo ponto com espécie) dentro do polígono via point-in-polygon em Python com pré-filtro de bbox (sem PostGIS) ou todos quando polígono null; agrega contagem por espécie e devolve espécies ordenadas + pontos como FeatureCollection; 400 para entrada inválida",
+      "Testes back: test_CA_1_area_seed_pontos.py, test_CA_2_consulta_area.py (inclui bordas do CA-2 e CA-3), com seed via call_command; perf/queries dentro do teto"
+    ],
+    "front": [
+      "Toolbar recolhível sob o HeaderBar (estilo Excalidraw): Desenhar (lápis), Arrastar (mão) e Pesquisar (lupa presente e desabilitada/placeholder); modo Desenhar ativa cursor de desenho e desliga pan; modo Arrastar devolve pan/zoom; estado ativo visível",
+      "Desenho livre de polígono: pointerdown/pointermove/pointerup sobre o canvas do mapa coleta coordenadas (map.unproject), fecha o anel ao soltar e renderiza o polígono no mapa; ao fechar dispara a consulta; novo desenho substitui o anterior",
+      "Painel sobre o mapa substitui o CamadasPanel: 4 opções (Todas as espécies, Mais presente, Menos presente, Animal específico com campo de busca aproximada); lista espécies com contagem; escopo Brasil sem polígono e somente dentro do polígono quando houver; selecionar uma espécie filtra os pontos exibidos; mudanças refazem a consulta",
+      "Pontos do resultado como círculos (sem pin); clique no ponto sobe o pin existente naquela coordenada e abre a bolha 'x espécies encontradas -> Ver espécies -> lista -> card abre o EspecieModal'; espécies sem foto usam fallback (silhueta PhyloPic /icone/ ou placeholder)",
+      "Testes front: CA_4_toolbar_desenho, CA_5_desenho_poligono, CA_6_painel_filtros, CA_7_pontos_pin_bolha, CA_8_fallback_sem_foto (MapFake/MarkerFake estendidos com unproject/project e listeners de canvas; fetch fake por rota)"
+    ]
+  },
+  "fora_de_escopo": [
+    "Ferramenta Pesquisar funcional (apenas o ícone por enquanto, decisão do usuário)",
+    "Linhas: uso ainda não decidido pelo usuário; linhas do seed continuam apenas visíveis e sem interação",
+    "Múltiplos polígonos, edição de vértices e persistência do polígono (um por vez, sem salvar)",
+    "PostGIS/GeoDjango (SQLite; point-in-polygon em Python)",
+    "Fotos reais das novas espécies (fallback até o usuário enviar)",
+    "Autenticação, paginação, edição/criação de dados pelo usuário",
+    "Nomes reais de praias/localidades (dados mock) e geocoding"
+  ],
+  "criterios_aceitacao": [
+    {
+      "id": "CA-1",
+      "camada": "back",
+      "descricao": "Dado o backend com seed_demo executado, quando GET /api/geometrias/, então existem pelo menos 3 geometrias de tipo ponto com especie_slug preenchido em coordenadas do litoral do Ceará/Piauí, e as novas espécies mock aparecem em GET /api/especies/."
+    },
+    {
+      "id": "CA-2",
+      "camada": "back",
+      "descricao": "Dado POST /api/consulta/area/ com um polígono que engloba 2 dos 3 pontos, então a resposta traz somente esses 2 pontos como FeatureCollection e a lista de espécies com contagem apenas das espécies desses pontos; dado um polígono sem nenhum ponto dentro, então 200 com listas vazias [borda]."
+    },
+    {
+      "id": "CA-3",
+      "camada": "back",
+      "descricao": "Dado POST com animal='maria', então só espécies/pontos cujo nome popular ou científico contém o termo (case-insensitive); dado ordenar=mais a lista de espécies vem por contagem decrescente e ordenar=menos crescente; dado corpo inválido (polígono não fechado/menos de 4 posições, ordenar fora do enum, animal com tipo inválido), então 400 [borda]."
+    },
+    {
+      "id": "CA-4",
+      "camada": "front",
+      "descricao": "Dado o mapa aberto, então a toolbar fica sob o header, é recolhível e tem os botões Desenhar, Arrastar e Pesquisar (pesquisar visível e desabilitado); clicar em Arrastar mantém pan/zoom do mapa; clicar em Desenhar marca o modo ativo e troca o cursor para desenho."
+    },
+    {
+      "id": "CA-5",
+      "camada": "front",
+      "descricao": "Dado o modo Desenhar ativo, quando o usuário pressiona, arrasta e solta sobre o mapa, então um polígono fechado é desenhado com contorno livre e a consulta por área é disparada; um novo desenho substitui o polígono anterior; no modo Arrastar o mapa se move sem criar polígono [borda]."
+    },
+    {
+      "id": "CA-6",
+      "camada": "front",
+      "descricao": "Dado o painel de filtros no lugar do de camadas, então existem as 4 opções (Todas, Mais presente, Menos presente, Animal específico); sem polígono a consulta usa escopo Brasil (todos os pontos) e com polígono somente dentro dele; a lista mostra espécies com contagem e escolher uma espécie filtra os pontos exibidos."
+    },
+    {
+      "id": "CA-7",
+      "camada": "front",
+      "descricao": "Dado um resultado com pontos, então eles aparecem como círculos sem pin; clicar num ponto sobe o pin na coordenada e abre a bolha com 'x espécies encontradas'; Ver espécies lista as espécies do ponto e cada card abre o EspecieModal existente."
+    },
+    {
+      "id": "CA-8",
+      "camada": "front",
+      "descricao": "Dado uma espécie mock sem foto, então na lista e no EspecieModal a imagem é substituída pelo fallback (silhueta /icone/ ou placeholder), sem imagem quebrada, e a ficha continua abrindo com os dados textuais [borda]."
+    }
+  ],
+  "contrato_api_rascunho": [
+    {
+      "metodo": "POST",
+      "rota": "/api/consulta/area/",
+      "request": {
+        "poligono": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -38.5,
+                -3.7
+              ],
+              [
+                -38.4,
+                -3.7
+              ],
+              [
+                -38.4,
+                -3.8
+              ],
+              [
+                -38.5,
+                -3.8
+              ],
+              [
+                -38.5,
+                -3.7
+              ]
+            ]
+          ]
+        },
+        "animal": "maria",
+        "ordenar": "mais"
+      },
+      "response": {
+        "especies": [
+          {
+            "slug": "caranguejo-maria-farinha",
+            "nome_popular": "Caranguejo maria-farinha",
+            "contagem": 2
+          }
+        ],
+        "pontos": {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": {
+                "id": 7,
+                "nome": "Praia mock",
+                "descricao": "2 espécies encontradas",
+                "especie_slugs": [
+                  "caranguejo-maria-farinha"
+                ],
+                "total": 2
+              },
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  -38.45,
+                  -3.75
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "erros": [
+        "400 polígono malformado (tipo != Polygon, anel não fechado ou menos de 4 posições)",
+        "400 ordenar fora de mais|menos|null",
+        "400 animal com tipo inválido (não string)"
+      ]
+    }
+  ],
+  "ja_existe_na_codebase": [
+    "backend: Especie e Geometria (geojson JSONField, especie FK opcional) em biodiversidade/models.py; /api/especies, /api/especies/:slug, /api/especies/:slug/imagem e /icone, /api/geometrias (FeatureCollection) em views.py; seed_demo com 3 espécies e 3 geometrias (1 ponto Parnaíba SEM espécie); não existe endpoint de consulta por área nem índice espacial",
+    "Django 5.2.18 + DRF 3.18.3, SQLite, sem PostGIS/GeoDjango (django.contrib.gis ausente de INSTALLED_APPS)",
+    "frontend: MapView (maplibre) com pin SVG + silhueta PhyloPic e bolha 'Ver espécies' -> EspecieModal; CamadasPanel com toggles de camadas; nenhuma ferramenta de desenho; lib/api.ts com buscarGeometrias/buscarEspecies/buscarEspecie",
+    "components/ui: button.tsx e dialog.tsx; lucide-react disponível para a toolbar (Pencil/Hand/Search)",
+    "testes: MapFake/MarkerFake por arquivo com vi.mock('maplibre-gl') e configurarFetch; back test_CA_<n>_*.py com seed via call_command",
+    "Laya consultado (implementado≈0,74, confiança não calibrada -> incerto): não há consulta por área implementada, coerente com a leitura direta do código"
+  ],
+  "laya_consultado": true,
+  "premissas": [
+    "Toolbar com 2 ferramentas funcionais (Desenhar e Arrastar) + ícone Pesquisar visível porém desabilitado (o usuário só quer o ícone por enquanto); barra recolhível sob o header",
+    "Um polígono por vez; desenhar de novo substitui o anterior; sem persistência e sem botão de apagar (redesenhar)",
+    "Consulta automática ao fechar o polígono e a cada mudança de filtro do painel (com debounce leve)",
+    "Sem PostGIS: point-in-polygon em Python (bbox + ray casting) sobre os pontos do seed; 'todo o Brasil' = todos os pontos cadastrados",
+    "O CamadasPanel (toggles) é substituído pelo painel de filtros; linhas e polígonos do seed continuam visíveis sem os toggles antigos",
+    "3 pontos amostrais novos no litoral CE/PI (coordenadas mock) com 1-4 espécies cada, misturando as 3 existentes e ~3 novas espécies mockadas",
+    "Espécies novas sem foto: imagem vazia no seed; o front usa a silhueta PhyloPic (/icone/) como fallback, sem imagem quebrada; o usuário enviará fotos depois",
+    "O fluxo de ficha continua sendo o EspecieModal existente, sem rota nova",
+    "Linhas ficam como estão (visíveis, sem interação) — uso ainda não decidido pelo usuário"
+  ],
+  "perguntas_abertas": [],
+  "dependencias": {
+    "front_depende_de_back": true
+  },
+  "perguntas_iteracao": [
+    {
+      "id": "PI-1",
+      "camada": "front",
+      "pergunta": "A barra de ferramentas fica recolhível e não bloqueia pan/zoom fora do modo Desenhar?",
+      "esperado": true
+    },
+    {
+      "id": "PI-2",
+      "camada": "front",
+      "pergunta": "O painel de filtros substitui o de camadas sem duplicar controles de visibilidade?",
+      "esperado": true
+    },
+    {
+      "id": "PI-3",
+      "camada": "back",
+      "pergunta": "A consulta sem polígono (escopo Brasil) usa a mesma rota e devolve agregados coerentes?",
+      "esperado": true
+    },
+    {
+      "id": "PI-4",
+      "camada": "front",
+      "pergunta": "Espécies sem foto exibem fallback (silhueta) em vez de imagem quebrada?",
+      "esperado": true
+    }
+  ],
+  "status": "aprovada",
+  "aprovada_por": "hanz_dev",
+  "aprovada_em": "2026-10-29 09h30 (São Paulo)",
+  "hash_aprovacao": "584a24cfd8e04b02aa7beefa1442dd6044347f51b354ecfa8cfc248f46532ca4"
+}
