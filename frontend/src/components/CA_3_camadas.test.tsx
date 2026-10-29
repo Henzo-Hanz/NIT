@@ -1,17 +1,28 @@
-import { render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
 import { CamadasPanel } from './CamadasPanel'
+import type { TipoGeometria } from '../lib/api'
 
-describe('CA-3: painel de camadas mock alternando on/off', () => {
-  it('alterna o estado de uma camada ao clicar', async () => {
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
+
+describe('CA-3: painel de camadas com filtros reais por tipo de geometria', () => {
+  it('inicia com os três tipos ligados e alterna via callback', async () => {
     const user = userEvent.setup()
-    render(<CamadasPanel />)
-    const botaoEspécies = screen.getByTestId('camada-espécies-litorâneas')
-    expect(botaoEspécies).toHaveAttribute('aria-pressed', 'false')
-    await user.click(botaoEspécies)
-    expect(botaoEspécies).toHaveAttribute('aria-pressed', 'true')
-    await user.click(botaoEspécies)
-    expect(botaoEspécies).toHaveAttribute('aria-pressed', 'false')
+    const camadasIniciais: Record<TipoGeometria, boolean> = {
+      ponto: true,
+      linha: true,
+      poligono: true,
+    }
+    const aoAlternar = vi.fn()
+    render(<CamadasPanel camadasAtivas={camadasIniciais} aoAlternar={aoAlternar} />)
+    expect(screen.getByTestId('camada-ponto')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('camada-linha')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('camada-poligono')).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByTestId('camada-ponto'))
+    expect(aoAlternar).toHaveBeenCalledWith('ponto')
   })
 })

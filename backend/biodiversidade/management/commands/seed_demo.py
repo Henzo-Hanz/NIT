@@ -22,7 +22,7 @@ ESPECIES = [
             'uso': 'Pescado artesanal',
             'curiosidade': 'Sobe a lama nas raízes para se defender da maré.',
         },
-        'imagem': 'biodiversidade/midia/caranguejo-uca.svg',
+        'imagem': 'biodiversidade/midia/caranguejo-uca.png',
     },
     {
         'slug': 'caranguejo-maria-farinha',
@@ -43,7 +43,7 @@ ESPECIES = [
             'velocidade_max_ms': 3.0,
             'curiosidade': 'Rola bolinhas de areia comedoras: daí o apelido maria-farinha.',
         },
-        'imagem': 'biodiversidade/midia/caranguejo-maria-farinha.svg',
+        'imagem': 'biodiversidade/midia/caranguejo-maria-farinha.png',
     },
     {
         'slug': 'caranguejeiro-laranja-do-norte',
@@ -63,7 +63,7 @@ ESPECIES = [
             'registro': 'Popular, sem diagnose científica formal',
             'curiosidade': 'Troca de casca duas vezes por ano e fica mais laranja a cada troca.',
         },
-        'imagem': 'biodiversidade/midia/caranguejeiro-laranja-do-norte.svg',
+        'imagem': 'biodiversidade/midia/caranguejeiro-laranja-do-norte.png',
     },
 ]
 

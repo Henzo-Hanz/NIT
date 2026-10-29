@@ -17,7 +17,7 @@ class CA2DetalheEspecieTest(TestCase):
         self.assertEqual(dados['nome_cientifico'], 'Ucides cordatus')
         self.assertIsInstance(dados['descricao'], str)
         self.assertIsInstance(dados['infos'], dict)
-        self.assertTrue(dados['imagem'].endswith('caranguejo-uca.svg'))
+        self.assertTrue(dados['imagem'].endswith('caranguejo-uca.png'))
 
     def test_detalhe_slug_inexistente_retorna_404(self):
         resposta = self.client.get('/api/especies/slug-inexistente/')

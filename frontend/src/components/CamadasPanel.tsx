@@ -1,19 +1,20 @@
-import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import type { TipoGeometria } from '@/lib/api'
 
-const CAMADAS_MOCK = [
-  'Espécies litorâneas',
-  'Unidades de conservação',
-  'Bacias hidrográficas',
-] as const
+const ROTULOS: Record<TipoGeometria, string> = {
+  ponto: 'Pontos',
+  linha: 'Linhas',
+  poligono: 'Polígonos',
+}
 
-export function CamadasPanel() {
-  const [ativas, setAtivas] = useState<Record<string, boolean>>({})
+const TIPOS = Object.keys(ROTULOS) as TipoGeometria[]
 
-  const alternar = (nome: string) => {
-    setAtivas((atual) => ({ ...atual, [nome]: !atual[nome] }))
-  }
+interface CamadasPanelProps {
+  camadasAtivas: Record<TipoGeometria, boolean>
+  aoAlternar: (tipo: TipoGeometria) => void
+}
 
+export function CamadasPanel({ camadasAtivas, aoAlternar }: CamadasPanelProps) {
   return (
     <aside
       data-testid="painel-camadas"
@@ -23,25 +24,29 @@ export function CamadasPanel() {
         Camadas
       </h2>
       <ul className="flex flex-col gap-1">
-        {CAMADAS_MOCK.map((camada) => (
-          <li key={camada}>
+        {TIPOS.map((tipo) => (
+          <li key={tipo}>
             <Button
               variant="ghost"
               size="sm"
-              data-testid={`camada-${camada.toLowerCase().replace(/\s+/g, '-')}`}
-              aria-pressed={Boolean(ativas[camada])}
-              onClick={() => alternar(camada)}
+              data-testid={`camada-${tipo}`}
+              aria-pressed={camadasAtivas[tipo]}
+              onClick={() => aoAlternar(tipo)}
               className="w-full justify-start"
             >
               <span
-                className={`mr-2 inline-block h-2 w-2 rounded-full ${ativas[camada] ? 'bg-primary' : 'bg-muted-foreground/40'}`}
+                className={`mr-2 inline-block h-2 w-2 rounded-full ${
+                  camadasAtivas[tipo] ? 'bg-primary' : 'bg-muted-foreground/40'
+                }`}
               />
-              {camada}
+              {ROTULOS[tipo]}
             </Button>
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-xs text-muted-foreground">Exibição simulada — dados em breve.</p>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Filtros por tipo de geometria — dados do backend.
+      </p>
     </aside>
   )
 }
