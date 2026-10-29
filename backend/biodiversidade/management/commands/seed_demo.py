@@ -65,6 +65,81 @@ ESPECIES = [
         },
         'imagem': 'biodiversidade/midia/caranguejeiro-laranja-do-norte.png',
     },
+    {
+        'slug': 'guaiamum',
+        'nome_popular': 'Guaiamum',
+        'nome_cientifico': 'Cardisoma guanhumi',
+        'descricao': (
+            'O guaiamum (Cardisoma guanhumi) é um caranguejo terrestre de manguezais e '
+            'apicuns, de casca azulada e garras robustas, que cava tocas profundas acima '
+            'da linha da maré. É muito procurado na culinária do litoral cearense e '
+            'piauiense. Os dados desta ficha são mockados para o protótipo do mapa.'
+        ),
+        'infos': {
+            'tamanho_max_cm': 11.0,
+            'habitat': 'Manguezal e apicum',
+            'cor': 'Azul-escuro',
+            'uso': 'Pescado artesanal',
+            'curiosidade': 'Volta à toca antes da maré subir e fecha a entrada com lama.',
+        },
+        'imagem': '',
+    },
+    {
+        'slug': 'aratu',
+        'nome_popular': 'Aratu',
+        'nome_cientifico': 'Goniopsis cruentata',
+        'descricao': (
+            'O aratu (Goniopsis cruentata) é um caranguejo ágil das raízes do manguezal, '
+            'de coloração avermelhada e patas longas, que sobe troncos e raízes para '
+            'escapar da maré. É comum nos mangues do litoral do Ceará e do Piauí. '
+            'Os dados desta ficha são mockados para o protótipo do mapa.'
+        ),
+        'infos': {
+            'tamanho_max_cm': 5.0,
+            'habitat': 'Manguezal',
+            'cor': 'Vermelho-alaranjado',
+            'periodo_atividade': 'Maré baixa',
+            'curiosidade': 'Anda de lado pelas raízes como se fosse uma ponte.',
+        },
+        'imagem': '',
+    },
+    {
+        'slug': 'siri-azul',
+        'nome_popular': 'Siri-azul',
+        'nome_cientifico': 'Callinectes sapidus',
+        'descricao': (
+            'O siri-azul (Callinectes sapidus) é um siri nadador de casca azulada e '
+            'pinças alongadas que frequenta estuários e praias arenosas do litoral. '
+            'Nada com as patas traseiras em forma de remo e é um predador oportunista. '
+            'Os dados desta ficha são mockados para o protótipo do mapa.'
+        ),
+        'infos': {
+            'tamanho_max_cm': 10.0,
+            'habitat': 'Estuário e praia arenosa',
+            'cor': 'Azul',
+            'periodo_atividade': 'Noite',
+            'curiosidade': 'Nada de lado com as patas traseiras em formato de remo.',
+        },
+        'imagem': '',
+    },
+]
+
+LOCALIDADES = [
+    {
+        'nome': 'Jericoacoara',
+        'coordenadas': [-40.513, -2.797],
+        'especies': ['caranguejo-uca', 'guaiamum'],
+    },
+    {
+        'nome': 'Camocim',
+        'coordenadas': [-40.84, -2.90],
+        'especies': ['caranguejo-uca', 'caranguejo-maria-farinha'],
+    },
+    {
+        'nome': 'Luís Correia',
+        'coordenadas': [-41.66, -3.02],
+        'especies': ['caranguejo-uca', 'aratu', 'siri-azul'],
+    },
 ]
 
 GEOMETRIAS = [
@@ -111,11 +186,22 @@ GEOMETRIAS = [
             ],
         },
     },
+] + [
+    {
+        'nome': localidade['nome'],
+        'tipo': 'ponto',
+        'descricao': f"{len(localidade['especies'])} espécies encontradas",
+        'propriedades': {'total': len(localidade['especies'])},
+        'especie_slug': slug,
+        'geojson': {'type': 'Point', 'coordinates': localidade['coordenadas']},
+    }
+    for localidade in LOCALIDADES
+    for slug in localidade['especies']
 ]
 
 
 class Command(BaseCommand):
-    help = 'Semeia os dados mockados de biodiversidade (3 espécies e 3 geometrias).'
+    help = 'Semeia os dados mockados de biodiversidade (espécies, geometrias e pontos amostrais).'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -131,8 +217,15 @@ class Command(BaseCommand):
         for dados in ESPECIES:
             Especie.objects.update_or_create(slug=dados['slug'], defaults=dados)
         for dados in GEOMETRIAS:
+            especie = None
+            if dados['especie_slug']:
+                especie = Especie.objects.get(slug=dados['especie_slug'])
             defaults = {
                 chave: valor for chave, valor in dados.items() if chave != 'especie_slug'
             }
-            Geometria.objects.update_or_create(nome=dados['nome'], defaults=defaults)
+            Geometria.objects.update_or_create(
+                nome=dados['nome'],
+                especie=especie,
+                defaults=defaults,
+            )
         self.stdout.write(self.style.SUCCESS('Seed de biodiversidade concluído.'))

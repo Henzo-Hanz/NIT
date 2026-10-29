@@ -7,6 +7,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 import biodiversidade
+from django.db.models import Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
@@ -159,3 +160,163 @@ def geometrias(request):
         for registro in registros
     ]
     return Response({'type': 'FeatureCollection', 'features': features})
+
+
+def _e_numero(valor):
+    return isinstance(valor, (int, float)) and not isinstance(valor, bool)
+
+
+def _validar_poligono(poligono):
+    if poligono is None:
+        return None
+    if not isinstance(poligono, dict) or poligono.get('type') != 'Polygon':
+        return 'poligono deve ser um objeto GeoJSON do tipo Polygon ou null.'
+    aneis = poligono.get('coordinates')
+    if not isinstance(aneis, list) or not aneis:
+        return 'poligono.coordinates deve ser uma lista de anéis.'
+    for anel in aneis:
+        if not isinstance(anel, list) or len(anel) < 4:
+            return 'Cada anel deve ter ao menos 4 posições [lon, lat].'
+        for posicao in anel:
+            if not isinstance(posicao, list) or len(posicao) != 2:
+                return 'Cada posição deve ser uma lista [lon, lat].'
+            if not all(_e_numero(valor) for valor in posicao):
+                return 'As coordenadas devem ser numéricas.'
+        if anel[0] != anel[-1]:
+            return 'O primeiro e o último ponto de cada anel devem ser iguais.'
+    return None
+
+
+def _ponto_em_anel(x, y, anel):
+    dentro = False
+    anterior = anel[-1]
+    for atual in anel:
+        xi, yi = atual
+        xj, yj = anterior
+        if (yi > y) != (yj > y):
+            interseccao = (xj - xi) * (y - yi) / (yj - yi) + xi
+            if x < interseccao:
+                dentro = not dentro
+        anterior = atual
+    return dentro
+
+
+def _ponto_no_poligono(x, y, aneis):
+    if not _ponto_em_anel(x, y, aneis[0]):
+        return False
+    return not any(_ponto_em_anel(x, y, anel) for anel in aneis[1:])
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def consulta_area(request):
+    try:
+        corpo = json.loads(request.body or b'{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return Response({'erro': 'Corpo da requisição deve ser um JSON objeto.'}, status=400)
+    if not isinstance(corpo, dict):
+        return Response({'erro': 'Corpo da requisição deve ser um JSON objeto.'}, status=400)
+
+    poligono = corpo.get('poligono')
+    animal = corpo.get('animal')
+    ordenar = corpo.get('ordenar')
+
+    erro = _validar_poligono(poligono)
+    if erro:
+        return Response({'erro': erro}, status=400)
+    if animal is not None and not isinstance(animal, str):
+        return Response({'erro': 'animal deve ser uma string ou null.'}, status=400)
+    if ordenar not in (None, 'mais', 'menos'):
+        return Response({'erro': "ordenar deve ser 'mais', 'menos' ou null."}, status=400)
+
+    registros = Geometria.objects.select_related('especie').filter(
+        tipo='ponto',
+        especie__isnull=False,
+    )
+    termo = (animal or '').strip()
+    if termo:
+        registros = registros.filter(
+            Q(especie__nome_popular__icontains=termo)
+            | Q(especie__nome_cientifico__icontains=termo)
+        )
+
+    aneis = poligono['coordinates'] if poligono else None
+    bbox = None
+    if aneis:
+        externo = aneis[0]
+        longitudes = [posicao[0] for posicao in externo]
+        latitudes = [posicao[1] for posicao in externo]
+        bbox = (
+            min(longitudes),
+            min(latitudes),
+            max(longitudes),
+            max(latitudes),
+        )
+
+    grupos = {}
+    for registro in registros:
+        geometria = registro.geojson or {}
+        if geometria.get('type') != 'Point':
+            continue
+        coordenadas = geometria.get('coordinates')
+        if not isinstance(coordenadas, (list, tuple)) or len(coordenadas) < 2:
+            continue
+        x, y = coordenadas[0], coordenadas[1]
+        if not (_e_numero(x) and _e_numero(y)):
+            continue
+        if bbox is not None:
+            if not (bbox[0] <= x <= bbox[2] and bbox[1] <= y <= bbox[3]):
+                continue
+            if not _ponto_no_poligono(x, y, aneis):
+                continue
+        chave = (registro.nome, tuple(coordenadas))
+        grupo = grupos.get(chave)
+        if grupo is None:
+            grupo = {'id': registro.id, 'descricao': registro.descricao, 'especies': {}}
+            grupos[chave] = grupo
+        grupo['especies'].setdefault(registro.especie.slug, registro.especie.nome_popular)
+
+    contagens = {}
+    features = []
+    for (nome, coordenadas), grupo in grupos.items():
+        for slug, nome_popular in grupo['especies'].items():
+            contagem = contagens.setdefault(
+                slug,
+                {'slug': slug, 'nome_popular': nome_popular, 'localidades': set()},
+            )
+            contagem['localidades'].add((nome, coordenadas))
+        features.append(
+            {
+                'type': 'Feature',
+                'properties': {
+                    'id': grupo['id'],
+                    'nome': nome,
+                    'descricao': grupo['descricao'],
+                    'especie_slugs': list(grupo['especies']),
+                    'total': len(grupo['especies']),
+                },
+                'geometry': {'type': 'Point', 'coordinates': list(coordenadas)},
+            }
+        )
+
+    especies = [
+        {
+            'slug': item['slug'],
+            'nome_popular': item['nome_popular'],
+            'contagem': len(item['localidades']),
+        }
+        for item in contagens.values()
+    ]
+    if ordenar == 'mais':
+        especies.sort(key=lambda item: (-item['contagem'], item['nome_popular']))
+    elif ordenar == 'menos':
+        especies.sort(key=lambda item: (item['contagem'], item['nome_popular']))
+    else:
+        especies.sort(key=lambda item: item['nome_popular'])
+
+    return Response(
+        {
+            'especies': especies,
+            'pontos': {'type': 'FeatureCollection', 'features': features},
+        }
+    )
