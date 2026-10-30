@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MapView } from './MapView'
 
@@ -129,6 +129,7 @@ describe('CA-4: toolbar de ferramentas sob o header, recolhível e com modos', (
       expect(instancia().dragPan.disable).toHaveBeenCalled()
     })
 
+    await usuario.click(screen.getByTestId('desenho-voltar'))
     await usuario.click(screen.getByTestId('ferramenta-arrastar'))
     expect(screen.getByTestId('ferramenta-arrastar')).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByTestId('ferramenta-desenhar')).toHaveAttribute('aria-pressed', 'false')
@@ -136,5 +137,109 @@ describe('CA-4: toolbar de ferramentas sob o header, recolhível e com modos', (
     await vi.waitFor(() => {
       expect(instancia().dragPan.enable).toHaveBeenCalled()
     })
+  })
+
+  it('marca visualmente a ferramenta ativa com data-ativo e a classe primária', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<MapView />)
+
+    const arrastar = screen.getByTestId('ferramenta-arrastar')
+    const desenhar = screen.getByTestId('ferramenta-desenhar')
+    expect(arrastar).toHaveAttribute('data-ativo', 'true')
+    expect(arrastar.className).toContain('bg-primary')
+    expect(arrastar.className).toContain('text-primary-foreground')
+    expect(desenhar).toHaveAttribute('data-ativo', 'false')
+    expect(desenhar.className).not.toContain('bg-primary')
+
+    await usuario.click(desenhar)
+    expect(desenhar).toHaveAttribute('data-ativo', 'true')
+    expect(desenhar.className).toContain('bg-primary')
+    expect(desenhar.className).toContain('text-primary-foreground')
+    expect(desenhar).toHaveAttribute('aria-pressed', 'true')
+    expect(arrastar).toHaveAttribute('data-ativo', 'false')
+  })
+
+  it('desenhar abre o submenu animado com as três formas e o voltar fecha', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<MapView />)
+
+    const principal = screen.getByTestId('ferramentas-principal')
+    const submenu = screen.getByTestId('ferramentas-desenho')
+    expect(submenu).toHaveAttribute('data-aberto', 'false')
+    expect(submenu.className).toContain('-translate-y-6')
+    expect(submenu.className).toContain('opacity-0')
+    expect(submenu.className).toContain('pointer-events-none')
+    expect(principal.className).toContain('translate-y-0')
+    expect(principal.className).toContain('opacity-100')
+
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    expect(submenu).toHaveAttribute('data-aberto', 'true')
+    expect(submenu.className).toContain('translate-y-0')
+    expect(submenu.className).toContain('opacity-100')
+    expect(principal.className).toContain('pointer-events-none')
+    expect(principal.className).toContain('translate-y-6')
+    expect(principal.className).toContain('opacity-0')
+
+    expect(screen.getByTestId('desenho-quadrado')).toBeInTheDocument()
+    expect(screen.getByTestId('desenho-circulo')).toBeInTheDocument()
+    expect(screen.getByTestId('desenho-livre')).toBeInTheDocument()
+
+    await usuario.click(screen.getByTestId('desenho-voltar'))
+    expect(submenu).toHaveAttribute('data-aberto', 'false')
+    expect(submenu.className).toContain('-translate-y-6')
+    expect(submenu.className).toContain('opacity-0')
+    expect(principal.className).toContain('translate-y-0')
+    expect(principal.className).toContain('opacity-100')
+    expect(screen.getByTestId('ferramenta-desenhar')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('escolher quadrado, círculo ou livre fecha o submenu e mantém o modo desenhar', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<MapView />)
+
+    const submenu = screen.getByTestId('ferramentas-desenho')
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    await usuario.click(screen.getByTestId('desenho-quadrado'))
+    expect(submenu).toHaveAttribute('data-aberto', 'false')
+    expect(screen.getByTestId('ferramenta-desenhar')).toHaveAttribute('aria-pressed', 'true')
+
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    expect(screen.getByTestId('desenho-quadrado')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('desenho-quadrado')).toHaveAttribute('data-ativo', 'true')
+    expect(screen.getByTestId('desenho-quadrado').className).toContain('bg-primary')
+    expect(screen.getByTestId('desenho-livre')).toHaveAttribute('aria-pressed', 'false')
+
+    await usuario.click(screen.getByTestId('desenho-circulo'))
+    expect(submenu).toHaveAttribute('data-aberto', 'false')
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    expect(screen.getByTestId('desenho-circulo')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('desenho-circulo')).toHaveAttribute('data-ativo', 'true')
+
+    await usuario.click(screen.getByTestId('desenho-livre'))
+    expect(submenu).toHaveAttribute('data-aberto', 'false')
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    expect(screen.getByTestId('desenho-livre')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('desenho-livre')).toHaveAttribute('data-ativo', 'true')
+    expect(screen.getByTestId('desenho-quadrado')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('ferramenta-desenhar')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('clicar em medir ou recolher também fecha o submenu', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<MapView />)
+
+    const submenu = screen.getByTestId('ferramentas-desenho')
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    fireEvent.click(screen.getByTestId('ferramenta-medir'))
+    expect(submenu).toHaveAttribute('data-aberto', 'false')
+    expect(screen.getByTestId('ferramenta-medir')).toHaveAttribute('aria-pressed', 'true')
+
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    await usuario.click(screen.getByTestId('ferramenta-recolher'))
+    expect(screen.queryByTestId('ferramentas-desenho')).toBeNull()
   })
 })
