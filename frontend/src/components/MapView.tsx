@@ -3,10 +3,14 @@ import { ChevronDown, ArrowLeft, X } from 'lucide-react'
 import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Button } from '@/components/ui/button'
-import { FerramentasToolbar, type ModoFerramenta } from '@/components/FerramentasToolbar'
+import {
+  FerramentasToolbar,
+  type FormaDesenho,
+  type ModoFerramenta,
+} from '@/components/FerramentasToolbar'
 import { FiltroAnimaisPanel, type FiltroEspecie } from '@/components/FiltroAnimaisPanel'
 import { PainelAreas, type AreaDesenhada } from '@/components/PainelAreas'
-import { areaKm2, distanciaKm, formatarKm, formatarKm2 } from '@/utils/geo'
+import { areaKm2, convexHull, distanciaKm, formatarKm, formatarKm2 } from '@/utils/geo'
 import {
   buscarGeometrias,
   buscarEspecies,
@@ -41,6 +45,7 @@ function conectarFallbackDoIcone(pin: HTMLElement, icone: Element) {
 
 function htmlDoPin(slugIcone: string) {
   return (
+    '<span data-animacao="crescer" class="pin-area-crescer block origin-bottom">' +
     '<svg width="46" height="62" viewBox="0 0 34 46" class="drop-shadow-md">' +
     '<path d="M17 1C8.2 1 1 8.2 1 17c0 7.41 6.49 15.33 12.39 21.83C14.39 42.83 15.63 44 17 44s2.61-1.17 3.61-2.17C26.51 32.33 33 24.41 33 17 33 8.2 25.8 1 17 1Z" class="fill-destructive"/>' +
     '<circle cx="17" cy="17" r="10" fill="#ffffff"/>' +
@@ -61,7 +66,8 @@ function htmlDoPin(slugIcone: string) {
     '</g>' +
     '<circle data-fallback-crab-olho cx="15.3" cy="16.05" r="0.75" fill="#ffffff" style="display: none"/>' +
     '<circle data-fallback-crab-olho cx="18.7" cy="16.05" r="0.75" fill="#ffffff" style="display: none"/>' +
-    '</svg>'
+    '</svg>' +
+    '</span>'
   )
 }
 
@@ -148,6 +154,8 @@ export function MapView({
   const fonteProntaRef = useRef(false)
   const modoRef = useRef<ModoFerramenta>('arrastar')
   const pontosDesenhoRef = useRef<number[][]>([])
+  const inicioDesenhoRef = useRef<{ tela: { x: number; y: number } } | null>(null)
+  const ultimaTelaRef = useRef<{ x: number; y: number } | null>(null)
   const desenhandoRef = useRef(false)
   const proximoIdRef = useRef(1)
   const areaDestaqueRef = useRef<AreaDesenhada | null>(null)
@@ -165,6 +173,7 @@ export function MapView({
   const [areas, setAreas] = useState<AreaDesenhada[]>([])
   const [areaAtivaId, setAreaAtivaId] = useState<string | null>(null)
   const [pontosPreview, setPontosPreview] = useState<{ x: number; y: number }[]>([])
+  const [formaDesenho, setFormaDesenho] = useState<FormaDesenho>('livre')
   const [posArea, setPosArea] = useState<{ x: number; y: number } | null>(null)
   const [medicao, setMedicao] = useState<{ a: PontoDaArea; b: PontoDaArea | null } | null>(null)
   const [resultado, setResultado] = useState<ConsultaArea | null>(null)
@@ -182,10 +191,7 @@ export function MapView({
   const podeTentarSemKey = useRef(Boolean(cartoKey))
   const areaEmDestaque =
     areas.find((area) => area.id === areaAtivaId) ?? areas[areas.length - 1] ?? null
-  const pontosVisiveis = (resultado?.pontos.features ?? []).filter(
-    (ponto) =>
-      !especieSelecionada || ponto.properties.especie_slugs.includes(especieSelecionada),
-  )
+  const pontosVisiveis = areas.length ? (resultado?.pontos.features ?? []) : []
 
   useEffect(() => {
     resultadoRef.current = resultado
@@ -226,15 +232,20 @@ export function MapView({
     setPosArea({ x: projetado.x, y: projetado.y })
   }, [])
 
-  const coordenadaDoEvento = (evento: MouseEvento<HTMLDivElement>): [number, number] => {
-    const mapa = mapRef.current
+  const telaDoEvento = (evento: MouseEvento<HTMLDivElement>): { x: number; y: number } => {
     const rect = containerRef.current?.getBoundingClientRect()
-    const x = evento.clientX - (rect?.left ?? 0)
-    const y = evento.clientY - (rect?.top ?? 0)
-    if (!mapa) {
-      return [x, y]
+    return {
+      x: evento.clientX - (rect?.left ?? 0),
+      y: evento.clientY - (rect?.top ?? 0),
     }
-    const bruto = mapa.unproject([x, y]) as unknown
+  }
+
+  const coordenadaDaTela = (tela: { x: number; y: number }): [number, number] => {
+    const mapa = mapRef.current
+    if (!mapa) {
+      return [tela.x, tela.y]
+    }
+    const bruto = mapa.unproject([tela.x, tela.y]) as unknown
     if (Array.isArray(bruto)) {
       return [Number(bruto[0]), Number(bruto[1])]
     }
@@ -242,51 +253,10 @@ export function MapView({
     return [Number(lngLat?.lng), Number(lngLat?.lat)]
   }
 
-  const aoMouseDown = (evento: MouseEvento<HTMLDivElement>) => {
-    if (modo !== 'desenhar') {
+  const registrarArea = (anel: number[][]) => {
+    if (anel.length < 4) {
       return
     }
-    pontosDesenhoRef.current = [coordenadaDoEvento(evento)]
-    desenhandoRef.current = true
-    setPontosPreview([{ x: evento.clientX, y: evento.clientY }])
-  }
-
-  const aoMouseMove = (evento: MouseEvento<HTMLDivElement>) => {
-    if (modo !== 'desenhar' || !desenhandoRef.current) {
-      return
-    }
-    const pontos = pontosDesenhoRef.current
-    const ponto = coordenadaDoEvento(evento)
-    const ultimo = pontos[pontos.length - 1]
-    const mudou = !ultimo || ultimo[0] !== ponto[0] || ultimo[1] !== ponto[1]
-    if (mudou) {
-      pontos.push(ponto)
-    }
-    const tela = { x: evento.clientX, y: evento.clientY }
-    setPontosPreview((atuais) =>
-      mudou || atuais.length === 0 ? [...atuais, tela] : [...atuais.slice(0, -1), tela],
-    )
-  }
-
-  const aoMouseUp = () => {
-    if (modo !== 'desenhar' || !desenhandoRef.current) {
-      return
-    }
-    desenhandoRef.current = false
-    const pontos = pontosDesenhoRef.current
-    pontosDesenhoRef.current = []
-    setPontosPreview([])
-    const distintos: number[][] = []
-    for (const ponto of pontos) {
-      const ultimo = distintos[distintos.length - 1]
-      if (!ultimo || ultimo[0] !== ponto[0] || ultimo[1] !== ponto[1]) {
-        distintos.push(ponto)
-      }
-    }
-    if (distintos.length < 3) {
-      return
-    }
-    const anel = [...distintos, distintos[0]]
     const id = String(proximoIdRef.current)
     proximoIdRef.current += 1
     const nova: AreaDesenhada = {
@@ -297,6 +267,101 @@ export function MapView({
     }
     setAreas((atuais) => [...atuais, nova])
     setMedicao(null)
+  }
+
+  const aoMouseDown = (evento: MouseEvento<HTMLDivElement>) => {
+    if (modo !== 'desenhar') {
+      return
+    }
+    const tela = telaDoEvento(evento)
+    ultimaTelaRef.current = tela
+    desenhandoRef.current = true
+    setPontosPreview([tela])
+    if (formaDesenho === 'livre') {
+      pontosDesenhoRef.current = [coordenadaDaTela(tela)]
+      inicioDesenhoRef.current = null
+    } else {
+      pontosDesenhoRef.current = []
+      inicioDesenhoRef.current = { tela }
+    }
+  }
+
+  const aoMouseMove = (evento: MouseEvento<HTMLDivElement>) => {
+    if (modo !== 'desenhar' || !desenhandoRef.current) {
+      return
+    }
+    const tela = telaDoEvento(evento)
+    ultimaTelaRef.current = tela
+    if (formaDesenho === 'livre') {
+      const pontos = pontosDesenhoRef.current
+      const ponto = coordenadaDaTela(tela)
+      const ultimo = pontos[pontos.length - 1]
+      const mudou = !ultimo || ultimo[0] !== ponto[0] || ultimo[1] !== ponto[1]
+      if (mudou) {
+        pontos.push(ponto)
+      }
+      setPontosPreview((atuais) =>
+        mudou || atuais.length === 0 ? [...atuais, tela] : [...atuais.slice(0, -1), tela],
+      )
+      return
+    }
+    const inicio = inicioDesenhoRef.current
+    setPontosPreview(inicio ? [inicio.tela, tela] : [tela])
+  }
+
+  const aoMouseUp = () => {
+    if (modo !== 'desenhar' || !desenhandoRef.current) {
+      return
+    }
+    desenhandoRef.current = false
+    setPontosPreview([])
+    const ultimaTela = ultimaTelaRef.current
+    ultimaTelaRef.current = null
+    if (formaDesenho === 'livre') {
+      const pontos = pontosDesenhoRef.current
+      pontosDesenhoRef.current = []
+      const hull = convexHull(pontos)
+      if (hull.length < 3) {
+        return
+      }
+      registrarArea([...hull, hull[0]])
+      return
+    }
+    const inicio = inicioDesenhoRef.current
+    inicioDesenhoRef.current = null
+    if (!inicio || !ultimaTela) {
+      return
+    }
+    const dx = ultimaTela.x - inicio.tela.x
+    const dy = ultimaTela.y - inicio.tela.y
+    if (formaDesenho === 'quadrado') {
+      const lado = Math.max(Math.abs(dx), Math.abs(dy))
+      if (lado < 4) {
+        return
+      }
+      const sx = dx < 0 ? -1 : 1
+      const sy = dy < 0 ? -1 : 1
+      const cantos = [
+        inicio.tela,
+        { x: inicio.tela.x + sx * lado, y: inicio.tela.y },
+        { x: inicio.tela.x + sx * lado, y: inicio.tela.y + sy * lado },
+        { x: inicio.tela.x, y: inicio.tela.y + sy * lado },
+      ].map((tela) => coordenadaDaTela(tela))
+      registrarArea([...cantos, cantos[0]])
+      return
+    }
+    const raio = Math.hypot(dx, dy)
+    if (raio < 3) {
+      return
+    }
+    const vertices = Array.from({ length: 32 }, (_, indice) => {
+      const angulo = (indice / 32) * Math.PI * 2
+      return coordenadaDaTela({
+        x: inicio.tela.x + raio * Math.cos(angulo),
+        y: inicio.tela.y + raio * Math.sin(angulo),
+      })
+    })
+    registrarArea([...vertices, vertices[0]])
   }
 
   useEffect(() => {
@@ -320,6 +385,8 @@ export function MapView({
       style: estiloAtual,
       center: CENTRO_LITORAL_PI,
       zoom: ZOOM_INICIAL,
+      minZoom: 3,
+      maxZoom: 17,
       attributionControl: false,
     })
     mapRef.current = map
@@ -709,11 +776,38 @@ export function MapView({
       ? { a: posicaoMedicaoA, b: posicaoMedicaoB }
       : null
 
+  const hullPreview =
+    formaDesenho === 'livre'
+      ? convexHull(pontosPreview.map((ponto) => [ponto.x, ponto.y])).map(([x, y]) => ({ x, y }))
+      : []
+  const inicioPreview = pontosPreview[0]
+  const atualPreview = pontosPreview[1]
+  const ladoPreview =
+    formaDesenho === 'quadrado' && inicioPreview && atualPreview
+      ? Math.max(
+          Math.abs(atualPreview.x - inicioPreview.x),
+          Math.abs(atualPreview.y - inicioPreview.y),
+        )
+      : 0
+  const raioPreview =
+    formaDesenho === 'circulo' && inicioPreview && atualPreview
+      ? Math.hypot(atualPreview.x - inicioPreview.x, atualPreview.y - inicioPreview.y)
+      : 0
+  const quadradoPreview =
+    ladoPreview > 0 && inicioPreview && atualPreview
+      ? {
+          x: inicioPreview.x + (atualPreview.x < inicioPreview.x ? -ladoPreview : 0),
+          y: inicioPreview.y + (atualPreview.y < inicioPreview.y ? -ladoPreview : 0),
+        }
+      : null
+
   return (
     <div data-testid="mapa" className="absolute inset-0">
       <div
         ref={containerRef}
         data-testid="mapa-container"
+        data-zoom-min="3"
+        data-zoom-max="17"
         data-poligono-desenhado={
           areas.length ? JSON.stringify(areas[areas.length - 1].polygon) : undefined
         }
@@ -725,17 +819,48 @@ export function MapView({
       {modo === 'desenhar' && (
         <svg
           data-testid="preview-desenho"
+          data-forma={formaDesenho}
           className="pointer-events-none absolute inset-0 z-10 h-full w-full"
           aria-hidden="true"
         >
-          <polyline
-            points={pontosPreview.map((ponto) => `${ponto.x},${ponto.y}`).join(' ')}
-            fill="none"
-            stroke="#0f766e"
-            strokeWidth={2}
-            strokeDasharray="6 4"
-            strokeLinecap="round"
-          />
+          {formaDesenho === 'livre' && (
+            <polyline
+              points={(hullPreview.length >= 3 ? hullPreview : pontosPreview)
+                .map((ponto) => `${ponto.x},${ponto.y}`)
+                .join(' ')}
+              fill="none"
+              stroke="#0f766e"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+              strokeLinecap="round"
+            />
+          )}
+          {formaDesenho === 'quadrado' && quadradoPreview && (
+            <rect
+              data-testid="preview-quadrado"
+              x={quadradoPreview.x}
+              y={quadradoPreview.y}
+              width={ladoPreview}
+              height={ladoPreview}
+              fill="none"
+              stroke="#0f766e"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+            />
+          )}
+          {formaDesenho === 'circulo' && raioPreview > 0 && inicioPreview && (
+            <ellipse
+              data-testid="preview-circulo"
+              cx={inicioPreview.x}
+              cy={inicioPreview.y}
+              rx={raioPreview}
+              ry={raioPreview}
+              fill="none"
+              stroke="#0f766e"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+            />
+          )}
         </svg>
       )}
       {linhaMedicao && (
@@ -760,6 +885,8 @@ export function MapView({
       <FerramentasToolbar
         modo={modo}
         aoEscolherModo={escolherModo}
+        formaDesenho={formaDesenho}
+        aoEscolherForma={setFormaDesenho}
         colapsada={colapsada}
         aoAlternarColapso={() => setColapsada((atual) => !atual)}
         aoPesquisar={onPesquisar}
@@ -810,14 +937,24 @@ export function MapView({
           return null
         }
         const marcada = medicao?.a.properties.id === ponto.properties.id
+        const destacado = especieSelecionada
+          ? ponto.properties.especie_slugs.includes(especieSelecionada)
+          : null
+        const classeDestaque =
+          destacado === null
+            ? 'z-10 size-4 bg-teal-600'
+            : destacado
+              ? 'z-20 size-6 bg-amber-500 ring-4 ring-amber-400'
+              : 'z-10 size-3 opacity-40'
         return (
           <button
             key={`${ponto.properties.id}-${ponto.geometry.coordinates[0]}-${ponto.geometry.coordinates[1]}`}
             type="button"
             data-testid="ponto-area"
             data-medida={marcada ? 'a' : undefined}
+            data-destacado={destacado === null ? undefined : String(destacado)}
             aria-label={ponto.properties.nome}
-            className={`absolute z-10 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-teal-600 shadow ${
+            className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow ${classeDestaque} ${
               marcada ? 'ring-4 ring-amber-400' : ''
             }`}
             style={{ left: posicao.x, top: posicao.y }}
@@ -829,7 +966,7 @@ export function MapView({
         <div
           data-testid="bolha-area"
           className="absolute z-30 w-72 -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-background shadow-xl"
-          style={{ left: posBolhaArea.x, top: posBolhaArea.y - 56 }}
+          style={{ left: posBolhaArea.x, top: posBolhaArea.y - 76 }}
         >
           <button
             type="button"
@@ -927,7 +1064,7 @@ export function MapView({
         <div
           data-testid="bolha-parnaiba"
           className="absolute z-30 w-72 -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-background shadow-xl"
-          style={{ left: posBolha.x, top: posBolha.y - 56 }}
+          style={{ left: posBolha.x, top: posBolha.y - 76 }}
         >
           <button
             type="button"
