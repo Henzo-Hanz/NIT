@@ -100,7 +100,7 @@ export function FerramentasToolbar({
   return (
     <div
       data-testid="ferramentas"
-      className={`${classe} relative`}
+      className={classe}
       style={posicao ?? undefined}
       onMouseDown={aoIniciarArrasto}
     >
