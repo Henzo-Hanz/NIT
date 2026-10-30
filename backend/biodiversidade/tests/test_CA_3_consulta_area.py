@@ -49,39 +49,49 @@ class CA3ConsultaAreaTest(TestCase):
             ['Camocim'],
         )
 
-    def test_ordenar_mais_coloca_uca_primeiro(self):
+    def test_ordenar_mais_coloca_badejo_primeiro(self):
         resposta = self._post({'poligono': None, 'ordenar': 'mais'})
         self.assertEqual(resposta.status_code, 200)
         especies = resposta.json()['especies']
-        self.assertEqual(especies[0]['slug'], 'caranguejo-uca')
-        self.assertEqual(especies[0]['contagem'], 3)
+        self.assertEqual(especies[0]['slug'], 'badejo')
+        self.assertEqual(especies[0]['contagem'], 4)
         self.assertEqual(
             [item['nome_popular'] for item in especies],
             [
+                'Badejo',
                 'Caranguejo-uçá',
+                'Garoupa',
+                'Trinta-réis',
                 'Aratu',
+                'Atobá',
                 'Caranguejo maria-farinha',
                 'Guaiamum',
+                'Robalo-peva',
                 'Siri-azul',
             ],
         )
         contagens = [item['contagem'] for item in especies]
         self.assertEqual(contagens, sorted(contagens, reverse=True))
 
-    def test_ordenar_menos_coloca_uca_por_ultimo(self):
+    def test_ordenar_menos_coloca_badejo_por_ultimo(self):
         resposta = self._post({'poligono': None, 'ordenar': 'menos'})
         self.assertEqual(resposta.status_code, 200)
         especies = resposta.json()['especies']
-        self.assertEqual(especies[-1]['slug'], 'caranguejo-uca')
-        self.assertEqual(especies[-1]['contagem'], 3)
+        self.assertEqual(especies[-1]['slug'], 'badejo')
+        self.assertEqual(especies[-1]['contagem'], 4)
         self.assertEqual(
             [item['nome_popular'] for item in especies],
             [
                 'Aratu',
+                'Atobá',
                 'Caranguejo maria-farinha',
                 'Guaiamum',
+                'Robalo-peva',
                 'Siri-azul',
+                'Trinta-réis',
                 'Caranguejo-uçá',
+                'Garoupa',
+                'Badejo',
             ],
         )
         contagens = [item['contagem'] for item in especies]
