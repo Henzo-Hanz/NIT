@@ -92,7 +92,7 @@ describe('CA-5: desenho livre de polígono sobre o mapa', () => {
     await desenhar(container, [
       [10, 10],
       [20, 20],
-      [30, 30],
+      [30, 10],
     ])
 
     await vi.waitFor(() => {
@@ -103,8 +103,8 @@ describe('CA-5: desenho livre de polígono sobre o mapa', () => {
     expect(poligono.coordinates).toHaveLength(1)
     expect(poligono.coordinates[0]).toEqual([
       [10, 10],
+      [30, 10],
       [20, 20],
-      [30, 30],
       [10, 10],
     ])
 
@@ -125,7 +125,7 @@ describe('CA-5: desenho livre de polígono sobre o mapa', () => {
     await desenhar(container, [
       [10, 10],
       [20, 20],
-      [30, 30],
+      [30, 10],
     ])
     await vi.waitFor(() => {
       expect(container.getAttribute('data-poligono-desenhado')).toContain('[[10,10]')
@@ -134,7 +134,7 @@ describe('CA-5: desenho livre de polígono sobre o mapa', () => {
     await desenhar(container, [
       [40, 40],
       [50, 50],
-      [60, 60],
+      [60, 40],
     ])
     await vi.waitFor(() => {
       expect(container.getAttribute('data-poligono-desenhado')).toContain('[[40,40]')
@@ -159,7 +159,7 @@ describe('CA-5: desenho livre de polígono sobre o mapa', () => {
     await desenhar(container, [
       [10, 10],
       [20, 20],
-      [30, 30],
+      [30, 10],
     ])
 
     expect(container.getAttribute('data-poligono-desenhado')).toBeNull()

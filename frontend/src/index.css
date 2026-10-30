@@ -153,6 +153,22 @@ code {
   }
 }
 
+@keyframes pin-crescer {
+  from {
+    transform: scale(0.25);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.pin-area-crescer {
+  animation: pin-crescer 220ms ease-out;
+  transform-origin: bottom center;
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: 'Geist Variable', sans-serif;

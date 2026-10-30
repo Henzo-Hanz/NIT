@@ -2,7 +2,7 @@
   "spec_id": "SPEC-0005",
   "fase": "entregue",
   "gate": null,
-  "tentativa": 2,
-  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/5",
+  "tentativa": 3,
+  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/9",
   "card_url": "https://trello.com/c/b4eAdZNe/9-spec-0005-desenho-de-pol%C3%ADgono-no-mapa-consulta-de-esp%C3%A9cies-por-%C3%A1rea-back-front"
 }
