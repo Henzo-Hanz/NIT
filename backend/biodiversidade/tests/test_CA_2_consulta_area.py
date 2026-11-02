@@ -109,11 +109,11 @@ class CA2ConsultaAreaTest(TestCase):
         )
         por_nome = {feature['properties']['nome']: feature for feature in features}
         paranaiba = por_nome['Parnaíba']['properties']
-        self.assertEqual(paranaiba['total'], 223)
+        self.assertNotIn('total', paranaiba)
         self.assertEqual(paranaiba['especie_slugs'], [])
         self.assertEqual(
             paranaiba['descricao'],
-            '223 espécies de caranguejos encontradas',
+            'Ponto amostral de caranguejos em Parnaíba (PI)',
         )
         especies = {item['slug']: item for item in dados['especies']}
         self.assertEqual(especies['caranguejo-uca']['contagem'], 3)
