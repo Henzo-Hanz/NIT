@@ -70,7 +70,7 @@ export function FiltroAnimaisPanel({
         Escopo: {escopo === 'brasil' ? 'todo o Brasil' : 'área desenhada'}
       </p>
       {especies.length > 0 && (
-        <ul className="mt-2 flex max-h-48 flex-col overflow-y-auto no-scrollbar">
+        <ul className="mt-2 flex max-h-[7.5rem] flex-col overflow-y-auto no-scrollbar">
           {especies.map((item) => (
             <li key={item.slug}>
               <Button

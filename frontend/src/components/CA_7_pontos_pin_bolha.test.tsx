@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App'
 
@@ -112,6 +112,13 @@ function configurarFetch() {
   return fetchFake
 }
 
+async function desenharArea(container: HTMLElement) {
+  fireEvent.mouseDown(container, { clientX: 10, clientY: 10 })
+  fireEvent.mouseMove(container, { clientX: 30, clientY: 10 })
+  fireEvent.mouseMove(container, { clientX: 20, clientY: 20 })
+  fireEvent.mouseUp(container)
+}
+
 afterEach(() => {
   cleanup()
   document.body.innerHTML = ''
@@ -122,8 +129,11 @@ afterEach(() => {
 
 describe('CA-7: pontos do resultado, pin e bolha de área', () => {
   it('mostra os pontos como círculos e nenhum pin sobe sozinho', async () => {
+    const usuario = userEvent.setup()
     configurarFetch()
     render(<App />)
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    await desenharArea(screen.getByTestId('mapa-container'))
 
     await vi.waitFor(() => {
       expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
@@ -132,18 +142,25 @@ describe('CA-7: pontos do resultado, pin e bolha de área', () => {
     expect(screen.queryByTestId('bolha-area')).toBeNull()
   })
 
-  it('clicar no ponto sobe o pin e abre a bolha com a contagem', async () => {
+  it('clicar no ponto sobe o pin animado e abre a bolha com a contagem', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<App />)
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    await desenharArea(screen.getByTestId('mapa-container'))
 
     await vi.waitFor(() => {
       expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
     })
     await usuario.click(screen.getAllByTestId('ponto-area')[0])
 
-    expect(screen.getByTestId('pin-area')).toBeInTheDocument()
-    expect(screen.getByTestId('bolha-area')).toHaveTextContent('2 espécies encontradas')
+    const pin = screen.getByTestId('pin-area')
+    expect(pin).toBeInTheDocument()
+    expect(pin.querySelector('[data-animacao="crescer"]')).not.toBeNull()
+    expect(pin.querySelector('.pin-area-crescer')).not.toBeNull()
+    const bolha = screen.getByTestId('bolha-area')
+    expect(bolha).toHaveTextContent('2 espécies encontradas')
+    expect(bolha.style.top).toBe('104px')
     expect(screen.getByTestId('ver-especies-area')).toBeInTheDocument()
   })
 
@@ -151,6 +168,8 @@ describe('CA-7: pontos do resultado, pin e bolha de área', () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<App />)
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    await desenharArea(screen.getByTestId('mapa-container'))
 
     await vi.waitFor(() => {
       expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)

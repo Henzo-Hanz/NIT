@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MapView } from './MapView'
 
@@ -100,6 +100,13 @@ function configurarFetch() {
   return fetchFake
 }
 
+async function desenharArea(container: HTMLElement) {
+  fireEvent.mouseDown(container, { clientX: 10, clientY: 10 })
+  fireEvent.mouseMove(container, { clientX: 30, clientY: 10 })
+  fireEvent.mouseMove(container, { clientX: 20, clientY: 20 })
+  fireEvent.mouseUp(container)
+}
+
 afterEach(() => {
   cleanup()
   document.body.innerHTML = ''
@@ -113,6 +120,8 @@ describe('CA-7: ponto da Parnaíba sem espécie dentro do resultado da consulta'
     const usuario = userEvent.setup()
     const fetchFake = configurarFetch()
     render(<MapView />)
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    await desenharArea(screen.getByTestId('mapa-container'))
 
     await vi.waitFor(() => {
       expect(screen.getAllByTestId('ponto-area')).toHaveLength(1)

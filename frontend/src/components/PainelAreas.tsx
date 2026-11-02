@@ -31,7 +31,7 @@ export function PainelAreas({ areas, areaAtivaId, aoSelecionar, aoApagar }: Pain
           Nenhuma área desenhada ainda.
         </p>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <ul className="flex max-h-[7.5rem] flex-col gap-1 overflow-y-auto no-scrollbar">
           {areas.map((area) => (
             <li
               key={area.id}

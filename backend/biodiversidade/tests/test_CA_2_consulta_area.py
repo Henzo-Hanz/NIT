@@ -93,10 +93,19 @@ class CA2ConsultaAreaTest(TestCase):
         self.assertEqual(resposta.status_code, 200)
         dados = resposta.json()
         features = dados['pontos']['features']
-        self.assertEqual(len(features), 4)
+        self.assertEqual(len(features), 8)
         self.assertEqual(
             {feature['properties']['nome'] for feature in features},
-            {'Jericoacoara', 'Camocim', 'Luís Correia', 'Parnaíba'},
+            {
+                'Jericoacoara',
+                'Camocim',
+                'Luís Correia',
+                'Parnaíba',
+                'Recife',
+                'Porto de Galinhas',
+                'Tamandaré',
+                'Itamaracá',
+            },
         )
         por_nome = {feature['properties']['nome']: feature for feature in features}
         paranaiba = por_nome['Parnaíba']['properties']
@@ -110,6 +119,11 @@ class CA2ConsultaAreaTest(TestCase):
         self.assertEqual(especies['caranguejo-uca']['contagem'], 3)
         self.assertEqual(especies['aratu']['contagem'], 1)
         self.assertEqual(especies['siri-azul']['contagem'], 1)
+        self.assertEqual(especies['badejo']['contagem'], 4)
+        self.assertEqual(especies['garoupa']['contagem'], 3)
+        self.assertEqual(especies['trinta-reis']['contagem'], 2)
+        self.assertEqual(especies['robalo-peva']['contagem'], 1)
+        self.assertEqual(especies['atoba']['contagem'], 1)
 
     def test_filtro_animal_nao_inclui_o_ponto_paranaiba(self):
         for termo in ('maria', 'caranguejo'):

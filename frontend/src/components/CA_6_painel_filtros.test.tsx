@@ -125,7 +125,7 @@ const corpoDaConsulta = (chamada: any[]) => JSON.parse(String(chamada[1].body))
 async function desenhar(container: HTMLElement) {
   fireEvent.mouseDown(container, { clientX: 10, clientY: 10 })
   fireEvent.mouseMove(container, { clientX: 20, clientY: 20 })
-  fireEvent.mouseMove(container, { clientX: 30, clientY: 30 })
+  fireEvent.mouseMove(container, { clientX: 30, clientY: 10 })
   fireEvent.mouseUp(container)
 }
 
@@ -223,18 +223,38 @@ describe('CA-6: painel de filtros no lugar do de camadas', () => {
     expect(screen.getByTestId('filtro-especie-guaiamum')).toHaveTextContent('Guaiamum (1)')
   })
 
-  it('escolher uma espécie reduz os pontos exibidos', async () => {
+  it('destaca os pontos da espécie mantendo todos visíveis', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    await desenhar(screen.getByTestId('mapa-container'))
 
     await vi.waitFor(() => {
       expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
     })
+    for (const ponto of screen.getAllByTestId('ponto-area')) {
+      expect(ponto).not.toHaveAttribute('data-destacado')
+      expect(ponto.className).toContain('size-4')
+      expect(ponto.className).toContain('bg-teal-600')
+    }
+
     await usuario.click(screen.getByTestId('filtro-especie-guaiamum'))
     await vi.waitFor(() => {
-      expect(screen.getAllByTestId('ponto-area')).toHaveLength(1)
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
     })
-    expect(screen.getByTestId('ponto-area')).toHaveAttribute('aria-label', 'Jericoacoara')
+
+    const pontos = screen.getAllByTestId('ponto-area')
+    const destacado = pontos.find((ponto) => ponto.getAttribute('aria-label') === 'Jericoacoara')
+    const apagado = pontos.find((ponto) => ponto.getAttribute('aria-label') === 'Camocim')
+    expect(destacado).toHaveAttribute('data-destacado', 'true')
+    expect(destacado?.className).toContain('size-6')
+    expect(destacado?.className).toContain('bg-amber-500')
+    expect(destacado?.className).toContain('ring-4')
+    expect(destacado?.className).toContain('ring-amber-400')
+    expect(destacado?.className).toContain('z-20')
+    expect(apagado).toHaveAttribute('data-destacado', 'false')
+    expect(apagado?.className).toContain('size-3')
+    expect(apagado?.className).toContain('opacity-40')
   })
 })

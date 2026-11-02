@@ -5,9 +5,18 @@ from biodiversidade.models import Geometria
 from django.core.management import call_command
 from django.test import TestCase
 
-SLUGS_NOVOS = {'guaiamum', 'aratu', 'siri-azul'}
-LON_MIN, LON_MAX = -42, -38
-LAT_MIN, LAT_MAX = -5, -2.5
+SLUGS_NOVOS = {
+    'guaiamum',
+    'aratu',
+    'siri-azul',
+    'badejo',
+    'garoupa',
+    'robalo-peva',
+    'trinta-reis',
+    'atoba',
+}
+LON_MIN, LON_MAX = -42, -34.5
+LAT_MIN, LAT_MAX = -9, -2.5
 
 
 class CA1AreaSeedPontosTest(TestCase):
@@ -54,7 +63,7 @@ class CA1AreaSeedPontosTest(TestCase):
         self.assertEqual(propriedades['especie_slug'], None)
         self.assertEqual(propriedades['total'], 223)
 
-    def test_especies_lista_contem_os_tres_slugs_novos(self):
+    def test_especies_lista_contem_os_slugs_novos(self):
         resposta = self.client.get('/api/especies/')
         self.assertEqual(resposta.status_code, 200)
         slugs = {item['slug'] for item in json.loads(resposta.content)}
@@ -63,5 +72,16 @@ class CA1AreaSeedPontosTest(TestCase):
     def test_seed_sem_recriar_nao_duplica_pontos(self):
         call_command('seed_demo', stdout=StringIO())
         pontos = Geometria.objects.filter(tipo='ponto', especie__isnull=False)
-        self.assertEqual(pontos.count(), 7)
-        self.assertEqual(pontos.values('nome').distinct().count(), 3)
+        self.assertEqual(pontos.count(), 18)
+        self.assertEqual(
+            set(pontos.values_list('nome', flat=True).distinct()),
+            {
+                'Jericoacoara',
+                'Camocim',
+                'Luís Correia',
+                'Recife',
+                'Porto de Galinhas',
+                'Tamandaré',
+                'Itamaracá',
+            },
+        )

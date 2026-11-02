@@ -122,6 +122,91 @@ ESPECIES = [
         },
         'imagem': '',
     },
+    {
+        'slug': 'badejo',
+        'nome_popular': 'Badejo',
+        'nome_cientifico': 'Mycteroperca bonaci',
+        'descricao': (
+            'O badejo (Mycteroperca bonaci) é um peixe de recifes e costões rochosos do '
+            'litoral de Pernambuco, muito apreciado na pesca esportiva e na culinária. '
+            'Os dados desta ficha são mockados para o protótipo do mapa.'
+        ),
+        'infos': {
+            'grupo': 'Peixe',
+            'tamanho_max_cm': 120.0,
+            'habitat': 'Recife de coral e costão rochoso',
+            'curiosidade': 'Muda de cor e de padrão para se camuflar no recife.',
+        },
+        'imagem': '',
+    },
+    {
+        'slug': 'garoupa',
+        'nome_popular': 'Garoupa',
+        'nome_cientifico': 'Epinephelus marginatus',
+        'descricao': (
+            'A garoupa (Epinephelus marginatus) é um peixe robusto de costões rochosos '
+            'do litoral de Pernambuco, de hábitos solitários e emboscada entre as pedras. '
+            'Os dados desta ficha são mockados para o protótipo do mapa.'
+        ),
+        'infos': {
+            'grupo': 'Peixe',
+            'tamanho_max_cm': 150.0,
+            'habitat': 'Costão rochoso',
+            'curiosidade': 'Começa a vida como fêmea e pode virar macho ao envelhecer.',
+        },
+        'imagem': '',
+    },
+    {
+        'slug': 'robalo-peva',
+        'nome_popular': 'Robalo-peva',
+        'nome_cientifico': 'Centropomus parallelus',
+        'descricao': (
+            'O robalo-peva (Centropomus parallelus) é um peixe estuarino do litoral de '
+            'Pernambuco, de corpo prateado e boca grande, que sobe os rios com a maré. '
+            'Os dados desta ficha são mockados para o protótipo do mapa.'
+        ),
+        'infos': {
+            'grupo': 'Peixe',
+            'tamanho_max_cm': 60.0,
+            'habitat': 'Estuário e manguezal',
+            'curiosidade': 'Sobe os rios na maré enchente para caçar em água doce.',
+        },
+        'imagem': '',
+    },
+    {
+        'slug': 'trinta-reis',
+        'nome_popular': 'Trinta-réis',
+        'nome_cientifico': 'Thalasseus acuflavidus',
+        'descricao': (
+            'O trinta-réis (Thalasseus acuflavidus) é uma ave marinha de bico amarelo e '
+            'barrete preto que nidifica em colônias nas praias e ilhas de Pernambuco. '
+            'Os dados desta ficha são mockados para o protótipo do mapa.'
+        ),
+        'infos': {
+            'grupo': 'Ave',
+            'tamanho_max_cm': 40.0,
+            'habitat': 'Praia e estuário',
+            'curiosidade': 'Mergulha em picada para capturar peixes na arrebentação.',
+        },
+        'imagem': '',
+    },
+    {
+        'slug': 'atoba',
+        'nome_popular': 'Atobá',
+        'nome_cientifico': 'Sula leucogaster',
+        'descricao': (
+            'O atobá (Sula leucogaster) é uma ave marinha de corpo branco e dorso marrom '
+            'que usa ilhas e costões de Pernambuco como dormitório e local de nidificação. '
+            'Os dados desta ficha são mockados para o protótipo do mapa.'
+        ),
+        'infos': {
+            'grupo': 'Ave',
+            'tamanho_max_cm': 80.0,
+            'habitat': 'Ilha e costão rochoso',
+            'curiosidade': 'Mergulha de até 20 metros e usa as asas para nadar.',
+        },
+        'imagem': '',
+    },
 ]
 
 LOCALIDADES = [
@@ -139,6 +224,26 @@ LOCALIDADES = [
         'nome': 'Luís Correia',
         'coordenadas': [-41.66, -3.02],
         'especies': ['caranguejo-uca', 'aratu', 'siri-azul'],
+    },
+    {
+        'nome': 'Recife',
+        'coordenadas': [-34.881, -8.054],
+        'especies': ['badejo', 'trinta-reis', 'garoupa'],
+    },
+    {
+        'nome': 'Porto de Galinhas',
+        'coordenadas': [-35.004, -8.508],
+        'especies': ['badejo', 'garoupa', 'atoba'],
+    },
+    {
+        'nome': 'Tamandaré',
+        'coordenadas': [-35.104, -8.756],
+        'especies': ['robalo-peva', 'trinta-reis', 'garoupa', 'badejo'],
+    },
+    {
+        'nome': 'Itamaracá',
+        'coordenadas': [-34.825, -7.748],
+        'especies': ['badejo'],
     },
 ]
 
