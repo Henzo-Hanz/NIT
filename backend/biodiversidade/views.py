@@ -7,6 +7,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 import biodiversidade
+from django.db import connection
 from django.db.models import Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
@@ -207,37 +208,7 @@ def _ponto_no_poligono(x, y, aneis):
     return not any(_ponto_em_anel(x, y, anel) for anel in aneis[1:])
 
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def consulta_area(request):
-    try:
-        corpo = json.loads(request.body or b'{}')
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return Response({'erro': 'Corpo da requisição deve ser um JSON objeto.'}, status=400)
-    if not isinstance(corpo, dict):
-        return Response({'erro': 'Corpo da requisição deve ser um JSON objeto.'}, status=400)
-
-    poligono = corpo.get('poligono')
-    animal = corpo.get('animal')
-    ordenar = corpo.get('ordenar')
-
-    erro = _validar_poligono(poligono)
-    if erro:
-        return Response({'erro': erro}, status=400)
-    if animal is not None and not isinstance(animal, str):
-        return Response({'erro': 'animal deve ser uma string ou null.'}, status=400)
-    if ordenar not in (None, 'mais', 'menos'):
-        return Response({'erro': "ordenar deve ser 'mais', 'menos' ou null."}, status=400)
-
-    registros = Geometria.objects.select_related('especie').filter(tipo='ponto')
-    termo = (animal or '').strip()
-    if termo:
-        registros = registros.filter(
-            Q(especie__nome_popular__icontains=termo)
-            | Q(especie__nome_cientifico__icontains=termo)
-        )
-
-    aneis = poligono['coordinates'] if poligono else None
+def _agrupar_pontos(registros, aneis=None):
     bbox = None
     if aneis:
         externo = aneis[0]
@@ -280,9 +251,69 @@ def consulta_area(request):
             grupo['total_sem_especie'] = registro.propriedades.get('total', 0)
         else:
             grupo['especies'].setdefault(registro.especie.slug, registro.especie.nome_popular)
+    return grupos
+
+
+def _features_de_grupos(grupos, busca_slugs_por_chave=None):
+    features = []
+    for (nome, coordenadas), grupo in grupos.items():
+        if grupo['especies']:
+            total = len(grupo['especies'])
+        else:
+            total = grupo['total_sem_especie'] or 0
+        propriedades = {
+            'id': grupo['id'],
+            'nome': nome,
+            'descricao': grupo['descricao'],
+            'especie_slugs': list(grupo['especies']),
+            'total': total,
+        }
+        if busca_slugs_por_chave is not None:
+            propriedades['busca_slugs'] = busca_slugs_por_chave.get((nome, coordenadas), [])
+        features.append(
+            {
+                'type': 'Feature',
+                'properties': propriedades,
+                'geometry': {'type': 'Point', 'coordinates': list(coordenadas)},
+            }
+        )
+    return features
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def consulta_area(request):
+    try:
+        corpo = json.loads(request.body or b'{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return Response({'erro': 'Corpo da requisição deve ser um JSON objeto.'}, status=400)
+    if not isinstance(corpo, dict):
+        return Response({'erro': 'Corpo da requisição deve ser um JSON objeto.'}, status=400)
+
+    poligono = corpo.get('poligono')
+    animal = corpo.get('animal')
+    ordenar = corpo.get('ordenar')
+
+    erro = _validar_poligono(poligono)
+    if erro:
+        return Response({'erro': erro}, status=400)
+    if animal is not None and not isinstance(animal, str):
+        return Response({'erro': 'animal deve ser uma string ou null.'}, status=400)
+    if ordenar not in (None, 'mais', 'menos'):
+        return Response({'erro': "ordenar deve ser 'mais', 'menos' ou null."}, status=400)
+
+    registros = Geometria.objects.select_related('especie').filter(tipo='ponto')
+    termo = (animal or '').strip()
+    if termo:
+        registros = registros.filter(
+            Q(especie__nome_popular__icontains=termo)
+            | Q(especie__nome_cientifico__icontains=termo)
+        )
+
+    aneis = poligono['coordinates'] if poligono else None
+    grupos = _agrupar_pontos(registros, aneis)
 
     contagens = {}
-    features = []
     for (nome, coordenadas), grupo in grupos.items():
         for slug, nome_popular in grupo['especies'].items():
             contagem = contagens.setdefault(
@@ -290,23 +321,8 @@ def consulta_area(request):
                 {'slug': slug, 'nome_popular': nome_popular, 'localidades': set()},
             )
             contagem['localidades'].add((nome, coordenadas))
-        if grupo['especies']:
-            total = len(grupo['especies'])
-        else:
-            total = grupo['total_sem_especie'] or 0
-        features.append(
-            {
-                'type': 'Feature',
-                'properties': {
-                    'id': grupo['id'],
-                    'nome': nome,
-                    'descricao': grupo['descricao'],
-                    'especie_slugs': list(grupo['especies']),
-                    'total': total,
-                },
-                'geometry': {'type': 'Point', 'coordinates': list(coordenadas)},
-            }
-        )
+
+    features = _features_de_grupos(grupos)
 
     especies = [
         {
@@ -322,6 +338,88 @@ def consulta_area(request):
         especies.sort(key=lambda item: (item['contagem'], item['nome_popular']))
     else:
         especies.sort(key=lambda item: item['nome_popular'])
+
+    return Response(
+        {
+            'especies': especies,
+            'pontos': {'type': 'FeatureCollection', 'features': features},
+        }
+    )
+
+
+# Índice FTS5 criado pela migração 0002 (content table externa sobre
+# biodiversidade_especie). O tokenizer padrão (unicode61) já normaliza caixa
+# e remove acentos — verificado no SQLite 3.51.2 do projeto: 'uca*' encontra
+# 'Caranguejo-uçá', então não há premissa pendente sobre acentuação.
+TABELA_FTS = 'biodiversidade_especies_fts'
+# Ao menos um caractere que o tokenizer unicode61 indexa (letra/dígito
+# unicode; sublinha só é separador).
+CARACTERE_UTIL = re.compile(r'[^\W_]')
+
+
+def _consulta_fts(termo):
+    # Margem de segurança contra a sintaxe FTS5: cada token do usuário vira
+    # string entre aspas duplas (aspas internas dobradas) seguida de '*' —
+    # busca prefixada case/acentos-insensível, tokens unidos por AND implícito.
+    return ' '.join('"%s"*' % token.replace('"', '""') for token in termo.split())
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def busca_pontos(request):
+    termo = (request.GET.get('q') or '').strip()
+    if not CARACTERE_UTIL.search(termo):
+        return Response(
+            {'erro': 'Parâmetro q é obrigatório e deve conter letras ou números.'},
+            status=400,
+        )
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f'SELECT rowid, bm25({TABELA_FTS}) AS posicao '
+            f'FROM {TABELA_FTS} WHERE {TABELA_FTS} MATCH %s ORDER BY posicao',
+            [_consulta_fts(termo)],
+        )
+        linhas = cursor.fetchall()
+
+    ids_por_rank = [linha[0] for linha in linhas]
+    especies_achadas = Especie.objects.in_bulk(ids_por_rank)
+    especies = [
+        {
+            'slug': especies_achadas[id_especie].slug,
+            'nome_popular': especies_achadas[id_especie].nome_popular,
+        }
+        for id_especie in ids_por_rank
+        if id_especie in especies_achadas
+    ]
+    slugs_rank = [item['slug'] for item in especies]
+
+    registros = (
+        Geometria.objects.select_related('especie')
+        .filter(tipo='ponto')
+        .filter(Q(especie__slug__in=slugs_rank) | Q(nome__icontains=termo))
+    )
+    grupos = _agrupar_pontos(registros)
+
+    # Premissas registradas: (a) o ponto do Parnaíba entra mesmo sem espécie
+    # com match, porque o nome da localidade contém o termo (icontains);
+    # (b) pontos que batem só pelo nome ficam com busca_slugs vazio e caem no
+    # fim da ordenação, pois têm 0 correspondências de espécie.
+    posicao_do_slug = {slug: posicao for posicao, slug in enumerate(slugs_rank)}
+    busca_slugs_por_chave = {
+        chave: sorted(
+            (slug for slug in grupo['especies'] if slug in posicao_do_slug),
+            key=posicao_do_slug.__getitem__,
+        )
+        for chave, grupo in grupos.items()
+    }
+    features = _features_de_grupos(grupos, busca_slugs_por_chave)
+    features.sort(
+        key=lambda feature: (
+            -len(feature['properties']['busca_slugs']),
+            feature['properties']['nome'],
+        )
+    )
 
     return Response(
         {
