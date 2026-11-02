@@ -247,12 +247,16 @@ LOCALIDADES = [
     },
 ]
 
+# Lapidação 4 (SPEC-0005): o 'total: 223' aqui era número mockado e pintava
+# o pin do Parnaíba na carga. Removido: não há contagem real para embutir —
+# o mapa conta especie_slugs.length; a API só devolve 'total' quando existe
+# valor real (nº de entradas do ponto). Descrição factual, sem número.
 GEOMETRIAS = [
     {
         'nome': 'Parnaíba',
         'tipo': 'ponto',
-        'descricao': '223 espécies de caranguejos encontradas',
-        'propriedades': {'total': 223},
+        'descricao': 'Ponto amostral de caranguejos em Parnaíba (PI)',
+        'propriedades': {},
         'especie_slug': None,
         'geojson': {'type': 'Point', 'coordinates': [-41.7767, -2.9035]},
     },
