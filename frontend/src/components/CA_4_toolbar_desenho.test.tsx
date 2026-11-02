@@ -88,25 +88,32 @@ describe('CA-4: toolbar de ferramentas sob o header, recolhível e com modos', (
     expect(screen.getByTestId('ferramenta-desenhar')).toBeInTheDocument()
   })
 
-  it('a lupa de pesquisar está habilitada e dispara a busca', async () => {
+  it('a lupa abre a caixa de busca dentro da própria toolbar e o voltar fecha', async () => {
     const usuario = userEvent.setup()
-    const aoPesquisar = vi.fn()
     configurarFetch()
-    render(<MapView onPesquisar={aoPesquisar} />)
+    render(<MapView />)
 
     const pesquisar = screen.getByTestId('ferramenta-pesquisar')
     expect(pesquisar).toBeInTheDocument()
     expect(pesquisar).not.toBeDisabled()
     await usuario.click(pesquisar)
-    expect(aoPesquisar).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('caixa-busca')).toHaveAttribute('data-aberto', 'true')
+    expect(screen.getByTestId('campo-busca')).toBeInTheDocument()
+    expect(screen.getByTestId('caixa-busca').className).toContain('opacity-100')
+
+    await usuario.click(screen.getByTestId('busca-voltar'))
+    expect(screen.getByTestId('caixa-busca')).toHaveAttribute('data-aberto', 'false')
+    expect(screen.getByTestId('caixa-busca').className).toContain('opacity-0')
+    expect(screen.getByTestId('mapa')).toBeInTheDocument()
   })
 
-  it('sem a prop de busca o clique na lupa não quebra o mapa', async () => {
+  it('o clique na lupa não sai do mapa nem quebra a toolbar', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
     await usuario.click(screen.getByTestId('ferramenta-pesquisar'))
     expect(screen.getByTestId('mapa')).toBeInTheDocument()
+    expect(screen.queryByTestId('especies-titulo')).toBeNull()
   })
 
   it('alternar entre desenhar e arrastar marca o modo ativo, muda o cursor e o pan', async () => {

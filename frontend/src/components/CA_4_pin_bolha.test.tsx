@@ -167,7 +167,9 @@ describe('CA-4: pin de Parnaíba abre bolha com a contagem', () => {
       expect((parte as HTMLElement).hasAttribute('style')).toBe(true)
     }
     icone?.dispatchEvent(new Event('error'))
-    expect(pin.querySelector('image[data-icono-phylopic]')).toBeNull()
+    const iconeQuebrado = pin.querySelector('image[data-icono-phylopic]')
+    expect(iconeQuebrado).not.toBeNull()
+    expect((iconeQuebrado as SVGElement).getAttribute('style')).toContain('display: none')
     for (const parte of partesFallback) {
       expect((parte as HTMLElement).hasAttribute('style')).toBe(false)
     }

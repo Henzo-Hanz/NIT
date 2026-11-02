@@ -75,7 +75,7 @@ const PONTOS = [
       id: 2,
       nome: 'Camocim',
       descricao: '1 espécie encontrada',
-      especie_slugs: ['caranguejo-uca'],
+      especie_slugs: ['guaiamum', 'pescada-amarela'],
       total: 1,
     },
     geometry: { type: 'Point', coordinates: [-40.84, -2.9] },
@@ -140,6 +140,83 @@ describe('CA-7: pontos do resultado, pin e bolha de área', () => {
     })
     expect(screen.queryByTestId('pin-area')).toBeNull()
     expect(screen.queryByTestId('bolha-area')).toBeNull()
+  })
+
+  it('sem área desenhada os pontos do escopo Brasil aparecem e o clique cria pin + bolha', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<App />)
+
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
+    })
+
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    const pin = screen.getByTestId('pin-area')
+    expect(pin).toBeInTheDocument()
+    expect(pin.querySelector('[data-animacao="crescer"]')).not.toBeNull()
+    expect(pin.querySelector('.pin-area-crescer')).not.toBeNull()
+    const bolha = screen.getByTestId('bolha-area')
+    expect(bolha).toHaveTextContent('2 espécies encontradas')
+    expect(screen.getByTestId('ver-especies-area')).toBeInTheDocument()
+  })
+
+  it('o pin tenta os ícones das espécies em ordem e sem caranguejo vira pin liso', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<App />)
+
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
+    })
+    await usuario.click(screen.getAllByTestId('ponto-area')[1])
+
+    const pin = screen.getByTestId('pin-area')
+    expect(pin.getAttribute('aria-label')).toBe('Camocim')
+    const imagens = pin.querySelectorAll('image[data-icono-phylopic]')
+    expect(imagens).toHaveLength(2)
+    expect(imagens[0].getAttribute('href')).toBe('/api/especies/guaiamum/icone/')
+    expect(imagens[1].getAttribute('href')).toBe('/api/especies/pescada-amarela/icone/')
+    expect(pin.querySelector('[data-fallback-crab]')).toBeNull()
+
+    imagens[0].dispatchEvent(new Event('error'))
+    expect((imagens[0] as SVGImageElement).style.display).toBe('none')
+    expect((imagens[1] as SVGImageElement).style.display).toBe('')
+
+    imagens[1].dispatchEvent(new Event('error'))
+    expect((imagens[1] as SVGImageElement).style.display).toBe('none')
+    expect(pin.querySelector('[data-fallback-crab]')).toBeNull()
+    expect(pin.querySelector('circle[fill="#ffffff"]')).not.toBeNull()
+  })
+
+  it('o pin de ponto com caranguejo-uca mostra o caranguejo só quando todos os ícones falham', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<App />)
+
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
+    })
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+
+    const pin = screen.getByTestId('pin-area')
+    const imagens = pin.querySelectorAll('image[data-icono-phylopic]')
+    expect(imagens).toHaveLength(2)
+    expect(imagens[0].getAttribute('href')).toBe('/api/especies/caranguejo-uca/icone/')
+    expect(imagens[1].getAttribute('href')).toBe('/api/especies/guaiamum/icone/')
+    expect((imagens[1] as SVGImageElement).style.display).toBe('none')
+    expect(
+      (pin.querySelector('[data-fallback-crab]') as SVGElement | null)?.style.display,
+    ).toBe('none')
+
+    imagens[0].dispatchEvent(new Event('error'))
+    expect((imagens[0] as SVGImageElement).style.display).toBe('none')
+    expect((imagens[1] as SVGImageElement).style.display).toBe('')
+
+    imagens[1].dispatchEvent(new Event('error'))
+    expect(
+      (pin.querySelector('[data-fallback-crab]') as SVGElement | null)?.style.display,
+    ).toBe('')
   })
 
   it('clicar no ponto sobe o pin animado e abre a bolha com a contagem', async () => {
