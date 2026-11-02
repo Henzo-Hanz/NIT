@@ -11,6 +11,7 @@ import {
   Square,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import type { ResultadoBusca } from '@/lib/api'
 
 export type ModoFerramenta = 'arrastar' | 'desenhar' | 'medir'
 export type FormaDesenho = 'livre' | 'quadrado' | 'circulo'
@@ -22,10 +23,18 @@ interface FerramentasToolbarProps {
   aoEscolherForma: (forma: FormaDesenho) => void
   colapsada: boolean
   aoAlternarColapso: () => void
-  aoPesquisar?: () => void
+  buscaAberto: boolean
+  aoAbrirBusca: () => void
+  aoFecharBusca: () => void
+  termoBusca: string
+  aoMudarBusca: (termo: string) => void
+  resultadosBusca: ResultadoBusca | null
+  aoEscolherAnimalBusca: (slug: string) => void
 }
 
 const CLASSE_ATIVA = 'bg-primary text-primary-foreground hover:bg-primary/90'
+const CLASSE_HOVER =
+  'transition-colors hover:bg-muted hover:text-foreground hover:ring-1 hover:ring-border'
 
 export function FerramentasToolbar({
   modo,
@@ -34,11 +43,24 @@ export function FerramentasToolbar({
   aoEscolherForma,
   colapsada,
   aoAlternarColapso,
-  aoPesquisar,
+  buscaAberto,
+  aoAbrirBusca,
+  aoFecharBusca,
+  termoBusca,
+  aoMudarBusca,
+  resultadosBusca,
+  aoEscolherAnimalBusca,
 }: FerramentasToolbarProps) {
   const [posicao, setPosicao] = useState<{ left: number; top: number } | null>(null)
   const [submenuAberto, setSubmenuAberto] = useState(false)
   const arrastoRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null)
+  const campoBuscaRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (buscaAberto) {
+      campoBuscaRef.current?.focus()
+    }
+  }, [buscaAberto])
 
   useEffect(() => {
     const aoMover = (evento: MouseEvent) => {
@@ -93,6 +115,17 @@ export function FerramentasToolbar({
     setSubmenuAberto(false)
   }
 
+  const abrirBusca = () => {
+    setSubmenuAberto(false)
+    aoAbrirBusca()
+  }
+
+  const alternarColapso = () => {
+    setSubmenuAberto(false)
+    aoFecharBusca()
+    aoAlternarColapso()
+  }
+
   const classe = posicao
     ? 'absolute z-20 flex items-center gap-1 rounded-xl border bg-background p-1 shadow-lg'
     : 'absolute left-1/2 top-16 z-20 flex items-center gap-1 rounded-xl border bg-background p-1 shadow-lg -translate-x-1/2'
@@ -109,11 +142,10 @@ export function FerramentasToolbar({
         size="icon-sm"
         data-testid="ferramenta-recolher"
         aria-label={colapsada ? 'Expandir ferramentas' : 'Recolher ferramentas'}
+        title={colapsada ? 'Expandir' : 'Recolher'}
         aria-expanded={!colapsada}
-        onClick={() => {
-          setSubmenuAberto(false)
-          aoAlternarColapso()
-        }}
+        className={CLASSE_HOVER}
+        onClick={alternarColapso}
       >
         {colapsada ? (
           <ChevronDown className="size-4" aria-hidden="true" />
@@ -126,7 +158,7 @@ export function FerramentasToolbar({
           <div
             data-testid="ferramentas-principal"
             className={`flex items-center gap-1 transition-all duration-300 ease-out ${
-              submenuAberto
+              submenuAberto || buscaAberto
                 ? 'pointer-events-none translate-y-6 opacity-0'
                 : 'translate-y-0 opacity-100'
             }`}
@@ -145,7 +177,8 @@ export function FerramentasToolbar({
               data-ativo={modo === 'desenhar' ? 'true' : 'false'}
               aria-label="Desenhar área"
               aria-pressed={modo === 'desenhar'}
-              className={modo === 'desenhar' ? CLASSE_ATIVA : undefined}
+              title="Desenhar"
+              className={modo === 'desenhar' ? CLASSE_ATIVA : CLASSE_HOVER}
               onClick={abrirDesenho}
             >
               <Pencil className="size-4" aria-hidden="true" />
@@ -157,7 +190,8 @@ export function FerramentasToolbar({
               data-ativo={modo === 'arrastar' ? 'true' : 'false'}
               aria-label="Arrastar o mapa"
               aria-pressed={modo === 'arrastar'}
-              className={modo === 'arrastar' ? CLASSE_ATIVA : undefined}
+              title="Arrastar"
+              className={modo === 'arrastar' ? CLASSE_ATIVA : CLASSE_HOVER}
               onClick={() => escolherModo('arrastar')}
             >
               <Hand className="size-4" aria-hidden="true" />
@@ -169,7 +203,8 @@ export function FerramentasToolbar({
               data-ativo={modo === 'medir' ? 'true' : 'false'}
               aria-label="Medir distância entre pontos"
               aria-pressed={modo === 'medir'}
-              className={modo === 'medir' ? CLASSE_ATIVA : undefined}
+              title="Medir"
+              className={modo === 'medir' ? CLASSE_ATIVA : CLASSE_HOVER}
               onClick={() => escolherModo('medir')}
             >
               <svg
@@ -191,8 +226,12 @@ export function FerramentasToolbar({
               variant="ghost"
               size="icon-sm"
               data-testid="ferramenta-pesquisar"
-              aria-label="Pesquisar espécies"
-              onClick={() => aoPesquisar?.()}
+              aria-label="Pesquisar"
+              title="Pesquisar"
+              aria-pressed={buscaAberto}
+              data-ativo={buscaAberto ? 'true' : 'false'}
+              className={buscaAberto ? CLASSE_ATIVA : CLASSE_HOVER}
+              onClick={abrirBusca}
             >
               <Search className="size-4" aria-hidden="true" />
             </Button>
@@ -212,6 +251,8 @@ export function FerramentasToolbar({
               size="icon-sm"
               data-testid="desenho-voltar"
               aria-label="Voltar para as ferramentas"
+              title="Voltar"
+              className={CLASSE_HOVER}
               onClick={() => setSubmenuAberto(false)}
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
@@ -223,7 +264,8 @@ export function FerramentasToolbar({
               data-ativo={formaDesenho === 'quadrado' ? 'true' : 'false'}
               aria-label="Desenhar quadrado"
               aria-pressed={formaDesenho === 'quadrado'}
-              className={formaDesenho === 'quadrado' ? CLASSE_ATIVA : undefined}
+              title="Quadrado"
+              className={formaDesenho === 'quadrado' ? CLASSE_ATIVA : CLASSE_HOVER}
               onClick={() => escolherForma('quadrado')}
             >
               <Square className="size-4" aria-hidden="true" />
@@ -235,7 +277,8 @@ export function FerramentasToolbar({
               data-ativo={formaDesenho === 'circulo' ? 'true' : 'false'}
               aria-label="Desenhar círculo"
               aria-pressed={formaDesenho === 'circulo'}
-              className={formaDesenho === 'circulo' ? CLASSE_ATIVA : undefined}
+              title="Círculo"
+              className={formaDesenho === 'circulo' ? CLASSE_ATIVA : CLASSE_HOVER}
               onClick={() => escolherForma('circulo')}
             >
               <Circle className="size-4" aria-hidden="true" />
@@ -247,12 +290,67 @@ export function FerramentasToolbar({
               data-ativo={formaDesenho === 'livre' ? 'true' : 'false'}
               aria-label="Desenhar livremente"
               aria-pressed={formaDesenho === 'livre'}
-              className={formaDesenho === 'livre' ? CLASSE_ATIVA : undefined}
+              title="Livre"
+              className={formaDesenho === 'livre' ? CLASSE_ATIVA : CLASSE_HOVER}
               onClick={() => escolherForma('livre')}
             >
               <Pencil className="size-4" aria-hidden="true" />
             </Button>
           </div>
+          <div
+            data-testid="caixa-busca"
+            data-aberto={buscaAberto ? 'true' : 'false'}
+            aria-hidden={!buscaAberto}
+            className={`absolute inset-0 flex items-center gap-1 transition-all duration-300 ease-out ${
+              buscaAberto
+                ? 'translate-y-0 opacity-100'
+                : 'pointer-events-none -translate-y-6 opacity-0'
+            }`}
+          >
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              data-testid="busca-voltar"
+              aria-label="Voltar para as ferramentas"
+              title="Voltar"
+              className={CLASSE_HOVER}
+              onClick={aoFecharBusca}
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+            </Button>
+            <input
+              ref={campoBuscaRef}
+              data-testid="campo-busca"
+              type="text"
+              value={termoBusca}
+              placeholder="Buscar espécies ou locais"
+              aria-label="Buscar espécies ou locais"
+              onChange={(evento) => aoMudarBusca(evento.target.value)}
+              className="h-7 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+          {buscaAberto && (resultadosBusca?.especies.length ?? 0) > 0 && (
+            <div
+              data-testid="resultado-busca"
+              className="absolute left-0 top-full z-30 mt-1 w-72 rounded-xl border bg-background p-1.5 shadow-lg"
+            >
+              <ul className="flex max-h-[7.5rem] flex-col overflow-y-auto no-scrollbar">
+                {(resultadosBusca?.especies ?? []).map((item) => (
+                  <li key={item.slug}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      data-testid={`resultado-animal-${item.slug}`}
+                      className={`w-full justify-start rounded-lg ${CLASSE_HOVER}`}
+                      onClick={() => aoEscolherAnimalBusca(item.slug)}
+                    >
+                      {item.nome_popular}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>
