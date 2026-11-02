@@ -71,7 +71,7 @@ class CA3BuscaTest(TestCase):
         propriedades = features[0]['properties']
         self.assertEqual(propriedades['nome'], 'Parnaíba')
         self.assertEqual(propriedades['especie_slugs'], [])
-        self.assertEqual(propriedades['total'], 223)
+        self.assertNotIn('total', propriedades)
         self.assertEqual(propriedades['busca_slugs'], [])
 
     def test_pontos_ordenados_por_correspondencias_e_nome(self):
