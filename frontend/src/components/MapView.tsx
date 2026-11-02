@@ -15,12 +15,27 @@ import {
   buscarGeometrias,
   buscarEspecies,
   consultarArea,
+  consultarBusca,
   type ConsultaArea,
   type FeatureCollectionGeometrias,
   type EspecieResumo,
   type PontoDaArea,
+  type PontoDaBusca,
+  type ResultadoBusca,
   type TipoGeometria,
 } from '@/lib/api'
+
+type PontoExibido = PontoDaArea | PontoDaBusca
+
+const CHAVE_DO_PONTO = (ponto: PontoExibido) =>
+  `${ponto.properties.id}:${ponto.geometry.coordinates[0]},${ponto.geometry.coordinates[1]}`
+
+// Medição com A/B: pode nascer de um ponto real ou de um clique livre no mapa.
+type MarcaMedicao = {
+  ponto?: PontoDaArea
+  coordenadas: [number, number]
+  tela: { x: number; y: number }
+}
 
 export const CENTRO_LITORAL_PI: [number, number] = [-41.75, -2.9]
 export const ZOOM_INICIAL = 6
@@ -31,44 +46,88 @@ const TILES_VOYAGER = [
   'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
 ]
 
-function conectarFallbackDoIcone(pin: HTMLElement, icone: Element) {
-  const mostrarFallback = () => {
-    icone.remove()
-    pin
-      .querySelectorAll('[data-fallback-crab], [data-fallback-crab-patas], [data-fallback-crab-olho]')
-      .forEach((parte) => {
-        ;(parte as HTMLElement).removeAttribute('style')
-      })
-  }
-  icone.addEventListener('error', mostrarFallback)
+function conectarCadeiaDeIcones(pin: HTMLElement) {
+  // O pin tenta os ícones das espécies do ponto em ordem (o primeiro que
+  // carregar vence); se nenhum carregar, mostra o caranguejo APENAS quando o
+  // ponto contém 'caranguejo-uca', pois os grupos só existem nesse pin.
+  const imagens = Array.from(pin.querySelectorAll('image[data-icono-phylopic]'))
+  imagens.forEach((imagem, indice) => {
+    imagem.addEventListener('error', () => {
+      ;(imagem as SVGImageElement).style.display = 'none'
+      const proximo = imagens[indice + 1]
+      if (proximo) {
+        ;(proximo as SVGImageElement).style.display = ''
+        return
+      }
+      pin
+        .querySelectorAll('[data-fallback-crab], [data-fallback-crab-patas], [data-fallback-crab-olho]')
+        .forEach((parte) => {
+          ;(parte as HTMLElement).removeAttribute('style')
+        })
+    })
+  })
 }
 
-function htmlDoPin(slugIcone: string) {
+function construirImagensDoPin(slugs: string[]) {
+  return slugs
+    .map(
+      (slug, indice) =>
+        `<image data-icono-phylopic data-indice="${indice}" x="7" y="9.5" width="20" height="15" href="/api/especies/${slug}/icone/"${
+          indice ? ' style="display: none"' : ''
+        }/>`,
+    )
+    .join('')
+}
+
+// Pin liso: círculo vazio, sem silhueta — usado quando o ponto não tem
+// espécie com ícone e não contém caranguejo-uca.
+function htmlDoPinLiso() {
   return (
     '<span data-animacao="crescer" class="pin-area-crescer block origin-bottom">' +
     '<svg width="46" height="62" viewBox="0 0 34 46" class="drop-shadow-md">' +
     '<path d="M17 1C8.2 1 1 8.2 1 17c0 7.41 6.49 15.33 12.39 21.83C14.39 42.83 15.63 44 17 44s2.61-1.17 3.61-2.17C26.51 32.33 33 24.41 33 17 33 8.2 25.8 1 17 1Z" class="fill-destructive"/>' +
     '<circle cx="17" cy="17" r="10" fill="#ffffff"/>' +
-    `<image data-icono-phylopic x="7" y="9.5" width="20" height="15" href="/api/especies/${slugIcone}/icone/"/>` +
-    '<g data-fallback-crab class="fill-destructive" style="display: none">' +
-    '<circle cx="12" cy="12.65" r="2.1"/><circle cx="22" cy="12.65" r="2.1"/>' +
-    '<ellipse cx="17" cy="17.75" rx="4.5" ry="3.1"/>' +
-    '</g>' +
-    '<g data-fallback-crab-patas class="stroke-destructive" fill="none" stroke-width="1.5" stroke-linecap="round" style="display: none">' +
-    '<path d="M13.6 15.35Q12.6 14.35 12.2 13.25"/>' +
-    '<path d="M20.4 15.35Q21.4 14.35 21.8 13.25"/>' +
-    '<path d="M13.5 18.95 10.6 20.55"/>' +
-    '<path d="M20.5 18.95 23.4 20.55"/>' +
-    '<path d="M13.2 19.95 10.9 22.2"/>' +
-    '<path d="M20.8 19.95 23.1 22.2"/>' +
-    '<path d="M13.4 20.75 11.6 23.45"/>' +
-    '<path d="M23.4 20.75 22.4 23.45"/>' +
-    '</g>' +
-    '<circle data-fallback-crab-olho cx="15.3" cy="16.05" r="0.75" fill="#ffffff" style="display: none"/>' +
-    '<circle data-fallback-crab-olho cx="18.7" cy="16.05" r="0.75" fill="#ffffff" style="display: none"/>' +
     '</svg>' +
     '</span>'
   )
+}
+
+function corpoDoPin(imagens: string, comFallback: boolean) {
+  const fallbackCrab = comFallback
+    ? '<g data-fallback-crab class="fill-destructive" style="display: none">' +
+      '<circle cx="12" cy="12.65" r="2.1"/><circle cx="22" cy="12.65" r="2.1"/>' +
+      '<ellipse cx="17" cy="17.75" rx="4.5" ry="3.1"/>' +
+      '</g>' +
+      '<g data-fallback-crab-patas class="stroke-destructive" fill="none" stroke-width="1.5" stroke-linecap="round" style="display: none">' +
+      '<path d="M13.6 15.35Q12.6 14.35 12.2 13.25"/>' +
+      '<path d="M20.4 15.35Q21.4 14.35 21.8 13.25"/>' +
+      '<path d="M13.5 18.95 10.6 20.55"/>' +
+      '<path d="M20.5 18.95 23.4 20.55"/>' +
+      '<path d="M13.2 19.95 10.9 22.2"/>' +
+      '<path d="M20.8 19.95 23.1 22.2"/>' +
+      '<path d="M13.4 20.75 11.6 23.45"/>' +
+      '<path d="M23.4 20.75 22.4 23.45"/>' +
+      '</g>' +
+      '<circle data-fallback-crab-olho cx="15.3" cy="16.05" r="0.75" fill="#ffffff" style="display: none"/>' +
+      '<circle data-fallback-crab-olho cx="18.7" cy="16.05" r="0.75" fill="#ffffff" style="display: none"/>'
+    : ''
+  return (
+    '<span data-animacao="crescer" class="pin-area-crescer block origin-bottom">' +
+    '<svg width="46" height="62" viewBox="0 0 34 46" class="drop-shadow-md">' +
+    '<path d="M17 1C8.2 1 1 8.2 1 17c0 7.41 6.49 15.33 12.39 21.83C14.39 42.83 15.63 44 17 44s2.61-1.17 3.61-2.17C26.51 32.33 33 24.41 33 17 33 8.2 25.8 1 17 1Z" class="fill-destructive"/>' +
+    '<circle cx="17" cy="17" r="10" fill="#ffffff"/>' +
+    imagens +
+    fallbackCrab +
+    '</svg>' +
+    '</span>'
+  )
+}
+
+function htmlDoPin(slugs: string[]) {
+  if (!slugs.length) {
+    return htmlDoPinLiso()
+  }
+  return corpoDoPin(construirImagensDoPin(slugs), slugs.includes('caranguejo-uca'))
 }
 
 function construirEstilo(apiKey: string | undefined) {
@@ -135,7 +194,6 @@ interface MapViewProps {
   onAbrirEspecie?: (slug: string) => void
   modalAberto?: boolean
   abrirListagemEm?: number
-  onPesquisar?: () => void
 }
 
 export function MapView({
@@ -143,7 +201,6 @@ export function MapView({
   onAbrirEspecie,
   modalAberto = false,
   abrirListagemEm = 0,
-  onPesquisar,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
@@ -160,6 +217,10 @@ export function MapView({
   const proximoIdRef = useRef(1)
   const areaDestaqueRef = useRef<AreaDesenhada | null>(null)
   const resultadoRef = useRef<ConsultaArea | null>(null)
+  const pontosExibeRef = useRef<PontoExibido[]>([])
+  const medicaoRef = useRef<{ a: MarcaMedicao; b: MarcaMedicao | null } | null>(null)
+  const pedidoBuscaRef = useRef(0)
+  const piscaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [carregado, setCarregado] = useState(false)
   const [fontePronta, setFontePronta] = useState(false)
   const [geometrias, setGeometrias] = useState<FeatureCollectionGeometrias | null>(null)
@@ -175,12 +236,18 @@ export function MapView({
   const [pontosPreview, setPontosPreview] = useState<{ x: number; y: number }[]>([])
   const [formaDesenho, setFormaDesenho] = useState<FormaDesenho>('livre')
   const [posArea, setPosArea] = useState<{ x: number; y: number } | null>(null)
-  const [medicao, setMedicao] = useState<{ a: PontoDaArea; b: PontoDaArea | null } | null>(null)
+  const [medicao, setMedicao] = useState<{ a: MarcaMedicao; b: MarcaMedicao | null } | null>(null)
   const [resultado, setResultado] = useState<ConsultaArea | null>(null)
   const [filtro, setFiltro] = useState<FiltroEspecie>('todas')
   const [animalDigitado, setAnimalDigitado] = useState('')
   const [animalAplicado, setAnimalAplicado] = useState('')
   const [especieSelecionada, setEspecieSelecionada] = useState<string | null>(null)
+  const [especiePeloBusca, setEspeciePeloBusca] = useState(false)
+  const [buscaAberto, setBuscaAberto] = useState(false)
+  const [buscaTermo, setBuscaTermo] = useState('')
+  const [buscaResultado, setBuscaResultado] = useState<ResultadoBusca | null>(null)
+  const [pisca, setPisca] = useState<{ filtro: string; vez: number } | null>(null)
+  const [atualizacaoMove, setAtualizacaoMove] = useState(0)
   const [pontoAtivo, setPontoAtivo] = useState<PontoDaArea | null>(null)
   const [listagemAreaAberta, setListagemAreaAberta] = useState(false)
   const [posBolhaArea, setPosBolhaArea] = useState<{ x: number; y: number } | null>(null)
@@ -191,7 +258,20 @@ export function MapView({
   const podeTentarSemKey = useRef(Boolean(cartoKey))
   const areaEmDestaque =
     areas.find((area) => area.id === areaAtivaId) ?? areas[areas.length - 1] ?? null
-  const pontosVisiveis = areas.length ? (resultado?.pontos.features ?? []) : []
+  // Premissa aprovada (lapidação 3): os pontos ficam SEMPRE visíveis no escopo
+  // atual — com área desenhada, só os pontos dela; sem área, o Brasil inteiro.
+  // Revoga o comportamento da lapidação 2 ("pontos só dentro de área").
+  const pontosEscopo = resultado?.pontos.features ?? []
+  const buscaAtiva = buscaAberto && buscaResultado !== null
+  const chavesBusca = new Set(
+    buscaAtiva ? (buscaResultado?.pontos.features ?? []).map(CHAVE_DO_PONTO) : [],
+  )
+  const pontosVisiveis: PontoExibido[] = buscaAtiva
+    ? [
+        ...(buscaResultado?.pontos.features ?? []),
+        ...pontosEscopo.filter((ponto) => !chavesBusca.has(CHAVE_DO_PONTO(ponto))),
+      ]
+    : pontosEscopo
 
   useEffect(() => {
     resultadoRef.current = resultado
@@ -201,8 +281,16 @@ export function MapView({
     areaDestaqueRef.current = areaEmDestaque
   }, [areaEmDestaque])
 
+  useEffect(() => {
+    pontosExibeRef.current = pontosVisiveis
+  }, [pontosVisiveis])
+
+  useEffect(() => {
+    medicaoRef.current = medicao
+  }, [medicao])
+
   const atualizarPosicoes = useCallback((mapa: MapLibreMap) => {
-    const pontos = resultadoRef.current?.pontos.features ?? []
+    const pontos = pontosExibeRef.current
     const novas: Record<string, { x: number; y: number }> = {}
     for (const ponto of pontos) {
       const projetado = mapa.project(ponto.geometry.coordinates)
@@ -405,8 +493,10 @@ export function MapView({
         const ponto = map.project(coordenadaRef.current)
         setPosBolha({ x: ponto.x, y: ponto.y })
       }
-      if (resultadoRef.current) {
-        atualizarPosicoes(map)
+      atualizarPosicoes(map)
+      const medicaoAtual = medicaoRef.current
+      if (medicaoAtual && (!medicaoAtual.a.ponto || (medicaoAtual.b && !medicaoAtual.b.ponto))) {
+        setAtualizacaoMove((atual) => atual + 1)
       }
       atualizarPosicaoArea(map)
     })
@@ -487,11 +577,8 @@ export function MapView({
       el.setAttribute('data-testid', 'pin-parnaiba')
       el.setAttribute('aria-label', 'Parnaíba')
       el.className = 'relative cursor-pointer select-none'
-      el.innerHTML = htmlDoPin('caranguejo-uca')
-      const iconoPhylopic = el.querySelector('image[data-icono-phylopic]')
-      if (iconoPhylopic) {
-        conectarFallbackDoIcone(el, iconoPhylopic)
-      }
+      el.innerHTML = htmlDoPin(['caranguejo-uca'])
+      conectarCadeiaDeIcones(el)
       el.addEventListener('mousedown', (evento) => evento.stopPropagation())
       el.addEventListener('click', () => {
         const ponto = map.project(coordenada)
@@ -596,6 +683,39 @@ export function MapView({
     return () => clearTimeout(temporizador)
   }, [animalDigitado])
 
+  // Busca FTS: debounce de 300ms e respostas obsoletas ignoradas por contador.
+  useEffect(() => {
+    if (!buscaAberto) {
+      return
+    }
+    const termo = buscaTermo.trim()
+    if (!termo) {
+      setBuscaResultado(null)
+      return
+    }
+    pedidoBuscaRef.current += 1
+    const pedido = pedidoBuscaRef.current
+    const temporizador = setTimeout(() => {
+      consultarBusca(termo).then((dados) => {
+        if (pedido === pedidoBuscaRef.current && dados) {
+          setBuscaResultado(dados)
+        }
+      })
+    }, 300)
+    return () => {
+      clearTimeout(temporizador)
+    }
+  }, [buscaTermo, buscaAberto])
+
+  useEffect(
+    () => () => {
+      if (piscaTimerRef.current) {
+        clearTimeout(piscaTimerRef.current)
+      }
+    },
+    [],
+  )
+
   useEffect(() => {
     let vivo = true
     const animal = filtro === 'especifica' ? animalAplicado.trim() || null : null
@@ -629,7 +749,7 @@ export function MapView({
       return
     }
     atualizarPosicoes(map)
-  }, [resultado, carregado, atualizarPosicoes])
+  }, [resultado, buscaResultado, carregado, atualizarPosicoes])
 
   const abrirLista = async () => {
     const dados = await buscarEspecies()
@@ -676,9 +796,55 @@ export function MapView({
   }, [bolhaAberta, modalAberto])
 
   const escolherModo = (novo: ModoFerramenta) => {
+    fecharBusca()
     setModo(novo)
     setMedicao(null)
     setPontosPreview([])
+  }
+
+  const piscar = (identificador: string) => {
+    setPisca((atual) => ({ filtro: identificador, vez: (atual?.vez ?? 0) + 1 }))
+    if (piscaTimerRef.current) {
+      clearTimeout(piscaTimerRef.current)
+    }
+    piscaTimerRef.current = setTimeout(() => setPisca(null), 700)
+  }
+
+  const abrirBusca = () => {
+    setBuscaAberto(true)
+  }
+
+  const fecharBusca = () => {
+    setBuscaAberto(false)
+    setBuscaTermo('')
+    setBuscaResultado(null)
+    if (especiePeloBusca) {
+      setEspecieSelecionada(null)
+      setEspeciePeloBusca(false)
+    }
+  }
+
+  const mudarBusca = (termo: string) => {
+    setBuscaTermo(termo)
+    // Digitar de novo reinicia o destaque de busca como matches do termo atual.
+    if (especiePeloBusca) {
+      setEspecieSelecionada(null)
+      setEspeciePeloBusca(false)
+    }
+  }
+
+  const escolherAnimalBusca = (slug: string) => {
+    setEspecieSelecionada(slug)
+    setEspeciePeloBusca(true)
+  }
+
+  const aplicarFiltro = (novo: FiltroEspecie) => {
+    setFiltro(novo)
+  }
+
+  const selecionarEspeciePainel = (slug: string | null) => {
+    setEspecieSelecionada(slug)
+    setEspeciePeloBusca(false)
   }
 
   const comMapa = (acao: (map: MapLibreMap) => void) => () => {
@@ -703,24 +869,23 @@ export function MapView({
     setListagemAreaAberta(true)
   }
 
-  const marcarMedicao = (ponto: PontoDaArea) => {
-    if (pontosVisiveis.length < 2) {
+  const aoClicarNoMapa = (evento: MouseEvento<HTMLDivElement>) => {
+    // Medir livre: A/B podem nascer de cliques em qualquer lugar do mapa
+    // (premissa da lapidação 3); cliques em pontos continuam valendo.
+    if (modo !== 'medir') {
       return
     }
-    setMedicao((atual) => {
-      if (!atual || atual.b) {
-        return { a: ponto, b: null }
-      }
-      return { a: atual.a, b: ponto }
-    })
-  }
-
-  const aoClicarPonto = (ponto: PontoDaArea) => {
-    if (modo === 'medir') {
-      marcarMedicao(ponto)
+    const alvo = evento.target as Element
+    if (alvo.closest('button') || alvo.closest('.maplibregl-marker')) {
       return
     }
-    abrirPonto(ponto)
+    const tela = telaDoEvento(evento)
+    const coordenadas = coordenadaDaTela(tela)
+    setMedicao((atual) =>
+      !atual || atual.b
+        ? { a: { coordenadas, tela }, b: null }
+        : { a: atual.a, b: { coordenadas, tela } },
+    )
   }
 
   const selecionarArea = (id: string) => {
@@ -743,11 +908,8 @@ export function MapView({
     el.setAttribute('data-testid', 'pin-area')
     el.setAttribute('aria-label', ponto.properties.nome)
     el.className = 'relative cursor-pointer select-none'
-    el.innerHTML = htmlDoPin(ponto.properties.especie_slugs[0] ?? 'caranguejo-uca')
-    const iconoPhylopic = el.querySelector('image[data-icono-phylopic]')
-    if (iconoPhylopic) {
-      conectarFallbackDoIcone(el, iconoPhylopic)
-    }
+    el.innerHTML = htmlDoPin(ponto.properties.especie_slugs)
+    conectarCadeiaDeIcones(el)
     el.addEventListener('mousedown', (evento) => evento.stopPropagation())
     pinAreaRef.current = new Marker({ element: el, anchor: 'bottom' })
       .setLngLat(ponto.geometry.coordinates)
@@ -758,6 +920,29 @@ export function MapView({
     setListagemAreaAberta(false)
   }
 
+  const marcarMedicao = (ponto: PontoDaArea) => {
+    // Cliques em pontos encaixam na medição: A no primeiro, B no segundo,
+    // terceiro clique (quando A e B já existem) reinicia a medição.
+    const posicao = posicoesPontos[String(ponto.properties.id)]
+    const coordenadas = ponto.geometry.coordinates
+    const marca: MarcaMedicao = {
+      ponto,
+      coordenadas,
+      tela: posicao ?? { x: 0, y: 0 },
+    }
+    setMedicao((atual) =>
+      !atual || atual.b ? { a: marca, b: null } : { a: atual.a, b: marca },
+    )
+  }
+
+  const aoClicarPonto = (ponto: PontoDaArea) => {
+    if (modo === 'medir') {
+      marcarMedicao(ponto)
+      return
+    }
+    abrirPonto(ponto)
+  }
+
   const pontoParanaiba = geometrias?.features.find(
     (feature) => feature.properties.nome === 'Parnaíba',
   )
@@ -766,15 +951,30 @@ export function MapView({
   const nomesDasEspecies = new Map(
     (resultado?.especies ?? []).map((item) => [item.slug, item.nome_popular]),
   )
+  const nomeEspecieAplicada = especieSelecionada
+    ? nomesDasEspecies.get(especieSelecionada) ??
+      buscaResultado?.especies.find((item) => item.slug === especieSelecionada)?.nome_popular ??
+      especieSelecionada
+    : null
 
-  const posicaoMedicaoA = medicao ? posicoesPontos[String(medicao.a.properties.id)] : undefined
-  const posicaoMedicaoB = medicao?.b
-    ? posicoesPontos[String(medicao.b.properties.id)]
-    : undefined
-  const linhaMedicao =
-    medicao?.b && posicaoMedicaoA && posicaoMedicaoB
-      ? { a: posicaoMedicaoA, b: posicaoMedicaoB }
-      : null
+  const posicaoDaMarca = (marca: MarcaMedicao): { x: number; y: number } => {
+    if (marca.ponto) {
+      return posicoesPontos[String(marca.ponto.properties.id)] ?? marca.tela
+    }
+    const mapa = mapRef.current
+    if (!mapa) {
+      return marca.tela
+    }
+    const projetado = mapa.project(marca.coordenadas) as { x: number; y: number }
+    return { x: projetado.x, y: projetado.y }
+  }
+
+  const coordenadasDaMarca = (marca: MarcaMedicao): [number, number] =>
+    marca.ponto?.geometry.coordinates ?? marca.coordenadas
+
+  const linhaMedicao = medicao?.b
+    ? { a: posicaoDaMarca(medicao.a), b: posicaoDaMarca(medicao.b) }
+    : null
 
   const hullPreview =
     formaDesenho === 'livre'
@@ -815,6 +1015,7 @@ export function MapView({
         onMouseDown={aoMouseDown}
         onMouseMove={aoMouseMove}
         onMouseUp={aoMouseUp}
+        onClick={aoClicarNoMapa}
       />
       {modo === 'desenhar' && (
         <svg
@@ -866,6 +1067,7 @@ export function MapView({
       {linhaMedicao && (
         <svg
           data-testid="overlay-medicao"
+          data-versao={atualizacaoMove}
           className="pointer-events-none absolute inset-0 z-10 h-full w-full"
           aria-hidden="true"
         >
@@ -889,7 +1091,13 @@ export function MapView({
         aoEscolherForma={setFormaDesenho}
         colapsada={colapsada}
         aoAlternarColapso={() => setColapsada((atual) => !atual)}
-        aoPesquisar={onPesquisar}
+        buscaAberto={buscaAberto}
+        aoAbrirBusca={abrirBusca}
+        aoFecharBusca={fecharBusca}
+        termoBusca={buscaTermo}
+        aoMudarBusca={mudarBusca}
+        resultadosBusca={buscaResultado}
+        aoEscolherAnimalBusca={escolherAnimalBusca}
       />
       <PainelAreas
         areas={areas}
@@ -900,12 +1108,14 @@ export function MapView({
       <FiltroAnimaisPanel
         especies={resultado?.especies ?? []}
         filtro={filtro}
-        aoEscolherFiltro={setFiltro}
+        aoEscolherFiltro={aplicarFiltro}
         animal={animalDigitado}
         aoBuscarAnimal={setAnimalDigitado}
         especieSelecionada={especieSelecionada}
-        aoSelecionarEspecie={setEspecieSelecionada}
+        aoSelecionarEspecie={selecionarEspeciePainel}
         escopo={areas.length ? 'area' : 'brasil'}
+        especieAplicada={nomeEspecieAplicada}
+        aoPiscar={piscar}
       />
       {areaEmDestaque && posArea && (
         <div
@@ -926,7 +1136,7 @@ export function MapView({
           }}
         >
           {formatarKm(
-            distanciaKm(medicao.a.geometry.coordinates, medicao.b.geometry.coordinates),
+            distanciaKm(coordenadasDaMarca(medicao.a), coordenadasDaMarca(medicao.b)),
           )}{' '}
           km
         </div>
@@ -936,10 +1146,14 @@ export function MapView({
         if (!posicao) {
           return null
         }
-        const marcada = medicao?.a.properties.id === ponto.properties.id
+        const marcada = medicao
+          ? medicao.a.ponto?.properties.id === ponto.properties.id
+          : false
         const destacado = especieSelecionada
           ? ponto.properties.especie_slugs.includes(especieSelecionada)
-          : null
+          : buscaAtiva
+            ? chavesBusca.has(CHAVE_DO_PONTO(ponto))
+            : null
         const classeDestaque =
           destacado === null
             ? 'z-10 size-4 bg-teal-600'
@@ -948,15 +1162,18 @@ export function MapView({
               : 'z-10 size-3 opacity-40'
         return (
           <button
-            key={`${ponto.properties.id}-${ponto.geometry.coordinates[0]}-${ponto.geometry.coordinates[1]}`}
+            key={`${ponto.properties.id}-${ponto.geometry.coordinates[0]}-${
+              ponto.geometry.coordinates[1]
+            }${pisca ? `-${pisca.vez}` : ''}`}
             type="button"
             data-testid="ponto-area"
             data-medida={marcada ? 'a' : undefined}
             data-destacado={destacado === null ? undefined : String(destacado)}
+            data-pisca={pisca ? pisca.filtro : undefined}
             aria-label={ponto.properties.nome}
             className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow ${classeDestaque} ${
               marcada ? 'ring-4 ring-amber-400' : ''
-            }`}
+            }${pisca ? ' ponto-pisca' : ''}`}
             style={{ left: posicao.x, top: posicao.y }}
             onClick={() => aoClicarPonto(ponto)}
           />
