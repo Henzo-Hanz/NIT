@@ -248,7 +248,8 @@ def _agrupar_pontos(registros, aneis=None):
             }
             grupos[chave] = grupo
         if registro.especie is None:
-            grupo['total_sem_especie'] = registro.propriedades.get('total', 0)
+            # SEM número mockado: só entra como contagem real; ausente → None.
+            grupo['total_sem_especie'] = registro.propriedades.get('total')
         else:
             grupo['especies'].setdefault(registro.especie.slug, registro.especie.nome_popular)
     return grupos
@@ -257,17 +258,18 @@ def _agrupar_pontos(registros, aneis=None):
 def _features_de_grupos(grupos, busca_slugs_por_chave=None):
     features = []
     for (nome, coordenadas), grupo in grupos.items():
-        if grupo['especies']:
-            total = len(grupo['especies'])
-        else:
-            total = grupo['total_sem_especie'] or 0
         propriedades = {
             'id': grupo['id'],
             'nome': nome,
             'descricao': grupo['descricao'],
             'especie_slugs': list(grupo['especies']),
-            'total': total,
         }
+        # 'total' só aparece quando existe valor real: contagem de
+        # especie_slugs ou o total guardado no seed. Sem valor → ausente.
+        if grupo['especies']:
+            propriedades['total'] = len(grupo['especies'])
+        elif grupo['total_sem_especie'] is not None:
+            propriedades['total'] = grupo['total_sem_especie']
         if busca_slugs_por_chave is not None:
             propriedades['busca_slugs'] = busca_slugs_por_chave.get((nome, coordenadas), [])
         features.append(
