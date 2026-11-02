@@ -48,7 +48,7 @@ class CA1AreaSeedPontosTest(TestCase):
             Geometria.objects.filter(tipo__in=('linha', 'poligono')).exists()
         )
 
-    def test_ponto_paranaiba_permanece_no_seed_com_total_223(self):
+    def test_ponto_paranaiba_permanece_no_seed_sem_total_mock(self):
         resposta = self.client.get('/api/geometrias/')
         self.assertEqual(resposta.status_code, 200)
         dados = json.loads(resposta.content)
@@ -61,7 +61,7 @@ class CA1AreaSeedPontosTest(TestCase):
         propriedades = paranaiba[0]['properties']
         self.assertEqual(propriedades['tipo'], 'ponto')
         self.assertEqual(propriedades['especie_slug'], None)
-        self.assertEqual(propriedades['total'], 223)
+        self.assertNotIn('total', propriedades)
 
     def test_especies_lista_contem_os_slugs_novos(self):
         resposta = self.client.get('/api/especies/')
