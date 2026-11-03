@@ -101,7 +101,7 @@ ESPECIES = [
             'periodo_atividade': 'Maré baixa',
             'curiosidade': 'Anda de lado pelas raízes como se fosse uma ponte.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/aratu.webp',
     },
     {
         'slug': 'siri-azul',
@@ -120,7 +120,7 @@ ESPECIES = [
             'periodo_atividade': 'Noite',
             'curiosidade': 'Nada de lado com as patas traseiras em formato de remo.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/siri-azul.jpg',
     },
     {
         'slug': 'badejo',
@@ -137,7 +137,7 @@ ESPECIES = [
             'habitat': 'Recife de coral e costão rochoso',
             'curiosidade': 'Muda de cor e de padrão para se camuflar no recife.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/badejo.jpg',
     },
     {
         'slug': 'garoupa',
@@ -154,7 +154,7 @@ ESPECIES = [
             'habitat': 'Costão rochoso',
             'curiosidade': 'Começa a vida como fêmea e pode virar macho ao envelhecer.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/garoupa.webp',
     },
     {
         'slug': 'robalo-peva',
@@ -171,7 +171,7 @@ ESPECIES = [
             'habitat': 'Estuário e manguezal',
             'curiosidade': 'Sobe os rios na maré enchente para caçar em água doce.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/robalo-peva.webp',
     },
     {
         'slug': 'trinta-reis',
@@ -188,7 +188,7 @@ ESPECIES = [
             'habitat': 'Praia e estuário',
             'curiosidade': 'Mergulha em picada para capturar peixes na arrebentação.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/trinta-reis.jpg',
     },
     {
         'slug': 'atoba',
@@ -205,7 +205,7 @@ ESPECIES = [
             'habitat': 'Ilha e costão rochoso',
             'curiosidade': 'Mergulha de até 20 metros e usa as asas para nadar.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/atoba.jpg',
     },
 ]
 
