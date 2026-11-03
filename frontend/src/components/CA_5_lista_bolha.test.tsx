@@ -160,6 +160,10 @@ describe('CA-5: bolha mostra as 3 espécies e cada opção abre o modal', () => 
     await usuario.click(screen.getByTestId('especie-opcao-caranguejo-uca'))
     expect(aoAbrir).toHaveBeenCalledWith('caranguejo-uca')
     expect(screen.queryByTestId('bolha-area')).toBeNull()
+    // A ficha fecha o pin ANIMADO (SPEC-0005): classe antes da remoção real.
+    const pinSaindo = screen.getByTestId('pin-area')
+    expect(pinSaindo.classList).toContain('pin-sumir')
+    pinSaindo.dispatchEvent(new Event('animationend'))
     expect(screen.queryByTestId('pin-area')).toBeNull()
   })
 })
