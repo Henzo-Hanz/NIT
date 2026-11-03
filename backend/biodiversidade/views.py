@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 import biodiversidade
 from django.db import connection
 from django.db.models import Q
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -21,7 +21,6 @@ from biodiversidade.models import Especie, Geometria
 TIPOS_VALIDOS = [valor for valor, _ in Geometria.Tipo.choices]
 RAIZ_APP = Path(biodiversidade.__file__).resolve().parent
 BASE_PHYLOPIC = 'https://api.phylopic.org'
-PASTA_ICONES = RAIZ_APP / 'midia' / 'icones'
 ERROS_REDE = (URLError, TimeoutError)
 # Vínculos escolhidos pelo usuário (lapidações 6c/6f): 2ª representação da
 # página do gênero Cancer no site (garras grandes à direita — chegou lá
@@ -63,11 +62,6 @@ def _pegar_json(url):
     pedido = Request(url, headers={'Accept': 'application/vnd.phylopic.v2+json'})
     with urlopen(pedido, timeout=15) as resposta:
         return json.loads(resposta.read().decode('utf-8'))
-
-
-def _baixar_arquivo(url, destino):
-    with urlopen(url, timeout=30) as resposta:
-        destino.write_bytes(resposta.read())
 
 
 def _uuid_de_href(href):
@@ -114,34 +108,31 @@ def _procurar_imagem_por_nomes(nomes):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def icone_especie(request, slug):
+    # Lapidação 7 (SPEC-0005): o ícone é fornecido on demand, no clique/
+    # surgimento do pin — nada de arquivo estático em disco. A silhueta é
+    # resolvida ao vivo por requisição e o browser busca a imagem externa
+    # seguindo o redirect (Cache-Control evita refetch em re-render).
     registro = get_object_or_404(Especie, slug=slug)
-    PASTA_ICONES.mkdir(parents=True, exist_ok=True)
-    caminho = PASTA_ICONES / f'{slug}.svg'
-    if not (caminho.is_file() and caminho.stat().st_size > 0):
-        nomes = (
-            [registro.nome_cientifico, registro.nome_cientifico.split()[0]]
-            if registro.nome_cientifico
-            else []
-        ) + ['cancer', 'brachyura']
-        try:
-            url = _procurar_imagem_por_nomes(nomes)
-        except ERROS_REDE:
-            url = None
-        if url is None:
-            # Lapidação 6 (SPEC-0005): sem silhueta na PhyloPic (ou rede
-            # fora), o ícone cai para a foto da própria espécie em midia/;
-            # 404 só quando não há silhueta nem foto (ex. guaiamum).
-            if registro.imagem:
-                caminho_foto = RAIZ_APP / registro.imagem.removeprefix('biodiversidade/')
-                if caminho_foto.is_file():
-                    dispositivo, _ = mimetypes.guess_type(caminho_foto.name)
-                    return FileResponse(
-                        caminho_foto.open('rb'),
-                        content_type=dispositivo or 'application/octet-stream',
-                    )
-            raise Http404
-        _baixar_arquivo(url, caminho)
-    return FileResponse(caminho.open('rb'), content_type='image/svg+xml')
+    nomes = (
+        [registro.nome_cientifico, registro.nome_cientifico.split()[0]]
+        if registro.nome_cientifico
+        else []
+    ) + ['cancer', 'brachyura']
+    try:
+        url = _procurar_imagem_por_nomes(nomes)
+    except ERROS_REDE:
+        url = None
+    if url is not None:
+        resposta = HttpResponseRedirect(url)
+        resposta['Cache-Control'] = 'max-age=300'
+        return resposta
+    # Sem silhueta na PhyloPic (ou rede fora): cai para a foto da própria
+    # espécie servida por /imagem/; 404 só quando não há silhueta nem foto.
+    if registro.imagem:
+        resposta = HttpResponseRedirect(f'/api/especies/{slug}/imagem/')
+        resposta['Cache-Control'] = 'max-age=60'
+        return resposta
+    raise Http404
 
 
 @api_view(['GET'])
