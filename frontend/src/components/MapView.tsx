@@ -865,8 +865,19 @@ export function MapView({
       source: 'area-desenhada',
       paint: {
         'fill-color': '#0ea5a4',
-        'fill-opacity': ['case', ['get', 'ativa'], 0.45, 0.15],
-        'fill-outline-color': '#0f766e',
+        'fill-opacity': ['case', ['get', 'ativa'], 0.5, 0.15],
+        'fill-outline-color': ['case', ['get', 'ativa'], '#d97706', '#0f766e'],
+      },
+    } as never)
+    // Contorno data-driven: borda mais grossa/brilhante na área selecionada
+    // (âmbar tema, legível sobre o raster em claro e escuro).
+    map.addLayer({
+      id: 'camada-area-contorno',
+      type: 'line',
+      source: 'area-desenhada',
+      paint: {
+        'line-color': ['case', ['get', 'ativa'], '#d97706', '#0f766e'],
+        'line-width': ['case', ['get', 'ativa'], 3, 1.5],
       },
     } as never)
   }, [areas, areaAtivaId, carregado])
@@ -1107,6 +1118,20 @@ export function MapView({
         removerPinArea()
       }
     }
+    // Clique livre FORA de qualquer área desenhada desmarca a área selecionada
+    // (o próprio polígono selecionado permanece marcado durante o gesto).
+    if (modo === 'arrastar' && areaAtivaId) {
+      const alvo = evento.target as Element
+      if (!alvo.closest('button') && !alvo.closest('.maplibregl-marker')) {
+        const coordenada = coordenadaDaTela(telaDoEvento(evento))
+        const dentro = areasRef.current.some((area) =>
+          pontoNoPoligono(coordenada, area.polygon.coordinates[0] ?? []),
+        )
+        if (!dentro) {
+          setAreaAtivaId(null)
+        }
+      }
+    }
   }
 
   const selecionarArea = (id: string) => {
@@ -1202,13 +1227,14 @@ export function MapView({
   const escolherModo = (novo: ModoFerramenta) => {
     fecharBusca()
     // Trocar de modo fecha o pin ativo (fechar pin remove tudo) e limpa
-    // medições/previews/dicas pendentes.
+    // medições/previews/dicas pendentes e a seleção de área.
     removerPinArea()
     setModo(novo)
     setMedicao(null)
     setPontosPreview([])
     setDicaMedir(false)
     setSobreArea(false)
+    setAreaAtivaId(null)
   }
 
   const mudarBusca = (termo: string) => {
@@ -1308,9 +1334,10 @@ export function MapView({
           )}
         </svg>
       )}
-      {areaEmDestaque && modo === 'arrastar' && areaAtivaId === areaEmDestaque.id && (
+      {areaEmDestaque && modo === 'arrastar' && (areaAtivaId === areaEmDestaque.id || !areaAtivaId) && (
         <svg
           data-testid="alcas-area"
+          data-selecionada={areaAtivaId === areaEmDestaque.id ? 'true' : 'false'}
           className="pointer-events-none absolute inset-0 z-10 h-full w-full"
           aria-hidden="true"
         >
