@@ -169,6 +169,25 @@ code {
   transform-origin: bottom center;
 }
 
+/* Saída do pin: fade-out espelhando o crescer de entrada (origin-bottom,
+   só opacity/transform, zero cor). O classe entra via sumirPin no MapView,
+   que remove o elemento de verdade no animationend — ou na guarda de 250ms. */
+@keyframes pin-sumir {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+.pin-sumir {
+  animation: pin-sumir 180ms ease-out both;
+  transform-origin: bottom center;
+}
+
 /* PISCA dos pontos ao mudar de filtro: 2 piscadas (~600ms) SÓ de opacity
    antes de assentar na cor final. Reaplicado pelo remount dos pontos (key).
    Lapidação 5: sem transform/scale — pisca não altera tamanho nem translada. */
