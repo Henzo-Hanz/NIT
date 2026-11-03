@@ -218,9 +218,12 @@ describe('CA-6: painel de filtros no lugar do de camadas', () => {
   it('a lista mostra as espécies com a contagem', async () => {
     configurarFetch()
     render(<MapView />)
+    // Lapidação 4: nome à esquerda e contagem alinhada à direita (sem parênteses).
     const item = await screen.findByTestId('filtro-especie-caranguejo-uca')
-    expect(item).toHaveTextContent('Caranguejo-uçá (2)')
-    expect(screen.getByTestId('filtro-especie-guaiamum')).toHaveTextContent('Guaiamum (1)')
+    expect(item).toHaveTextContent('Caranguejo-uçá')
+    expect(item).toHaveTextContent('2')
+    expect(screen.getByTestId('filtro-especie-guaiamum')).toHaveTextContent('Guaiamum')
+    expect(screen.getByTestId('filtro-especie-guaiamum')).toHaveTextContent('1')
   })
 
   it('destaca os pontos da espécie mantendo todos visíveis', async () => {
