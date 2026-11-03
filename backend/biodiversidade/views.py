@@ -108,10 +108,10 @@ def _procurar_imagem_por_nomes(nomes):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def icone_especie(request, slug):
-    # Lapidação 7 (SPEC-0005): o ícone é fornecido on demand, no clique/
-    # surgimento do pin — nada de arquivo estático em disco. A silhueta é
-    # resolvida ao vivo por requisição e o browser busca a imagem externa
-    # seguindo o redirect (Cache-Control evita refetch em re-render).
+    # Premissa do dono (SPEC-0005): silhueta resolvida on demand APENAS
+    # para os pins do mapa — consumidor único (htmlDoPin). Nenhum outro
+    # consumidor (ficha/lista) ganha fluxo de streaming. Nada é gravado ou
+    # servido de disco; Cache-Control só evita refetch em re-render do pin.
     registro = get_object_or_404(Especie, slug=slug)
     nomes = (
         [registro.nome_cientifico, registro.nome_cientifico.split()[0]]
