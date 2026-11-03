@@ -32,11 +32,13 @@ interface FerramentasToolbarProps {
   aoEscolherAnimalBusca: (slug: string) => void
 }
 
-// Hover (lapidação 4): botão NÃO ativo recebe o tom do primário mais CLARO
-// que o ativo; ativo fica no primário pleno e pode girar levemente mais
-// claro no hover. Nada de cinza/escuro no hover.
-const CLASSE_ATIVA = 'bg-primary text-primary-foreground hover:bg-primary/90'
-const CLASSE_HOVER = 'transition-colors hover:bg-primary/60 hover:text-primary-foreground'
+// Hover por tema (lapidação 5): no claro volta ao cinza suave (muted), como
+// antes da lapidação 4; no escuro clara no primário sem branquear. Ativo fica
+// no primário pleno e escurece só um pouco no hover.
+const CLASSE_ATIVA =
+  'bg-primary text-primary-foreground hover:bg-primary/90 dark:hover:bg-primary/90'
+const CLASSE_HOVER =
+  'transition-colors hover:bg-muted hover:text-foreground dark:hover:bg-primary/60 dark:hover:text-primary-foreground'
 
 export function FerramentasToolbar({
   modo,

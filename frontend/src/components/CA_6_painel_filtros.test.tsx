@@ -230,6 +230,37 @@ describe('CA-6: painel de filtros no lugar do de camadas', () => {
     expect(ponto.className).not.toContain('opacity-40')
   })
 
+  it('hover por tema: opções do painel usam muted no claro e primário leve no escuro', async () => {
+    configurarFetch()
+    render(<MapView />)
+    await screen.findByTestId('filtro-especie-caranguejo-uca')
+
+    // Lapidação 5: duplicar claro/escuro — claro volta ao muted (como antes da
+    // lapidação 4); escuro sobe no primary/60.
+    for (const botao of [
+      screen.getByTestId('filtro-mais'),
+      screen.getByTestId('recolher-filtros'),
+      screen.getByTestId('filtro-especie-caranguejo-uca'),
+    ]) {
+      expect(botao.className).toContain('hover:bg-muted')
+      expect(botao.className).toContain('hover:text-foreground')
+      expect(botao.className).toContain('dark:hover:bg-primary/60')
+      expect(botao.className).toContain('dark:hover:text-primary-foreground')
+      expect(botao.className).not.toMatch(/(^|\s)hover:bg-primary\/60(?=\s|$)/)
+    }
+    const ativo = screen.getByTestId('filtro-todas')
+    expect(ativo.className).toContain('bg-primary')
+    expect(ativo.className).toContain('hover:bg-primary/90')
+    expect(ativo.className).toContain('dark:hover:bg-primary/90')
+
+    // Ativa de espécie segue com accent (mantém o padrão existente).
+    const usuario = userEvent.setup()
+    await usuario.click(screen.getByTestId('filtro-especie-caranguejo-uca'))
+    const especieAtiva = screen.getByTestId('filtro-especie-caranguejo-uca')
+    expect(especieAtiva.className).toContain('bg-accent')
+    expect(especieAtiva.className).toContain('hover:bg-accent/90')
+  })
+
   it('a lista mostra as espécies com a contagem', async () => {
     configurarFetch()
     render(<MapView />)
