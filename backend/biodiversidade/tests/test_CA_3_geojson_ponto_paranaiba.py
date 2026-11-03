@@ -20,9 +20,13 @@ class CA3GeojsonPontoParanaibaTest(TestCase):
         paranaiba = [
             f for f in dados['features'] if f['properties']['nome'] == 'Parnaíba'
         ]
-        self.assertEqual(len(paranaiba), 1)
-        propriedades = paranaiba[0]['properties']
-        self.assertEqual(propriedades['tipo'], 'ponto')
-        self.assertNotIn('total', propriedades)
-        self.assertEqual(propriedades['descricao'], DESCRICAO_PARNAIBA)
-        self.assertEqual(paranaiba[0]['geometry']['type'], 'Point')
+        # Lapidação 8 (SPEC-0005): 1 linha sem espécie + 1 por espécie demo
+        # (premissa do dono, reversível) — todas sem 'total' (lapidação 4).
+        self.assertEqual(len(paranaiba), 3)
+        self.assertEqual({f['properties']['tipo'] for f in paranaiba}, {'ponto'})
+        self.assertTrue(all('total' not in f['properties'] for f in paranaiba))
+        self.assertEqual(
+            {f['properties']['descricao'] for f in paranaiba},
+            {DESCRICAO_PARNAIBA},
+        )
+        self.assertEqual({f['geometry']['type'] for f in paranaiba}, {'Point'})
