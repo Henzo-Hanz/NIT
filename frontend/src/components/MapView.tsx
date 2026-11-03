@@ -237,6 +237,11 @@ export function MapView({
   const inicioEdicaoRef = useRef<{ tela: { x: number; y: number } } | null>(null)
   const anelOriginalRef = useRef<number[][]>([])
   const poligonoEdicaoRef = useRef<number[][]>([])
+  // Fantasma do mover: contorno tracejado que acompanha o arraste ao vivo —
+  // pontos projetados mantidos em ref e aplicados DIRETO no elemento SVG
+  // (sem re-render por frame).
+  const fantasmaRef = useRef<SVGPolylineElement | null>(null)
+  const pontosFantasmaRef = useRef('')
   const areasRef = useRef<AreaDesenhada[]>([])
   const pontoAtivoRef = useRef<PontoDaArea | null>(null)
   const bolhaAreaRef = useRef(false)
@@ -395,6 +400,16 @@ export function MapView({
       anelOriginalRef.current = anel.map((ponto) => [...ponto])
       poligonoEdicaoRef.current = anel.map((ponto) => [...ponto])
       inicioEdicaoRef.current = tela ? { tela } : null
+      // Fantasma parte da forma ORIGINAL da área no início do gesto.
+      const mapaInicial = mapRef.current
+      if (tipo === 'mover') {
+        pontosFantasmaRef.current = anel
+          .map((vertice) => {
+            const projetado = mapaInicial?.project(vertice as [number, number])
+            return projetado ? `${projetado.x},${projetado.y}` : `${vertice[0]},${vertice[1]}`
+          })
+          .join(' ')
+      }
       setEdicao(edicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
       mapRef.current?.dragPan?.disable?.()
@@ -772,6 +787,15 @@ export function MapView({
           vertice[0] + dLon,
           vertice[1] + dLat,
         ])
+        // Fantasma ao vivo: pontos projetados na hora, direto no SVG.
+        const pontosFantasma = poligonoEdicaoRef.current
+          .map((vertice) => {
+            const projetado = mapRef.current?.project(vertice as [number, number])
+            return projetado ? `${projetado.x},${projetado.y}` : `${vertice[0]},${vertice[1]}`
+          })
+          .join(' ')
+        pontosFantasmaRef.current = pontosFantasma
+        fantasmaRef.current?.setAttribute('points', pontosFantasma)
       } else {
         const vertice = coordenadaDaTela(tela)
         const anel = anelOriginalRef.current.map((ponto, indice) =>
@@ -1362,6 +1386,25 @@ export function MapView({
               />
             )
           })}
+        </svg>
+      )}
+      {/* Fantasma do mover: contorno tracejado translúcido com a forma/posição
+          ATUAL durante o arraste; some ao soltar (reconsulta segue igual). */}
+      {edicao?.tipo === 'mover' && (
+        <svg
+          data-testid="fantasma-area"
+          className="pointer-events-none absolute inset-0 z-10 h-full w-full"
+          aria-hidden="true"
+        >
+          <polyline
+            ref={fantasmaRef}
+            points={pontosFantasmaRef.current}
+            fill="rgba(217,119,6,0.15)"
+            stroke="#d97706"
+            strokeWidth={2}
+            strokeDasharray="6 4"
+            strokeLinejoin="round"
+          />
         </svg>
       )}
       {linhaMedicao && (
