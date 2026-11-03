@@ -128,6 +128,17 @@ def icone_especie(request, slug):
         except ERROS_REDE:
             url = None
         if url is None:
+            # Lapidação 6 (SPEC-0005): sem silhueta na PhyloPic (ou rede
+            # fora), o ícone cai para a foto da própria espécie em midia/;
+            # 404 só quando não há silhueta nem foto (ex. guaiamum).
+            if registro.imagem:
+                caminho_foto = RAIZ_APP / registro.imagem.removeprefix('biodiversidade/')
+                if caminho_foto.is_file():
+                    dispositivo, _ = mimetypes.guess_type(caminho_foto.name)
+                    return FileResponse(
+                        caminho_foto.open('rb'),
+                        content_type=dispositivo or 'application/octet-stream',
+                    )
             raise Http404
         _baixar_arquivo(url, caminho)
     return FileResponse(caminho.open('rb'), content_type='image/svg+xml')
