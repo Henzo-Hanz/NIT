@@ -119,9 +119,8 @@ describe('CA-6: estado aplicado e pisca dos filtros', () => {
     expect(todas).toHaveAttribute('data-ativo', 'true')
     expect(todas.className).toContain('bg-primary')
     expect(todas.className).toContain('text-primary-foreground')
-    expect(screen.getByTestId('filtro-aplicado')).toHaveTextContent(
-      'Filtrando por: Todas as espécies',
-    )
+    // Lapidação 4: no estado padrão (Todas as espécies) NÃO existe chip.
+    expect(screen.queryByTestId('filtro-aplicado')).toBeNull()
 
     await usuario.click(screen.getByTestId('filtro-mais'))
     const mais = screen.getByTestId('filtro-mais')
@@ -130,7 +129,7 @@ describe('CA-6: estado aplicado e pisca dos filtros', () => {
     expect(mais.className).toContain('bg-primary')
     expect(todas).toHaveAttribute('aria-pressed', 'false')
     expect(todas).toHaveAttribute('data-ativo', 'false')
-    expect(todas.className).not.toContain('bg-primary')
+    expect(todas.className).not.toMatch(/(^|\s)bg-primary(?=\s|$)/)
     expect(screen.getByTestId('filtro-aplicado')).toHaveTextContent(
       'Filtrando por: Mais presente',
     )
@@ -159,9 +158,8 @@ describe('CA-6: estado aplicado e pisca dos filtros', () => {
 
     await usuario.click(screen.getByTestId('filtro-especie-guaiamum'))
     expect(screen.getByTestId('filtro-especie-guaiamum')).toHaveAttribute('data-ativo', 'false')
-    expect(screen.getByTestId('filtro-aplicado')).toHaveTextContent(
-      'Filtrando por: Todas as espécies',
-    )
+    // Voltou para o padrão: chip some.
+    expect(screen.queryByTestId('filtro-aplicado')).toBeNull()
 
     await usuario.click(screen.getByTestId('filtro-especifica'))
     await usuario.type(screen.getByTestId('filtro-animal'), 'Badejo')
