@@ -169,22 +169,20 @@ code {
   transform-origin: bottom center;
 }
 
-/* PISCA dos pontos ao mudar de filtro: 2 piscadas (~600ms) de opacity/scale
-   antes de assentar na cor final. Reaplicado pelo remount dos pontos (key). */
+/* PISCA dos pontos ao mudar de filtro: 2 piscadas (~600ms) SÓ de opacity
+   antes de assentar na cor final. Reaplicado pelo remount dos pontos (key).
+   Lapidação 5: sem transform/scale — pisca não altera tamanho nem translada. */
 @keyframes ponto-piscar {
   0%,
+  70%,
   100% {
     opacity: 1;
-    transform: scale(1);
   }
-  20%,
-  70% {
+  20% {
     opacity: 0.15;
-    transform: scale(0.7);
   }
   45% {
     opacity: 0.9;
-    transform: scale(1.08);
   }
 }
 

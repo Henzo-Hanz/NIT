@@ -1437,7 +1437,7 @@ export function MapView({
             ? 'z-10 size-4 bg-teal-600'
             : destacado
               ? 'z-20 size-6 bg-amber-500 ring-4 ring-amber-400'
-              : 'z-10 size-3 opacity-40'
+              : 'z-10 size-4 opacity-40'
         return (
           <button
             key={`${ponto.properties.id}-${ponto.geometry.coordinates[0]}-${

@@ -215,8 +215,10 @@ describe('CA-6: busca no mapa com FTS (sem redirect)', () => {
     for (const nome of ['Parnaíba', 'Camocim']) {
       const ponto = ouvinteDoPonto(nome)
       expect(ponto).toHaveAttribute('data-destacado', 'false')
-      expect(ponto?.className).toContain('size-3')
+      // Lapidação 5: sem mudança de tamanho para quem não tem o match.
+      expect(ponto?.className).toContain('size-4')
       expect(ponto?.className).toContain('opacity-40')
+      expect(ponto?.className).not.toContain('size-3')
     }
     expect(screen.queryByTestId('pin-area')).toBeNull()
   })
@@ -241,7 +243,10 @@ describe('CA-6: busca no mapa com FTS (sem redirect)', () => {
     for (const nome of ['Parnaíba', 'Fernando de Noronha']) {
       const ponto = ouvinteDoPonto(nome)
       expect(ponto).toHaveAttribute('data-destacado', 'false')
+      // Lapidação 5: sem mudança de tamanho para quem não tem o match.
+      expect(ponto?.className).toContain('size-4')
       expect(ponto?.className).toContain('opacity-40')
+      expect(ponto?.className).not.toContain('size-3')
     }
     expect(screen.queryByTestId('pin-area')).toBeNull()
   })

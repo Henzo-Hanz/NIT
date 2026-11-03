@@ -213,6 +213,21 @@ describe('CA-6: painel de filtros no lugar do de camadas', () => {
       },
       { timeout: 3000 },
     )
+
+    // PREMISSA (lapidação 5): o texto do campo já filtra server-side (CA-3) — os
+    // pontos sem o animal saem do escopo da consulta. Com a regra da lapidação 5
+    // (não-casado não muda de tamanho), o resultado fica evidente: só o ponto com
+    // o animal permanece, no tamanho normal, sem destaque nem esmaecimento.
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(1)
+    })
+    const ponto = screen.getAllByTestId('ponto-area')[0]
+    expect(ponto).toHaveAttribute('aria-label', 'Camocim')
+    expect(ponto).not.toHaveAttribute('data-destacado')
+    expect(ponto.className).toContain('size-4')
+    expect(ponto.className).toContain('bg-teal-600')
+    expect(ponto.className).not.toContain('size-3')
+    expect(ponto.className).not.toContain('opacity-40')
   })
 
   it('a lista mostra as espécies com a contagem', async () => {
@@ -256,8 +271,10 @@ describe('CA-6: painel de filtros no lugar do de camadas', () => {
     expect(destacado?.className).toContain('ring-4')
     expect(destacado?.className).toContain('ring-amber-400')
     expect(destacado?.className).toContain('z-20')
+    // Lapidação 5: não-casado NÃO muda de tamanho — fica no size-4 do neutro, só esmaece.
     expect(apagado).toHaveAttribute('data-destacado', 'false')
-    expect(apagado?.className).toContain('size-3')
+    expect(apagado?.className).toContain('size-4')
     expect(apagado?.className).toContain('opacity-40')
+    expect(apagado?.className).not.toContain('size-3')
   })
 })
