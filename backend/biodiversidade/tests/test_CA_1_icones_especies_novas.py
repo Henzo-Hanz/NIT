@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from biodiversidade import views
+from biodiversidade.models import Especie
 from django.core.management import call_command
 from django.test import TestCase
 
@@ -53,10 +54,24 @@ class CA1IconesEspeciesNovasTest(TestCase):
                 self.assertTrue(nomes)
                 self.assertEqual(nomes[0], nome_cientifico)
 
-    def test_especie_nova_sem_vetor_retorna_404(self):
+    def test_especie_sem_vetor_nem_foto_retorna_404(self):
+        # Lapidação 6 (SPEC-0005): as espécies do seed agora têm foto, então
+        # o cenário 404 exige registro transitório sem imagem no disco.
+        Especie.objects.create(
+            slug='especie-transitoria',
+            nome_popular='Espécie transitória',
+            nome_cientifico=None,
+            imagem='',
+        )
         with (
             patch.object(views, 'PASTA_ICONES', Path(self.pasta_temp.name)),
             patch.object(views, '_procurar_imagem_por_nomes', return_value=None),
         ):
-            resposta = self.client.get('/api/especies/badejo/icone/')
+            resposta = self.client.get('/api/especies/especie-transitoria/icone/')
         self.assertEqual(resposta.status_code, 404)
+
+    def test_especie_nova_com_foto_e_servida_quando_sem_vetor(self):
+        resposta, nomes = self._get_icone('badejo', url_vetor=None)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertTrue(resposta['Content-Type'].startswith('image/'))
+        self.assertTrue(nomes)
