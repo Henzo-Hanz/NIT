@@ -1,4 +1,3 @@
-import tempfile
 import mimetypes
 from io import StringIO
 from pathlib import Path
@@ -12,39 +11,29 @@ from django.test import TestCase
 
 RAIZ_APP = Path(biodiversidade.__file__).resolve().parent
 
-# Lapidação 6 (SPEC-0005): as 7 espécies que receberam foto em midia/.
-ESPECIES_COM_FOTO = (
-    'aratu',
-    'siri-azul',
-    'badejo',
-    'garoupa',
-    'robalo-peva',
-    'trinta-reis',
-    'atoba',
-)
-
 
 class CA1IconeFallbackFotoTest(TestCase):
     def setUp(self):
         call_command('seed_demo', '--recriar', stdout=StringIO())
-        self.pasta_temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.pasta_temp.cleanup)
 
-    def test_foto_de_cada_especie_e_servida_quando_sem_silhueta(self):
-        for especie in Especie.objects.filter(slug__in=ESPECIES_COM_FOTO):
+    def test_icone_permutado_para_imagem_de_todas_as_especies_com_foto(self):
+        # Lapidação 7 (SPEC-0005): sem silhueta na PhyloPic, /icone/ aponta
+        # o browser para /imagem/ (fallback da ficha, raro); a foto real
+        # continua como primário da ficha (FotoEspecie).
+        for especie in Especie.objects.exclude(imagem=''):
             with self.subTest(especie=especie.slug):
                 caminho_foto = RAIZ_APP / especie.imagem.removeprefix('biodiversidade/')
-                with (
-                    patch.object(views, 'PASTA_ICONES', Path(self.pasta_temp.name)),
-                    patch.object(
-                        views, '_procurar_imagem_por_nomes', return_value=None
-                    ),
+                self.assertTrue(caminho_foto.is_file())
+                with patch.object(
+                    views, '_procurar_imagem_por_nomes', return_value=None
                 ):
                     resposta = self.client.get(f'/api/especies/{especie.slug}/icone/')
-                tipo, _ = mimetypes.guess_type(caminho_foto.name)
-                self.assertEqual(resposta.status_code, 200)
-                self.assertEqual(resposta['Content-Type'], tipo)
-                self.assertTrue(resposta['Content-Type'].startswith('image/'))
+                self.assertEqual(resposta.status_code, 302)
                 self.assertEqual(
-                    b''.join(resposta.streaming_content), caminho_foto.read_bytes()
+                    resposta['Location'], f'/api/especies/{especie.slug}/imagem/'
                 )
+
+                imagem = self.client.get(f'/api/especies/{especie.slug}/imagem/')
+                tipo, _ = mimetypes.guess_type(caminho_foto.name)
+                self.assertEqual(imagem.status_code, 200)
+                self.assertEqual(imagem['Content-Type'], tipo)
