@@ -251,16 +251,24 @@ LOCALIDADES = [
 # o pin do Parnaíba na carga. Removido: não há contagem real para embutir —
 # o mapa conta especie_slugs.length; a API só devolve 'total' quando existe
 # valor real (nº de entradas do ponto). Descrição factual, sem número.
-GEOMETRIAS = [
-    {
-        'nome': 'Parnaíba',
-        'tipo': 'ponto',
-        'descricao': 'Ponto amostral de caranguejos em Parnaíba (PI)',
-        'propriedades': {},
-        'especie_slug': None,
-        'geojson': {'type': 'Point', 'coordinates': [-41.7767, -2.9035]},
-    },
-] + [
+PONTO_PARNAIBA = {
+    'nome': 'Parnaíba',
+    'tipo': 'ponto',
+    'descricao': 'Ponto amostral de caranguejos em Parnaíba (PI)',
+    'propriedades': {},
+    'especie_slug': None,
+    'geojson': {'type': 'Point', 'coordinates': [-41.7767, -2.9035]},
+}
+
+# Lapidação 8 (SPEC-0005): o pin do Parnaíba ficava liso porque o ponto não
+# tinha espécies (especie_slugs []). Premissa do dono (autorizada por
+# "resolva", reversível): espécies demo para o ponto do Parnaíba — caranguejo
+# + caranguejeiro; caranguejeiro é a única espécie do seed sem ponto. Mesmo
+# formato das demais localidades (uma geometria por espécie), sem 'total'
+# (regra da lapidação 4) e sem mudar nome/coordenadas/propriedades do ponto.
+ESPECIES_PARNAIBA = ['caranguejo-uca', 'caranguejeiro-laranja-do-norte']
+
+GEOMETRIAS = [PONTO_PARNAIBA] + [
     {
         'nome': localidade['nome'],
         'tipo': 'ponto',
@@ -271,6 +279,11 @@ GEOMETRIAS = [
     }
     for localidade in LOCALIDADES
     for slug in localidade['especies']
+] + [
+    # No fim da lista para os ids existentes não mudarem (id 15 = ponto sem
+    # espécie; o grupo da view agrupa por (nome, coordenadas) e herda
+    # id/descrição do primeiro registro — a linha sem espécie).
+    {**PONTO_PARNAIBA, 'especie_slug': slug} for slug in ESPECIES_PARNAIBA
 ]
 
 
