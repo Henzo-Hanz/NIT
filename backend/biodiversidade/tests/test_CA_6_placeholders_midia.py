@@ -9,7 +9,9 @@ from django.test import TestCase
 RAIZ_APP = Path(biodiversidade.__file__).resolve().parent
 
 
-SLUGS_SEM_FOTO = ('guaiamum', 'aratu', 'siri-azul')
+# Lapidação 6 (SPEC-0005): só o guaiamum ficou sem foto; as demais 10
+# espécies do seed apontam arquivos em midia/.
+SLUGS_SEM_FOTO = ('guaiamum',)
 
 
 class CA6PlaceholdersMidiaTest(TestCase):
@@ -17,6 +19,7 @@ class CA6PlaceholdersMidiaTest(TestCase):
         call_command('seed_demo', '--recriar', stdout=StringIO())
 
     def test_cada_especie_com_imagem_referencia_placeholder_existente_e_nao_vazio(self):
+        self.assertEqual(Especie.objects.exclude(imagem='').count(), 10)
         for especie in Especie.objects.exclude(imagem=''):
             with self.subTest(especie=especie.slug):
                 caminho = RAIZ_APP / especie.imagem.removeprefix('biodiversidade/')
