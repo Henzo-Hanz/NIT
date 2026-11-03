@@ -82,7 +82,7 @@ ESPECIES = [
             'uso': 'Pescado artesanal',
             'curiosidade': 'Volta à toca antes da maré subir e fecha a entrada com lama.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/guaiamum.jpg',
     },
     {
         'slug': 'aratu',
