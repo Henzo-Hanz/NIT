@@ -8,6 +8,7 @@ from unittest.mock import patch
 from urllib.error import URLError
 
 from biodiversidade import views
+from biodiversidade.models import Especie
 
 SLUG = 'caranguejo-uca'
 
@@ -139,15 +140,32 @@ class CA9IconeEspecieTest(TestCase):
         self.assertEqual(resposta.status_code, 404)
 
     def test_sem_imagem_encontrada_na_api_retorna_404(self):
+        # Lapidação 6 (SPEC-0005): o seed agora dá foto às espécies, então o
+        # cenário 404 exige registro transitório sem imagem em midia/.
+        Especie.objects.create(
+            slug='especie-sem-imagem',
+            nome_popular='Espécie sem imagem',
+            nome_cientifico=None,
+            imagem='',
+        )
         with patch.object(views, '_procurar_imagem_por_nomes', return_value=None):
-            resposta = self.client.get(f'/api/especies/{SLUG}/icone/')
-            self.assertEqual(resposta.status_code, 404)
-
-    def test_erro_de_rede_na_busca_retorna_404(self):
-        with patch.object(views, '_procurar_imagem_por_nomes', side_effect=URLError('fora do ar')):
-            resposta = self.client.get(f'/api/especies/{SLUG}/icone/')
+            resposta = self.client.get('/api/especies/especie-sem-imagem/icone/')
             self.assertEqual(resposta.status_code, 404)
         self.assertFalse(
-            (self.pasta_uuid / f'{SLUG}.svg').exists(),
+            (self.pasta_uuid / 'especie-sem-imagem.svg').exists(),
             'arquivo vazio ou parcial não deve restar no cache',
+        )
+
+    def test_erro_de_rede_com_foto_cai_para_a_foto_da_especie(self):
+        imagem = views.RAIZ_APP / 'midia' / 'caranguejo-uca.png'
+        with patch.object(
+            views, '_procurar_imagem_por_nomes', side_effect=URLError('fora do ar')
+        ):
+            resposta = self.client.get(f'/api/especies/{SLUG}/icone/')
+            self.assertEqual(resposta.status_code, 200)
+            self.assertTrue(resposta['Content-Type'].startswith('image/'))
+            self.assertEqual(resposta.getvalue(), imagem.read_bytes())
+        self.assertFalse(
+            (self.pasta_uuid / f'{SLUG}.svg').exists(),
+            'silhueta falha com rede fora não deve esconder um svg no cache',
         )
