@@ -61,7 +61,11 @@ class CA3BuscaTest(TestCase):
             )
         )
 
-    def test_ponto_pelo_nome_mesmo_sem_especie_de_match(self):
+    def test_ponto_pelo_nome_traz_especies_do_ponto_sem_match_fts(self):
+        # Lapidação 8 (SPEC-0005): o ponto do Parnaíba tem espécies demo
+        # (reversível); aqui nenhuma casa com o FTS do termo, então o grupo
+        # só bate pelo nome (icontains) e busca_slugs fica vazio. Sem
+        # número mockado (lapidação 4): 'total' = contagem real da view.
         resposta = self._get({'q': 'Parnaíba'})
         self.assertEqual(resposta.status_code, 200)
         dados = resposta.json()
@@ -70,8 +74,11 @@ class CA3BuscaTest(TestCase):
         self.assertEqual(len(features), 1)
         propriedades = features[0]['properties']
         self.assertEqual(propriedades['nome'], 'Parnaíba')
-        self.assertEqual(propriedades['especie_slugs'], [])
-        self.assertNotIn('total', propriedades)
+        self.assertEqual(
+            propriedades['especie_slugs'],
+            ['caranguejo-uca', 'caranguejeiro-laranja-do-norte'],
+        )
+        self.assertEqual(propriedades['total'], len(propriedades['especie_slugs']))
         self.assertEqual(propriedades['busca_slugs'], [])
 
     def test_pontos_ordenados_por_correspondencias_e_nome(self):
@@ -86,8 +93,11 @@ class CA3BuscaTest(TestCase):
         features = dados['pontos']['features']
         self.assertEqual(
             [feature['properties']['nome'] for feature in features],
-            ['Camocim', 'Jericoacoara', 'Luís Correia'],
+            ['Camocim', 'Jericoacoara', 'Luís Correia', 'Parnaíba'],
         )
+        # Lapidação 8 (SPEC-0005): o Parnaíba entra com 1 correspondência
+        # (uca) e cai depois dos pontos com mais matches, no fim ordenado
+        # por nome.
         por_nome = {
             feature['properties']['nome']: feature['properties']
             for feature in features
@@ -101,6 +111,10 @@ class CA3BuscaTest(TestCase):
         )
         self.assertEqual(
             por_nome['Luís Correia']['busca_slugs'],
+            ['caranguejo-uca'],
+        )
+        self.assertEqual(
+            por_nome['Parnaíba']['busca_slugs'],
             ['caranguejo-uca'],
         )
 
