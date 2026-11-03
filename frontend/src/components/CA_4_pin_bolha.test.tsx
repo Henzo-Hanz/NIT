@@ -163,10 +163,14 @@ describe('CA-4: nenhum pin automático na carga e fluxo de pin/bolha do ponto', 
     await usuario.click(ponto)
     expect(screen.getByTestId('bolha-area')).toBeInTheDocument()
 
-    // Clique livre fora do pin: fechar pin remove pin + bolha.
+    // Clique livre fora do pin: fechar pin remove pin + bolha. A saída do pin
+    // é ANIMADA (SPEC-0005): classe `pin-sumir` antes da remoção real.
     await usuario.click(screen.getByTestId('mapa-container'))
-    expect(screen.queryByTestId('pin-area')).toBeNull()
     expect(screen.queryByTestId('bolha-area')).toBeNull()
+    const pinSaindo = screen.getByTestId('pin-area')
+    expect(pinSaindo.classList).toContain('pin-sumir')
+    pinSaindo.dispatchEvent(new Event('animationend'))
+    expect(screen.queryByTestId('pin-area')).toBeNull()
   })
 
   it('a espécie da bolha abre a ficha no modal como hoje', async () => {
@@ -184,6 +188,10 @@ describe('CA-4: nenhum pin automático na carga e fluxo de pin/bolha do ponto', 
     await usuario.click(ponto)
     await usuario.click(screen.getByTestId('area-especie-caranguejo-uca'))
     expect(aoAbrir).toHaveBeenCalledWith('caranguejo-uca')
+    // A ficha fecha o pin: bolha sai na hora, o pin sai ANIMADO (SPEC-0005).
+    const pinSaindo = screen.getByTestId('pin-area')
+    expect(pinSaindo.classList).toContain('pin-sumir')
+    pinSaindo.dispatchEvent(new Event('animationend'))
     expect(screen.queryByTestId('pin-area')).toBeNull()
   })
 
