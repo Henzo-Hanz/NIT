@@ -142,7 +142,7 @@ describe('CA-7: pontos do resultado, pin e bolha de área', () => {
     expect(screen.queryByTestId('bolha-area')).toBeNull()
   })
 
-  it('sem área desenhada os pontos do escopo Brasil aparecem e o clique cria pin + bolha', async () => {
+  it('sem área desenhada o clique no ponto cria o pin e o 2º clique abre a bolha', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<App />)
@@ -156,9 +156,12 @@ describe('CA-7: pontos do resultado, pin e bolha de área', () => {
     expect(pin).toBeInTheDocument()
     expect(pin.querySelector('[data-animacao="crescer"]')).not.toBeNull()
     expect(pin.querySelector('.pin-area-crescer')).not.toBeNull()
+    // Lapidação 4: a bolha só abre no 2º clique no MESMO ponto.
+    expect(screen.queryByTestId('bolha-area')).toBeNull()
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
     const bolha = screen.getByTestId('bolha-area')
     expect(bolha).toHaveTextContent('2 espécies encontradas')
-    expect(screen.getByTestId('ver-especies-area')).toBeInTheDocument()
+    expect(screen.queryByTestId('ver-especies-area')).toBeNull()
   })
 
   it('o pin tenta os ícones das espécies em ordem e sem caranguejo vira pin liso', async () => {
@@ -219,7 +222,7 @@ describe('CA-7: pontos do resultado, pin e bolha de área', () => {
     ).toBe('')
   })
 
-  it('clicar no ponto sobe o pin animado e abre a bolha com a contagem', async () => {
+  it('clicar no ponto sobe o pin animado e o 2º clique abre a bolha com a contagem', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<App />)
@@ -235,13 +238,16 @@ describe('CA-7: pontos do resultado, pin e bolha de área', () => {
     expect(pin).toBeInTheDocument()
     expect(pin.querySelector('[data-animacao="crescer"]')).not.toBeNull()
     expect(pin.querySelector('.pin-area-crescer')).not.toBeNull()
+    expect(screen.queryByTestId('bolha-area')).toBeNull()
+
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
     const bolha = screen.getByTestId('bolha-area')
     expect(bolha).toHaveTextContent('2 espécies encontradas')
     expect(bolha.style.top).toBe('104px')
-    expect(screen.getByTestId('ver-especies-area')).toBeInTheDocument()
+    expect(screen.queryByTestId('ver-especies-area')).toBeNull()
   })
 
-  it('Ver espécies lista as espécies do ponto e a ficha abre no modal', async () => {
+  it('a bolha do ponto lista as espécies de uma vez e a ficha abre no modal', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<App />)
@@ -252,7 +258,7 @@ describe('CA-7: pontos do resultado, pin e bolha de área', () => {
       expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
     })
     await usuario.click(screen.getAllByTestId('ponto-area')[0])
-    await usuario.click(screen.getByTestId('ver-especies-area'))
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
 
     const lista = screen.getByTestId('lista-especies-area')
     expect(lista).toBeInTheDocument()
