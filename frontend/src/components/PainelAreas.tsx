@@ -67,8 +67,11 @@ export function PainelAreas({ areas, areaAtivaId, aoSelecionar, aoApagar }: Pain
                 key={area.id}
                 data-testid={`area-item-${area.id}`}
                 data-ativa={areaAtivaId === area.id ? 'true' : 'false'}
-                className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${
-                  areaAtivaId === area.id ? 'border-teal-600 bg-accent' : ''
+                data-selecionada={areaAtivaId === area.id ? 'true' : 'false'}
+                className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition-colors ${
+                  areaAtivaId === area.id
+                    ? 'border-2 border-amber-500 bg-amber-500/15 ring-1 ring-amber-400/50 dark:border-amber-400 dark:bg-amber-400/10 dark:ring-amber-500/50'
+                    : ''
                 }`}
               >
                 <span className="font-medium">{area.nome}</span>
