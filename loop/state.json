@@ -1,7 +1,7 @@
 {
   "spec_id": "SPEC-0005",
   "fase": "front",
-  "gate": null,
+  "gate": "funcional",
   "tentativa": 8,
   "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/11",
   "card_url": "https://trello.com/c/b4eAdZNe/9-spec-0005-desenho-de-pol%C3%ADgono-no-mapa-consulta-de-esp%C3%A9cies-por-%C3%A1rea-back-front"
