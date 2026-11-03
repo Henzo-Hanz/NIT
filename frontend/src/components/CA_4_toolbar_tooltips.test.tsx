@@ -94,12 +94,11 @@ describe('CA-4: tooltips (hover) e estado de hover da toolbar', () => {
     expect(arrastar).toHaveAttribute('data-ativo', 'true')
     expect(arrastar.className).toContain('bg-primary')
     expect(arrastar.className).toContain('text-primary-foreground')
-    expect(medir.className).toContain('hover:bg-muted')
-    expect(medir.className).toContain('hover:text-foreground')
-    expect(medir.className).toContain('hover:ring-1')
-    expect(medir.className).toContain('hover:ring-border')
+    // Lapidação 4: hover do inativo = primário mais claro (nada de cinza).
+    expect(medir.className).toContain('hover:bg-primary/60')
+    expect(medir.className).toContain('hover:text-primary-foreground')
     expect(medir.className).toContain('transition-colors')
-    expect(medir.className).not.toContain('bg-primary')
+    expect(medir.className).not.toMatch(/(^|\s)bg-primary(?=\s|$)/)
 
     await usuario.click(medir)
     expect(medir).toHaveAttribute('data-ativo', 'true')
@@ -107,8 +106,9 @@ describe('CA-4: tooltips (hover) e estado de hover da toolbar', () => {
     expect(medir.className).toContain('hover:bg-primary/90')
     expect(medir.className).not.toMatch(/(^|\s)hover:bg-muted(?=\s|$)/)
     expect(arrastar).toHaveAttribute('data-ativo', 'false')
-    expect(arrastar.className).toMatch(/(^|\s)hover:bg-muted(?=\s|$)/)
-    expect(arrastar.className).toContain('hover:ring-border')
+    expect(arrastar.className).toContain('hover:bg-primary/60')
+    expect(arrastar.className).toContain('hover:text-primary-foreground')
+    expect(arrastar.className).not.toMatch(/(^|\s)hover:bg-muted(?=\s|$)/)
   })
 
   it('os botões do submenu de desenho também têm tooltip e classe de hover', async () => {
@@ -118,7 +118,7 @@ describe('CA-4: tooltips (hover) e estado de hover da toolbar', () => {
 
     await usuario.click(screen.getByTestId('ferramenta-desenhar'))
     const ativos = new Map<string, string>([
-      ['desenho-quadrado', 'Quadrado'],
+      ['desenho-retangulo', 'Retângulo'],
       ['desenho-circulo', 'Círculo'],
       ['desenho-livre', 'Livre'],
     ])
@@ -127,18 +127,17 @@ describe('CA-4: tooltips (hover) e estado de hover da toolbar', () => {
       expect(botao).toHaveAttribute('title', nome)
     }
     expect(screen.getByTestId('desenho-voltar')).toHaveAttribute('title', 'Voltar')
-    expect(screen.getByTestId('desenho-voltar').className).toContain('hover:bg-muted')
-    const quadrado = screen.getByTestId('desenho-quadrado')
+    expect(screen.getByTestId('desenho-voltar').className).toContain('hover:bg-primary/60')
+    const quadrado = screen.getByTestId('desenho-retangulo')
     expect(quadrado).toHaveAttribute('data-ativo', 'false')
-    expect(quadrado.className).toContain('hover:bg-muted')
-    expect(quadrado.className).toContain('hover:ring-border')
+    expect(quadrado.className).toContain('hover:bg-primary/60')
 
     await usuario.click(quadrado)
-    expect(screen.getByTestId('desenho-quadrado')).toHaveAttribute('data-ativo', 'true')
-    expect(screen.getByTestId('desenho-quadrado').className).toContain('bg-primary')
+    expect(screen.getByTestId('desenho-retangulo')).toHaveAttribute('data-ativo', 'true')
+    expect(screen.getByTestId('desenho-retangulo').className).toContain('bg-primary')
     await usuario.click(screen.getByTestId('ferramenta-desenhar'))
-    expect(screen.getByTestId('desenho-circulo').className).toContain('hover:bg-muted')
-    expect(screen.getByTestId('desenho-livre').className).toContain('hover:bg-muted')
+    expect(screen.getByTestId('desenho-circulo').className).toContain('hover:bg-primary/60')
+    expect(screen.getByTestId('desenho-livre').className).toContain('hover:bg-primary/60')
   })
 
   it('o submenu de busca tem voltar com tooltip e o campo nasce em foco', async () => {
@@ -150,8 +149,7 @@ describe('CA-4: tooltips (hover) e estado de hover da toolbar', () => {
     const voltar = screen.getByTestId('busca-voltar')
     expect(voltar).toHaveAttribute('title', 'Voltar')
     expect(voltar).toHaveAttribute('aria-label', 'Voltar para as ferramentas')
-    expect(voltar.className).toContain('hover:bg-muted')
-    expect(voltar.className).toContain('hover:ring-border')
+    expect(voltar.className).toContain('hover:bg-primary/60')
     expect(document.activeElement).toBe(screen.getByTestId('campo-busca'))
     expect(screen.getByTestId('ferramenta-pesquisar')).toHaveAttribute('title', 'Pesquisar')
   })
