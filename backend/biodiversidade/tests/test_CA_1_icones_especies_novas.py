@@ -1,6 +1,4 @@
-import tempfile
 from io import StringIO
-from pathlib import Path
 from unittest.mock import patch
 
 from biodiversidade import views
@@ -15,63 +13,41 @@ ESPECIES_NOVAS = {
     'trinta-reis': 'Thalasseus acuflavidus',
     'atoba': 'Sula leucogaster',
 }
-CONTEUDO_SVG = b'<svg xmlns="http://www.w3.org/2000/svg"/>'
 
 
 class CA1IconesEspeciesNovasTest(TestCase):
     def setUp(self):
         call_command('seed_demo', '--recriar', stdout=StringIO())
-        self.pasta_temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.pasta_temp.cleanup)
 
-    def _get_icone(self, slug, url_vetor='https://exemplo.test/vector.svg'):
-        nomes_recebidos = []
-
-        def procurar_fake(nomes):
-            nomes_recebidos.extend(nomes)
-            return url_vetor
-
-        def baixar_fake(_url, destino):
-            destino.write_bytes(CONTEUDO_SVG)
-
-        with (
-            patch.object(views, 'PASTA_ICONES', Path(self.pasta_temp.name)),
-            patch.object(
-                views, '_procurar_imagem_por_nomes', side_effect=procurar_fake
-            ),
-            patch.object(views, '_baixar_arquivo', side_effect=baixar_fake),
-        ):
-            resposta = self.client.get(f'/api/especies/{slug}/icone/')
-        return resposta, nomes_recebidos
-
-    def test_icone_das_especies_novas_e_servido_como_svg(self):
+    def test_icone_das_especies_novas_redireciona_ao_vetor_on_demand(self):
+        vetor = 'https://exemplo.test/vector.svg'
         for slug, nome_cientifico in ESPECIES_NOVAS.items():
             with self.subTest(slug=slug):
-                resposta, nomes = self._get_icone(slug)
-                self.assertEqual(resposta.status_code, 200)
-                self.assertEqual(resposta['Content-Type'], 'image/svg+xml')
-                self.assertEqual(b''.join(resposta.streaming_content), CONTEUDO_SVG)
-                self.assertTrue(nomes)
-                self.assertEqual(nomes[0], nome_cientifico)
+                nomes_recebidos = []
 
-    def test_especie_sem_vetor_nem_foto_retorna_404(self):
-        # Lapidação 6 (SPEC-0005): as espécies do seed agora têm foto, então
-        # o cenário 404 exige registro transitório sem imagem no disco.
+                def procurar_fake(nomes):
+                    nomes_recebidos.extend(nomes)
+                    return vetor
+
+                with patch.object(
+                    views, '_procurar_imagem_por_nomes', side_effect=procurar_fake
+                ):
+                    resposta = self.client.get(f'/api/especies/{slug}/icone/')
+                self.assertEqual(resposta.status_code, 302)
+                self.assertEqual(resposta['Location'], vetor)
+                self.assertEqual(resposta['Cache-Control'], 'max-age=300')
+                self.assertTrue(nomes_recebidos)
+                self.assertEqual(nomes_recebidos[0], nome_cientifico)
+
+    def test_especie_transitoria_sem_vetor_nem_foto_retorna_404(self):
+        # Lapidação 7 (SPEC-0005): sem silhueta na PhyloPic, o fallback é a
+        # foto servida por /imagem/; sem silhueta e sem foto → 404.
         Especie.objects.create(
             slug='especie-transitoria',
             nome_popular='Espécie transitória',
             nome_cientifico=None,
             imagem='',
         )
-        with (
-            patch.object(views, 'PASTA_ICONES', Path(self.pasta_temp.name)),
-            patch.object(views, '_procurar_imagem_por_nomes', return_value=None),
-        ):
+        with patch.object(views, '_procurar_imagem_por_nomes', return_value=None):
             resposta = self.client.get('/api/especies/especie-transitoria/icone/')
         self.assertEqual(resposta.status_code, 404)
-
-    def test_especie_nova_com_foto_e_servida_quando_sem_vetor(self):
-        resposta, nomes = self._get_icone('badejo', url_vetor=None)
-        self.assertEqual(resposta.status_code, 200)
-        self.assertTrue(resposta['Content-Type'].startswith('image/'))
-        self.assertTrue(nomes)
