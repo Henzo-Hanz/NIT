@@ -131,6 +131,49 @@ function htmlDoPin(slugs: string[]) {
   return corpoDoPin(construirImagensDoPin(slugs), slugs.includes('caranguejo-uca'))
 }
 
+// Saída do pin: classe `pin-sumir` (fade-out espelhando o `pin-crescer` de
+// entrada) e remoção REAL só no `animationend` do próprio elemento — com
+// guarda de 250ms caso o evento não dispare (evita pin fantasma). Cada
+// elemento cuida do próprio ciclo: nenhum estado compartilhado entre pins
+// (um novo pode nascer enquanto o velho ainda está saindo).
+function sumirPin(el: HTMLElement, remover: () => void) {
+  el.classList.add('pin-sumir')
+  let saiu = false
+  const encerrar = () => {
+    if (saiu) {
+      return
+    }
+    saiu = true
+    el.removeEventListener('animationend', aoTerminar)
+    remover()
+  }
+  const aoTerminar = (evento: Event) => {
+    // Só conta o fim da animação PRÓPRIA (o fim da de entrada borbulha do
+    // conteúdo, com alvo no filho).
+    if (evento.target === el) {
+      encerrar()
+    }
+  }
+  el.addEventListener('animationend', aoTerminar)
+  setTimeout(encerrar, 250)
+}
+
+// Despedida do Marker do pin: anima a saída do elemento e solta o Marker só
+// no fim (o próprio conteúdo se resolve, sem re-render no React).
+function despedirPin(pin: Marker) {
+  const elemento = (pin as unknown as { element?: HTMLElement }).element
+  if (!elemento) {
+    pin.remove()
+    return
+  }
+  sumirPin(elemento, () => {
+    pin.remove()
+    if (elemento?.isConnected) {
+      elemento.remove()
+    }
+  })
+}
+
 function construirEstilo(apiKey: string | undefined) {
   const tiles = apiKey
     ? TILES_VOYAGER.map((tile) => `${tile}?key=${apiKey}`)
@@ -616,6 +659,8 @@ export function MapView({
       map.dragPan?.enable?.()
     }
     return () => {
+      // Desmonte/estilo novo descarta o mapa inteiro de uma vez: remoção SEM
+      // animação (a saída animada de `sumirPin` vale só para UM pin por vez).
       pinAreaRef.current?.remove()
       pinAreaRef.current = null
       fonteProntaRef.current = false
@@ -972,19 +1017,14 @@ export function MapView({
 
   const removerPinArea = useCallback(() => {
     const pin = pinAreaRef.current
-    if (pin) {
-      pin.remove()
-      // O Marker real já desanexa o elemento; garantir no fake/dup também.
-      const elemento = (pin as unknown as { element?: HTMLElement }).element
-      if (elemento?.isConnected) {
-        elemento.remove()
-      }
-    }
     pinAreaRef.current = null
     pontoAtivoRef.current = null
     setPontoAtivo(null)
     setBolhaAreaAberta(false)
     setPosBolhaArea(null)
+    if (pin) {
+      despedirPin(pin)
+    }
   }, [])
 
   removerPinAreaRef.current = removerPinArea
@@ -1063,7 +1103,12 @@ export function MapView({
   // SEM bolha; 2º clique no MESMO ponto abre a bolha com a lista já visível.
   const criarPinArea = useCallback(
     (ponto: PontoDaArea) => {
-      pinAreaRef.current?.remove()
+      // Troca de pin: o velho sai animado enquanto o novo já entra (cada
+      // elemento cuida do próprio ciclo, sem estado compartilhado).
+      const antigo = pinAreaRef.current
+      if (antigo) {
+        despedirPin(antigo)
+      }
     const mapa = mapRef.current
     if (!mapa) {
       return
