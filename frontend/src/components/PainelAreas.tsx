@@ -1,4 +1,5 @@
-import { Trash } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronDown, ChevronUp, Trash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatarKm2 } from '@/utils/geo'
 import type { PolygonGeoJSON } from '@/lib/api'
@@ -18,58 +19,88 @@ interface PainelAreasProps {
 }
 
 export function PainelAreas({ areas, areaAtivaId, aoSelecionar, aoApagar }: PainelAreasProps) {
+  // Minimizado só esconde o corpo: as áreas continuam no estado do mapa,
+  // reabrir não perde nem reseta nada.
+  const [aberto, setAberto] = useState(true)
   return (
     <aside
       data-testid="painel-areas"
       className="absolute left-4 top-16 z-20 w-56 rounded-xl border bg-background p-3 shadow-lg"
     >
-      <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-        Áreas desenhadas
-      </h2>
-      {areas.length === 0 ? (
-        <p data-testid="areas-vazia" className="text-xs text-muted-foreground">
-          Nenhuma área desenhada ainda.
-        </p>
-      ) : (
-        <ul className="flex max-h-[7.5rem] flex-col gap-1 overflow-y-auto no-scrollbar">
-          {areas.map((area) => (
-            <li
-              key={area.id}
-              data-testid={`area-item-${area.id}`}
-              data-ativa={areaAtivaId === area.id ? 'true' : 'false'}
-              className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${
-                areaAtivaId === area.id ? 'border-teal-600 bg-accent' : ''
-              }`}
-            >
-              <span className="font-medium">{area.nome}</span>
-              <span data-testid={`area-tamanho-${area.id}`} className="text-muted-foreground">
-                ≈ {formatarKm2(area.areaKm2)} km²
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`selecionar-area-${area.id}`}
-                aria-pressed={areaAtivaId === area.id}
-                aria-label={`Selecionar ${area.nome}`}
-                className="ml-auto h-6 px-1.5 text-[11px]"
-                onClick={() => aoSelecionar(area.id)}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Áreas desenhadas
+        </h2>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          data-testid="recolher-areas"
+          aria-label={aberto ? 'Recolher áreas' : 'Expandir áreas'}
+          aria-expanded={aberto}
+          title={aberto ? 'Recolher' : 'Expandir'}
+          className="transition-colors hover:bg-primary/60 hover:text-primary-foreground"
+          onClick={() => setAberto((atual) => !atual)}
+        >
+          {aberto ? (
+            <ChevronUp className="size-3" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="size-3" aria-hidden="true" />
+          )}
+        </Button>
+      </div>
+      <div
+        data-testid="corpo-areas"
+        data-aberto={aberto ? 'true' : 'false'}
+        aria-hidden={!aberto}
+        className={`overflow-hidden transition-all duration-300 ease-out ${
+          aberto ? 'max-h-64 opacity-100' : 'pointer-events-none max-h-0 opacity-0'
+        }`}
+      >
+        {areas.length === 0 ? (
+          <p data-testid="areas-vazia" className="text-xs text-muted-foreground">
+            Nenhuma área desenhada ainda.
+          </p>
+        ) : (
+          <ul className="flex max-h-[7.5rem] flex-col gap-1 overflow-y-auto no-scrollbar">
+            {areas.map((area) => (
+              <li
+                key={area.id}
+                data-testid={`area-item-${area.id}`}
+                data-ativa={areaAtivaId === area.id ? 'true' : 'false'}
+                className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${
+                  areaAtivaId === area.id ? 'border-teal-600 bg-accent' : ''
+                }`}
               >
-                Selecionar
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                data-testid={`apagar-area-${area.id}`}
-                aria-label={`Apagar ${area.nome}`}
-                className="h-6 w-6 text-destructive hover:text-destructive"
-                onClick={() => aoApagar(area.id)}
-              >
-                <Trash className="size-3.5" aria-hidden="true" />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+                <span className="font-medium">{area.nome}</span>
+                <span data-testid={`area-tamanho-${area.id}`} className="text-muted-foreground">
+                  ≈ {formatarKm2(area.areaKm2)} km²
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid={`selecionar-area-${area.id}`}
+                  aria-pressed={areaAtivaId === area.id}
+                  aria-label={`Selecionar ${area.nome}`}
+                  className="ml-auto h-6 px-1.5 text-[11px]"
+                  onClick={() => aoSelecionar(area.id)}
+                >
+                  Selecionar
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  data-testid={`apagar-area-${area.id}`}
+                  aria-label={`Apagar ${area.nome}`}
+                  className="h-6 w-6 text-destructive hover:text-destructive"
+                  onClick={() => aoApagar(area.id)}
+                >
+                  <Trash className="size-3.5" aria-hidden="true" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </aside>
   )
 }
