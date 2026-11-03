@@ -19,6 +19,9 @@ vi.mock('maplibre-gl', () => {
     addLayer = vi.fn()
     setLayoutProperty = vi.fn()
     project = vi.fn(() => ({ x: 120, y: 180 }))
+    unproject = vi.fn(([x, y]: [number, number]) => [x, y])
+    getSource = vi.fn(() => ({ setData: vi.fn() }))
+    dragPan = { enable: vi.fn(), disable: vi.fn() }
     remove = vi.fn()
     on = (evento: string, cb: (evento?: unknown) => void) => {
       this.registro.set(evento, cb)
@@ -58,19 +61,34 @@ const FEATURE_COLLECTION = {
         id: 1,
         nome: 'Parnaíba',
         tipo: 'ponto',
-        descricao: '223 espécies de caranguejos encontradas',
+        descricao: 'Ponto de monitoramento do litoral do Parnaíba',
         especie_slug: null,
-        total: 223,
       },
       geometry: { type: 'Point', coordinates: [-41.7767, -2.9035] },
     },
   ],
 }
 
+const PONTOS_CONSULTA = [
+  {
+    type: 'Feature',
+    properties: {
+      id: 7,
+      nome: 'Parnaíba',
+      descricao: '1 espécie encontrada',
+      especie_slugs: ['caranguejo-uca'],
+      total: 1,
+    },
+    geometry: { type: 'Point', coordinates: [-41.7767, -2.9035] },
+  },
+]
+
+const ESPECIES_AREA = [{ slug: 'caranguejo-uca', nome_popular: 'Caranguejo-uçá', contagem: 1 }]
+
 function configurarFetch(rotas: Record<string, unknown>) {
   const fetchFake = vi.fn(async (entrada: RequestInfo | URL) => {
     const rota = String(entrada)
-    if (rotas[rota]) {
+    if (rotas[rota] !== undefined) {
       return { ok: true, json: async () => rotas[rota] }
     }
     return { ok: false, json: async () => ({}) }
@@ -78,8 +96,6 @@ function configurarFetch(rotas: Record<string, unknown>) {
   vi.stubGlobal('fetch', fetchFake)
   return fetchFake
 }
-
-const instancia = () => estadoMapa.instancias[estadoMapa.instancias.length - 1]
 
 afterEach(() => {
   cleanup()
@@ -89,89 +105,104 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('CA-4: pin de Parnaíba abre bolha com a contagem', () => {
-  it('clique no pin abre bolha pequena com a mensagem e o botão Ver espécies', async () => {    const usuario = userEvent.setup()
-    configurarFetch({ '/api/geometrias/': FEATURE_COLLECTION })
-    const { rerender } = render(<MapView />)
-    await vi.waitFor(() => {
-      expect(instancia().addSource).toHaveBeenCalled()
-    })
-    await vi.waitFor(() => {
-      expect(document.querySelector('[data-testid="pin-parnaiba"]')).not.toBeNull()
-    })
-    const pin = document.querySelector('[data-testid="pin-parnaiba"]') as HTMLElement
-    await usuario.click(pin)
-    expect(screen.getByTestId('bolha-parnaiba')).toHaveTextContent(
-      '223 espécies de caranguejos encontradas',
-    )
-    expect(screen.getByTestId('ver-especies')).toBeInTheDocument()
-
-    rerender(<MapView modalAberto />)
-    expect(screen.queryByTestId('bolha-parnaiba')).toBeNull()
-  })
-
-  it('botão fechar bolha e a tecla Esc fecham a bolha', async () => {
-    const usuario = userEvent.setup()
+// Lapidação 4: o pin do Parnaíba não sobe sozinho na carga; o fluxo de pin e
+// bolha vale para PONTOS (1º clique = pin sem bolha, 2º clique = bolha).
+describe('CA-4: nenhum pin automático na carga e fluxo de pin/bolha do ponto', () => {
+  it('a carga das geometrias não sobe nenhum pin (nem o do Parnaíba)', async () => {
     configurarFetch({ '/api/geometrias/': FEATURE_COLLECTION })
     render(<MapView />)
     await vi.waitFor(() => {
-      expect(document.querySelector('[data-testid="pin-parnaiba"]')).not.toBeNull()
+      expect(document.body.querySelector('[data-testid="pin-parnaiba"]')).toBeNull()
     })
-    const pin = document.querySelector('[data-testid="pin-parnaiba"]') as HTMLElement
-    await usuario.click(pin)
-    expect(screen.getByTestId('bolha-parnaiba')).toBeInTheDocument()
-    await usuario.click(screen.getByTestId('fechar-bolha'))
+    expect(document.body.querySelector('[data-testid="pin-area"]')).toBeNull()
     expect(screen.queryByTestId('bolha-parnaiba')).toBeNull()
-    await usuario.click(pin)
-    expect(screen.getByTestId('bolha-parnaiba')).toBeInTheDocument()
-    await usuario.keyboard('{Escape}')
-    expect(screen.queryByTestId('bolha-parnaiba')).toBeNull()
+    expect(screen.queryByTestId('bolha-area')).toBeNull()
   })
 
-  it('seta de voltar na listagem retorna para a contagem', async () => {
+  it('1º clique no ponto mostra o pin SEM bolha; 2º clique abre a bolha', async () => {
     const usuario = userEvent.setup()
     configurarFetch({
-      '/api/geometrias/': FEATURE_COLLECTION,
-      '/api/especies/': [
-        { slug: 'caranguejo-uca', nome_popular: 'Caranguejo-uçá' },
-        { slug: 'caranguejo-maria-farinha', nome_popular: 'Maria-farinha' },
-      ],
+      '/api/consulta/area/': {
+        especies: ESPECIES_AREA,
+        pontos: { type: 'FeatureCollection', features: PONTOS_CONSULTA },
+      },
     })
     render(<MapView />)
-    await vi.waitFor(() => {
-      expect(document.querySelector('[data-testid="pin-parnaiba"]')).not.toBeNull()
-    })
-    const pin = document.querySelector('[data-testid="pin-parnaiba"]') as HTMLElement
-    await usuario.click(pin)
-    await usuario.click(screen.getByTestId('ver-especies'))
-    await screen.findByTestId('lista-especies-bolha')
-    await usuario.click(screen.getByTestId('bolha-voltar'))
-    expect(screen.getByTestId('ver-especies')).toBeInTheDocument()
-    expect(screen.queryByTestId('lista-especies-bolha')).toBeNull()
+    const ponto = await screen.findByTestId('ponto-area')
+
+    await usuario.click(ponto)
+    const pin = screen.getByTestId('pin-area')
+    expect(pin.querySelector('image[data-icono-phylopic]')?.getAttribute('href')).toBe(
+      '/api/especies/caranguejo-uca/icone/',
+    )
+    expect(screen.queryByTestId('bolha-area')).toBeNull()
+
+    await usuario.click(ponto)
+    expect(screen.getByTestId('bolha-area')).toHaveTextContent('1 espécie encontrada')
   })
 
-  it('pin usa a silhueta PhyloPic e cai no crab desenhado quando a imagem falha', async () => {
-    configurarFetch({ '/api/geometrias/': FEATURE_COLLECTION })
-    render(<MapView />)
-    await vi.waitFor(() => {
-      expect(document.querySelector('[data-testid="pin-parnaiba"]')).not.toBeNull()
+  it('fechar a bolha mantém o pin e clicar fora fecha o pin por inteiro', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch({
+      '/api/consulta/area/': {
+        especies: ESPECIES_AREA,
+        pontos: { type: 'FeatureCollection', features: PONTOS_CONSULTA },
+      },
     })
-    const pin = document.querySelector('[data-testid="pin-parnaiba"]') as HTMLElement
-    const icone = pin.querySelector('image[data-icono-phylopic]')
-    expect(icone?.getAttribute('href')).toBe('/api/especies/caranguejo-uca/icone/')
-    const partesFallback = Array.from(
-      pin.querySelectorAll('[data-fallback-crab], [data-fallback-crab-patas], [data-fallback-crab-olho]'),
-    )
-    expect(partesFallback.length).toBeGreaterThan(0)
-    for (const parte of partesFallback) {
-      expect((parte as HTMLElement).hasAttribute('style')).toBe(true)
-    }
-    icone?.dispatchEvent(new Event('error'))
-    const iconeQuebrado = pin.querySelector('image[data-icono-phylopic]')
-    expect(iconeQuebrado).not.toBeNull()
-    expect((iconeQuebrado as SVGElement).getAttribute('style')).toContain('display: none')
-    for (const parte of partesFallback) {
-      expect((parte as HTMLElement).hasAttribute('style')).toBe(false)
-    }
+    render(<MapView />)
+    const ponto = await screen.findByTestId('ponto-area')
+    await usuario.click(ponto)
+    await usuario.click(ponto)
+    expect(screen.getByTestId('bolha-area')).toBeInTheDocument()
+
+    await usuario.click(screen.getByTestId('fechar-bolha-area'))
+    expect(screen.queryByTestId('bolha-area')).toBeNull()
+    expect(screen.getByTestId('pin-area')).toBeInTheDocument()
+
+    // 2º clique reabre a bolha — o pin ficou.
+    await usuario.click(ponto)
+    expect(screen.getByTestId('bolha-area')).toBeInTheDocument()
+
+    // Clique livre fora do pin: fechar pin remove pin + bolha.
+    await usuario.click(screen.getByTestId('mapa-container'))
+    expect(screen.queryByTestId('pin-area')).toBeNull()
+    expect(screen.queryByTestId('bolha-area')).toBeNull()
+  })
+
+  it('a espécie da bolha abre a ficha no modal como hoje', async () => {
+    const usuario = userEvent.setup()
+    const aoAbrir = vi.fn()
+    configurarFetch({
+      '/api/consulta/area/': {
+        especies: ESPECIES_AREA,
+        pontos: { type: 'FeatureCollection', features: PONTOS_CONSULTA },
+      },
+    })
+    render(<MapView onAbrirEspecie={aoAbrir} />)
+    const ponto = await screen.findByTestId('ponto-area')
+    await usuario.click(ponto)
+    await usuario.click(ponto)
+    await usuario.click(screen.getByTestId('area-especie-caranguejo-uca'))
+    expect(aoAbrir).toHaveBeenCalledWith('caranguejo-uca')
+    expect(screen.queryByTestId('pin-area')).toBeNull()
+  })
+
+  it('a tecla Esc fecha a bolha e mantém o pin', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch({
+      '/api/consulta/area/': {
+        especies: ESPECIES_AREA,
+        pontos: { type: 'FeatureCollection', features: PONTOS_CONSULTA },
+      },
+    })
+    render(<MapView />)
+    const ponto = await screen.findByTestId('ponto-area')
+    await usuario.click(ponto)
+    await usuario.click(ponto)
+    expect(screen.getByTestId('bolha-area')).toBeInTheDocument()
+
+    await usuario.keyboard('{Escape}')
+    expect(screen.queryByTestId('bolha-area')).toBeNull()
+    expect(screen.getByTestId('pin-area')).toBeInTheDocument()
   })
 })
