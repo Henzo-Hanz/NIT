@@ -71,10 +71,10 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-// CA-9 (lapidação 4, item 5): áreas desenhadas viram editáveis no modo
+// CA-5 (lapidação 4, item 5): áreas desenhadas viram editáveis no modo
 // ARRASTAR — arrastar o interior move a área inteira e a alça move um
 // vértice; enquanto o gesto dura, data-editando está no mapa.
-describe('CA-9: edição de áreas desenhadas arrastando', () => {
+describe('CA-5: edição de áreas desenhadas arrastando', () => {
   it('arrastar o interior move TODOS os vértices e re-dispara a consulta', async () => {
     const usuario = userEvent.setup()
     const fetchFake = configurarFetch()

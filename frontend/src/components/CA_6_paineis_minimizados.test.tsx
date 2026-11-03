@@ -103,9 +103,9 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-// CA-9 (lapidação 4, item 9): Filtros e Áreas minimizam com o botão da
+// CA-6 (lapidação 4, item 9): Filtros e Áreas minimizam com o botão da
 // coroa/header — minimizar NÃO reinicia o estado interno.
-describe('CA-9: painéis minimizáveis sem perda de estado', () => {
+describe('CA-6: painéis minimizáveis sem perda de estado', () => {
   it('o painel de filtros minimiza e ao reabrir mantém filtro Automaticamente', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
