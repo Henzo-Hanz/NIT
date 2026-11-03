@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import type { ResultadoBusca } from '@/lib/api'
 
 export type ModoFerramenta = 'arrastar' | 'desenhar' | 'medir'
-export type FormaDesenho = 'livre' | 'quadrado' | 'circulo'
+export type FormaDesenho = 'livre' | 'retangulo' | 'circulo'
 
 interface FerramentasToolbarProps {
   modo: ModoFerramenta
@@ -32,9 +32,11 @@ interface FerramentasToolbarProps {
   aoEscolherAnimalBusca: (slug: string) => void
 }
 
+// Hover (lapidação 4): botão NÃO ativo recebe o tom do primário mais CLARO
+// que o ativo; ativo fica no primário pleno e pode girar levemente mais
+// claro no hover. Nada de cinza/escuro no hover.
 const CLASSE_ATIVA = 'bg-primary text-primary-foreground hover:bg-primary/90'
-const CLASSE_HOVER =
-  'transition-colors hover:bg-muted hover:text-foreground hover:ring-1 hover:ring-border'
+const CLASSE_HOVER = 'transition-colors hover:bg-primary/60 hover:text-primary-foreground'
 
 export function FerramentasToolbar({
   modo,
@@ -154,7 +156,11 @@ export function FerramentasToolbar({
         )}
       </Button>
       {!colapsada && (
-        <div className="relative flex items-center">
+        <div
+          className={`relative flex items-center transition-all duration-300 ease-out ${
+            buscaAberto ? 'w-64' : ''
+          }`}
+        >
           <div
             data-testid="ferramentas-principal"
             className={`flex items-center gap-1 transition-all duration-300 ease-out ${
@@ -260,13 +266,13 @@ export function FerramentasToolbar({
             <Button
               variant="ghost"
               size="icon-sm"
-              data-testid="desenho-quadrado"
-              data-ativo={formaDesenho === 'quadrado' ? 'true' : 'false'}
-              aria-label="Desenhar quadrado"
-              aria-pressed={formaDesenho === 'quadrado'}
-              title="Quadrado"
-              className={formaDesenho === 'quadrado' ? CLASSE_ATIVA : CLASSE_HOVER}
-              onClick={() => escolherForma('quadrado')}
+              data-testid="desenho-retangulo"
+              data-ativo={formaDesenho === 'retangulo' ? 'true' : 'false'}
+              aria-label="Desenhar retângulo"
+              aria-pressed={formaDesenho === 'retangulo'}
+              title="Retângulo"
+              className={formaDesenho === 'retangulo' ? CLASSE_ATIVA : CLASSE_HOVER}
+              onClick={() => escolherForma('retangulo')}
             >
               <Square className="size-4" aria-hidden="true" />
             </Button>
@@ -323,7 +329,7 @@ export function FerramentasToolbar({
               data-testid="campo-busca"
               type="text"
               value={termoBusca}
-              placeholder="Buscar espécies ou locais"
+              placeholder="Buscar espécie..."
               aria-label="Buscar espécies ou locais"
               onChange={(evento) => aoMudarBusca(evento.target.value)}
               className="h-7 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
