@@ -70,7 +70,7 @@ const PONTOS = [
       especie_slugs: ['caranguejo-uca', 'guaiamum'],
       total: 2,
     },
-    geometry: { type: 'Point', coordinates: [-40.513, -2.797] },
+    geometry: { type: 'Point', coordinates: [100, 60] },
   },
   {
     type: 'Feature',
@@ -81,7 +81,7 @@ const PONTOS = [
       especie_slugs: ['caranguejo-uca'],
       total: 1,
     },
-    geometry: { type: 'Point', coordinates: [-40.84, -2.9] },
+    geometry: { type: 'Point', coordinates: [200, 80] },
   },
 ]
 
@@ -110,8 +110,34 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('CA-7: medir com cliques livres no mapa (sem área)', () => {
-  it('clique livre marca A, o segundo marca B com linha + km e o terceiro reinicia', async () => {
+// Lapidação 4: a medição nasce SÓ de pontos. O clique livre NÃO mede mais —
+// mostra o aviso curto (dica-medir).
+describe('CA-7: medir por pontos (sem clique livre)', () => {
+  it('o clique livre não mede: aparece a dica-medir e ela some sozinha', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<MapView />)
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
+    })
+
+    await usuario.click(screen.getByTestId('ferramenta-medir'))
+    const container = screen.getByTestId('mapa-container')
+    fireEvent.click(container, { clientX: 100, clientY: 120 })
+    expect(screen.queryByTestId('linha-medida')).toBeNull()
+    expect(screen.queryByTestId('distancia-medida')).toBeNull()
+    expect(screen.getByTestId('dica-medir')).toBeInTheDocument()
+
+    // Some sozinha após ~1,6s (com folga para o setInterval do waitFor).
+    await vi.waitFor(
+      () => {
+        expect(screen.queryByTestId('dica-medir')).toBeNull()
+      },
+      { timeout: 2500 },
+    )
+  })
+
+  it('A no 1º ponto, B no 2º com linha + km e o 3º ponto reinicia', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
@@ -122,54 +148,29 @@ describe('CA-7: medir com cliques livres no mapa (sem área)', () => {
     await usuario.click(screen.getByTestId('ferramenta-medir'))
     expect(screen.getByTestId('ferramenta-medir')).toHaveAttribute('aria-pressed', 'true')
 
-    const container = screen.getByTestId('mapa-container')
-    fireEvent.click(container, { clientX: 100, clientY: 120 })
+    const pontos = screen.getAllByTestId('ponto-area')
+    await usuario.click(pontos[0])
+    expect(pontos[0]).toHaveAttribute('data-medida', 'a')
     expect(screen.queryByTestId('linha-medida')).toBeNull()
 
-    fireEvent.click(container, { clientX: 200, clientY: 160 })
+    await usuario.click(pontos[1])
     const linha = screen.getByTestId('linha-medida')
     expect(linha).toBeInTheDocument()
     expect(linha.getAttribute('stroke-dasharray')).toBeTruthy()
     expect(linha.getAttribute('x1')).toBe('200')
-    expect(linha.getAttribute('y1')).toBe('240')
+    expect(linha.getAttribute('y1')).toBe('120')
     expect(linha.getAttribute('x2')).toBe('400')
-    expect(linha.getAttribute('y2')).toBe('320')
+    expect(linha.getAttribute('y2')).toBe('160')
+    expect(screen.getByTestId('distancia-medida')).toHaveTextContent(/km/)
 
-    const distancia = screen.getByTestId('distancia-medida')
-    expect(distancia).toHaveTextContent(/km/)
-
-    fireEvent.click(container, { clientX: 300, clientY: 100 })
+    // 3º ponto (uma nova rodada): reinicia a medição.
+    await usuario.click(pontos[0])
     expect(screen.queryByTestId('linha-medida')).toBeNull()
     expect(screen.queryByTestId('distancia-medida')).toBeNull()
-
-    fireEvent.click(container, { clientX: 20, clientY: 30 })
-    const novaLinha = screen.getByTestId('linha-medida')
-    expect(novaLinha).toBeInTheDocument()
-    expect(novaLinha.getAttribute('x1')).toBe('600')
-
-    fireEvent.click(container, { clientX: 220, clientY: 30 })
-    expect(screen.queryByTestId('linha-medida')).toBeNull()
-  })
-
-  it('cliques em pontos ainda encaixam na medição livre', async () => {
-    const usuario = userEvent.setup()
-    configurarFetch()
-    render(<MapView />)
-    await vi.waitFor(() => {
-      expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
-    })
-
-    await usuario.click(screen.getByTestId('ferramenta-medir'))
-    await usuario.click(screen.getAllByTestId('ponto-area')[0])
     expect(screen.getAllByTestId('ponto-area')[0]).toHaveAttribute('data-medida', 'a')
-    expect(screen.queryByTestId('linha-medida')).toBeNull()
-
-    fireEvent.click(screen.getByTestId('mapa-container'), { clientX: 200, clientY: 160 })
-    expect(screen.getByTestId('linha-medida')).toBeInTheDocument()
-    expect(screen.getByTestId('distancia-medida')).toHaveTextContent(/km/)
   })
 
-  it('a tecla ESC limpa a medição livre', async () => {
+  it('a tecla ESC limpa a medição por pontos', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
@@ -178,13 +179,14 @@ describe('CA-7: medir com cliques livres no mapa (sem área)', () => {
     })
 
     await usuario.click(screen.getByTestId('ferramenta-medir'))
-    const container = screen.getByTestId('mapa-container')
-    fireEvent.click(container, { clientX: 100, clientY: 120 })
-    fireEvent.click(container, { clientX: 200, clientY: 160 })
+    const pontos = screen.getAllByTestId('ponto-area')
+    await usuario.click(pontos[0])
+    await usuario.click(pontos[1])
     expect(screen.getByTestId('linha-medida')).toBeInTheDocument()
 
     await usuario.keyboard('{Escape}')
     expect(screen.queryByTestId('linha-medida')).toBeNull()
     expect(screen.queryByTestId('distancia-medida')).toBeNull()
+    expect(screen.getAllByTestId('ponto-area')[0]).not.toHaveAttribute('data-medida')
   })
 })
