@@ -73,7 +73,7 @@ function construirImagensDoPin(slugs: string[]) {
   return slugs
     .map(
       (slug, indice) =>
-        `<image data-icono-phylopic data-indice="${indice}" x="7" y="9.5" width="20" height="15" href="/api/especies/${slug}/icone/"${
+        `<image data-icono-phylopic data-indice="${indice}" x="7" y="9.5" width="20" height="15" preserveAspectRatio="xMidYMid meet" href="/api/especies/${slug}/icone/"${
           indice ? ' style="display: none"' : ''
         }/>`,
     )
