@@ -20,9 +20,11 @@ class CA3BuscaTest(TestCase):
             dados['especies'], [{'slug': 'badejo', 'nome_popular': 'Badejo'}]
         )
         features = dados['pontos']['features']
+        # Lapidação 12: Pipa (RN) também tem badejo; empate de 1 match é
+        # desempatado pelo nome da localidade.
         self.assertEqual(
             [feature['properties']['nome'] for feature in features],
-            ['Itamaracá', 'Porto de Galinhas', 'Recife', 'Tamandaré'],
+            ['Itamaracá', 'Pipa', 'Porto de Galinhas', 'Recife', 'Tamandaré'],
         )
         for feature in features:
             propriedades = feature['properties']
@@ -40,7 +42,7 @@ class CA3BuscaTest(TestCase):
         )
         self.assertEqual(
             [feature['properties']['nome'] for feature in dados['pontos']['features']],
-            ['Itamaracá', 'Porto de Galinhas', 'Recife', 'Tamandaré'],
+            ['Itamaracá', 'Pipa', 'Porto de Galinhas', 'Recife', 'Tamandaré'],
         )
 
     def test_busca_por_nome_cientifico(self):
@@ -50,9 +52,10 @@ class CA3BuscaTest(TestCase):
         self.assertEqual(
             dados['especies'], [{'slug': 'garoupa', 'nome_popular': 'Garoupa'}]
         )
+        # Lapidação 12: garoupa também em Caiçara do Norte e Pipa (RN).
         self.assertEqual(
             [feature['properties']['nome'] for feature in dados['pontos']['features']],
-            ['Porto de Galinhas', 'Recife', 'Tamandaré'],
+            ['Caiçara do Norte', 'Pipa', 'Porto de Galinhas', 'Recife', 'Tamandaré'],
         )
         self.assertTrue(
             all(
@@ -91,9 +94,20 @@ class CA3BuscaTest(TestCase):
         )
         ordem_no_rank = [item['slug'] for item in dados['especies']]
         features = dados['pontos']['features']
+        # Lapidação 12: uca/maria-farinha ganharam pontos no CE/RN (Icapuí,
+        # Galinhos, Tibau, Caiçara do Norte).
         self.assertEqual(
             [feature['properties']['nome'] for feature in features],
-            ['Camocim', 'Jericoacoara', 'Luís Correia', 'Parnaíba'],
+            [
+                'Camocim',
+                'Caiçara do Norte',
+                'Galinhos',
+                'Icapuí',
+                'Jericoacoara',
+                'Luís Correia',
+                'Parnaíba',
+                'Tibau',
+            ],
         )
         # Lapidação 8 (SPEC-0005): o Parnaíba entra com 1 correspondência
         # (uca) e cai depois dos pontos com mais matches, no fim ordenado
@@ -116,6 +130,16 @@ class CA3BuscaTest(TestCase):
         self.assertEqual(
             por_nome['Parnaíba']['busca_slugs'],
             ['caranguejo-uca'],
+        )
+        self.assertEqual(por_nome['Icapuí']['busca_slugs'], ['caranguejo-uca'])
+        self.assertEqual(por_nome['Galinhos']['busca_slugs'], ['caranguejo-uca'])
+        self.assertEqual(
+            por_nome['Tibau']['busca_slugs'],
+            ['caranguejo-maria-farinha'],
+        )
+        self.assertEqual(
+            por_nome['Caiçara do Norte']['busca_slugs'],
+            ['caranguejo-maria-farinha'],
         )
 
     def test_consulta_sem_resultado_retorna_200_vazio(self):

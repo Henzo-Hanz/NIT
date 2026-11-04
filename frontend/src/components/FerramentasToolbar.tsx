@@ -160,7 +160,7 @@ export function FerramentasToolbar({
       {!colapsada && (
         <div
           className={`relative flex items-center transition-all duration-300 ease-out ${
-            buscaAberto ? 'w-64' : ''
+            buscaAberto ? 'w-[24rem] max-w-[calc(100vw-4rem)]' : ''
           }`}
         >
           <div
@@ -326,21 +326,29 @@ export function FerramentasToolbar({
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
             </Button>
-            <input
-              ref={campoBuscaRef}
-              data-testid="campo-busca"
-              type="text"
-              value={termoBusca}
-              placeholder="Buscar espécie..."
-              aria-label="Buscar espécies ou locais"
-              onChange={(evento) => aoMudarBusca(evento.target.value)}
-              className="h-7 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
+            {/* Busca do mapa: campo em pílula com a lupa no fim (a lupa é
+                decorativa — o campo inteiro já é a área de digitação). */}
+            <div className="relative min-w-0 flex-1">
+              <input
+                ref={campoBuscaRef}
+                data-testid="campo-busca"
+                type="text"
+                value={termoBusca}
+                placeholder="Buscar espécie..."
+                aria-label="Buscar espécies ou locais"
+                onChange={(evento) => aoMudarBusca(evento.target.value)}
+                className="h-8 w-full rounded-full border bg-background pl-3 pr-8 text-xs outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+              />
+            </div>
           </div>
           {buscaAberto && (resultadosBusca?.especies.length ?? 0) > 0 && (
             <div
               data-testid="resultado-busca"
-              className="absolute left-0 top-full z-30 mt-1 w-72 rounded-xl border bg-background p-1.5 shadow-lg"
+              className="absolute left-0 top-full z-30 mt-1 w-full rounded-xl border bg-background p-1.5 shadow-lg"
             >
               <ul className="flex max-h-[7.5rem] flex-col overflow-y-auto no-scrollbar">
                 {(resultadosBusca?.especies ?? []).map((item) => (

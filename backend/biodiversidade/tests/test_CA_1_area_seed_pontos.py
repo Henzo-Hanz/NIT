@@ -90,7 +90,9 @@ class CA1AreaSeedPontosTest(TestCase):
         pontos = Geometria.objects.filter(tipo='ponto', especie__isnull=False)
         # Lapidação 10 (SPEC-0005): +2 pontos por localidade nova
         # (Fortaleza, Areia Branca, Natal): 20 → 26.
-        self.assertEqual(pontos.count(), 26)
+        # Lapidação 12: +15 pontos do litoral CE/RN (Icapuí, Canoa Quebrada,
+        # Tibau, Macau, Galinhos, Caiçara do Norte, Pipa): 26 → 41.
+        self.assertEqual(pontos.count(), 41)
         self.assertEqual(
             set(pontos.values_list('nome', flat=True).distinct()),
             {
@@ -105,5 +107,12 @@ class CA1AreaSeedPontosTest(TestCase):
                 'Fortaleza',
                 'Areia Branca',
                 'Natal',
+                'Icapuí',
+                'Canoa Quebrada',
+                'Tibau',
+                'Macau',
+                'Galinhos',
+                'Caiçara do Norte',
+                'Pipa',
             },
         )

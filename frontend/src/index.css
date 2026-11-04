@@ -170,21 +170,38 @@ code {
 }
 
 /* Saída do pin: fade-out espelhando o crescer de entrada (origin-bottom,
-   só opacity/transform, zero cor). O classe entra via sumirPin no MapView,
-   que remove o elemento de verdade no animationend — ou na guarda de 250ms. */
+   só opacity/transform, zero cor). A classe entra via sumirPin no MapView,
+   que remove o elemento de verdade no animationend — ou na guarda de 250ms.
+   O MapLibre escreve `transform` INLINE no elemento do marker para
+   posicioná-lo: animar transform nele mandava o pin para o canto do mapa no
+   meio da saída. Por isso a opacidade sai no marker e a escala sai no
+   conteúdo visual (`.pin-area-crescer`), com o mesmo origin-bottom. */
 @keyframes pin-sumir {
   from {
-    transform: scale(1);
     opacity: 1;
   }
   to {
-    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+@keyframes pin-encolher {
+  from {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.82) translateY(4px);
     opacity: 0;
   }
 }
 
 .pin-sumir {
-  animation: pin-sumir 180ms ease-out both;
+  animation: pin-sumir 200ms ease-in both;
+}
+
+.pin-sumir .pin-area-crescer {
+  animation: pin-encolher 200ms ease-in both;
   transform-origin: bottom center;
 }
 

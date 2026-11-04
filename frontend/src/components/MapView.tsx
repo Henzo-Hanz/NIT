@@ -181,6 +181,42 @@ function despedirPin(pin: Marker) {
   })
 }
 
+// Prefetch de ícones (lapidação 11): os SVGs dos pontos visíveis são baixados
+// por baixo do pano — o 1º clique no pin não fica esperando a cadeia de
+// fallback. Roda FORA da crítica: requestIdleCallback quando existe, com
+// fallback de setTimeout(50ms); no máximo 2 por rodada.
+function prefetchIcone(slug: string) {
+  new Image().src = `/api/especies/${slug}/icone/`
+}
+
+function agendarOcioso(acao: () => void) {
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => acao())
+  } else {
+    setTimeout(acao, 50)
+  }
+}
+
+type FilaPrefetch = { pendentes: string[]; ocioso: boolean }
+
+function rodadaPrefetch(baixados: Set<string>, fila: FilaPrefetch) {
+  fila.ocioso = false
+  let baixadosNesta = 0
+  while (baixadosNesta < 2 && fila.pendentes.length > 0) {
+    const slug = fila.pendentes.shift() as string
+    if (baixados.has(slug)) {
+      continue
+    }
+    baixados.add(slug)
+    prefetchIcone(slug)
+    baixadosNesta += 1
+  }
+  if (fila.pendentes.length > 0) {
+    fila.ocioso = true
+    agendarOcioso(() => rodadaPrefetch(baixados, fila))
+  }
+}
+
 function construirEstilo(apiKey: string | undefined) {
   const tiles = apiKey
     ? TILES_VOYAGER.map((tile) => `${tile}?key=${apiKey}`)
@@ -330,6 +366,8 @@ export function MapView({
   const [poligonoEdicao, setPoligonoEdicao] = useState<number[][] | null>(null)
   const [pontoAtivo, setPontoAtivo] = useState<PontoDaArea | null>(null)
   const [posicoesPontos, setPosicoesPontos] = useState<Record<string, { x: number; y: number }>>({})
+  const baixadosPrefetchRef = useRef<Set<string>>(new Set())
+  const filaPrefetchRef = useRef<FilaPrefetch>({ pendentes: [], ocioso: false })
   const cartoKey = import.meta.env.VITE_CARTO_API_KEY as string | undefined
   const [estiloAtual, setEstiloAtual] = useState(() => construirEstilo(cartoKey))
   const [reiniciar, setReiniciar] = useState(0)
@@ -364,9 +402,19 @@ export function MapView({
   const casaComFiltro = (ponto: PontoDaArea) =>
     conjuntoFiltro.size === 0 ||
     ponto.properties.especie_slugs.some((slug) => conjuntoFiltro.has(slug))
+  // Área antes de qualquer filtro: um ponto fora de TODAS as áreas desenhadas
+  // já está fora do escopo, inclusive quando veio do overlay da busca (a
+  // consulta por área não o traria; a busca traria, e ele não deve aparecer).
+  const dentroDeAlgumaArea = (ponto: PontoExibido) =>
+    areas.length === 0 ||
+    areas.some((area) =>
+      pontoNoPoligono(ponto.geometry.coordinates as [number, number], area.polygon.coordinates[0] ?? []),
+    )
   const pontosVisiveis: PontoExibido[] = buscaAtiva
     ? [
-        ...(buscaResultado?.pontos.features ?? []).filter(casaComFiltro),
+        ...(buscaResultado?.pontos.features ?? []).filter(
+          (ponto) => dentroDeAlgumaArea(ponto) && casaComFiltro(ponto),
+        ),
         ...pontosEscopo.filter(
           (ponto) => !chavesBusca.has(CHAVE_DO_PONTO(ponto)) && casaComFiltro(ponto),
         ),
@@ -383,6 +431,30 @@ export function MapView({
 
   useEffect(() => {
     pontosExibeRef.current = pontosVisiveis
+  }, [pontosVisiveis])
+
+  // Prefetch dos ícones (lapidação 12): `rodadaPrefetch` existia mas NUNCA era
+  // chamada — por isso o 1º clique no ponto abria o pin com o fundo branco até
+  // o SVG chegar da rede. Agora todo conjunto visível enfileira os slugs que
+  // ainda não foram baixados e uma rodada ociosa (2 por vez) começa sozinha.
+  useEffect(() => {
+    const fila = filaPrefetchRef.current
+    const novos = new Set<string>()
+    for (const ponto of pontosVisiveis) {
+      for (const slug of ponto.properties.especie_slugs) {
+        if (!baixadosPrefetchRef.current.has(slug) && !fila.pendentes.includes(slug)) {
+          novos.add(slug)
+        }
+      }
+    }
+    if (!novos.size) {
+      return
+    }
+    fila.pendentes = [...novos, ...fila.pendentes]
+    if (!fila.ocioso) {
+      rodadaPrefetch(baixadosPrefetchRef.current, fila)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pontosVisiveis])
 
   useEffect(() => {
@@ -758,10 +830,15 @@ export function MapView({
     if (!map || !fontePronta) {
       return
     }
+    // Lapidação 12: respondida a consulta, os pontos do mapa são os BOTÕES
+    // filtrados (pontosVisiveis). A camada base do seed só desenha enquanto
+    // não há resultado — mantê-la visível pintava todos os pontos sempre e
+    // anulava qualquer filtro (mais/menos presente, espécie, área).
     for (const [idCamada, tipo] of Object.entries(TIPO_POR_CAMADA)) {
-      map.setLayoutProperty(idCamada, 'visibility', camadasAtivas[tipo] ? 'visible' : 'none')
+      const visivel = tipo === 'ponto' ? camadasAtivas.ponto && !resultado : camadasAtivas[tipo]
+      map.setLayoutProperty(idCamada, 'visibility', visivel ? 'visible' : 'none')
     }
-  }, [fontePronta, camadasAtivas])
+  }, [fontePronta, camadasAtivas, resultado])
 
   useEffect(() => {
     modoRef.current = modo

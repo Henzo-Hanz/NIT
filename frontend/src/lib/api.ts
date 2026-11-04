@@ -5,6 +5,9 @@ export type EspecieResumo = {
   slug: string
   nome_popular: string
   nome_cientifico: string | null
+  // Grupo zoológico vindo de `infos.grupo` no backend (Crustáceo, Ave, Peixe).
+  // Opcional no tipo porque respostas antigas/fixtures podem não trazer.
+  grupo?: string
   imagem: string
 }
 
