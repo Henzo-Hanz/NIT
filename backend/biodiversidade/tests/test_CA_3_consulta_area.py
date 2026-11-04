@@ -50,6 +50,9 @@ class CA3ConsultaAreaTest(TestCase):
         )
 
     def test_ordenar_mais_coloca_badejo_primeiro(self):
+        # Lapidação 10 (SPEC-0005): trinta-réis empata em 4 (badejo, uca,
+        # trinta) com tie-break nome_popular. siri-azul sobe para 3
+        # (Luís Correia + Fortaleza + Natal) e garoupa 3.
         resposta = self._post({'poligono': None, 'ordenar': 'mais'})
         self.assertEqual(resposta.status_code, 200)
         especies = resposta.json()['especies']
@@ -60,38 +63,44 @@ class CA3ConsultaAreaTest(TestCase):
             [
                 'Badejo',
                 'Caranguejo-uçá',
-                'Garoupa',
                 'Trinta-réis',
-                'Aratu',
+                'Garoupa',
+                'Siri-azul',
                 'Atobá',
+                'Robalo-peva',
+                'Aratu',
+                'Caranguejeiro-laranja-do-norte',
                 'Caranguejo maria-farinha',
                 'Guaiamum',
-                'Robalo-peva',
-                'Siri-azul',
             ],
         )
         contagens = [item['contagem'] for item in especies]
         self.assertEqual(contagens, sorted(contagens, reverse=True))
 
-    def test_ordenar_menos_coloca_badejo_por_ultimo(self):
+    def test_ordenar_menos_coloca_os_com_mais_pontos_no_fim(self):
+        # Empate em 4 (lapidações 8 e 10: badejo, uca e trinta-réis); no
+        # empate, ordena por nome_popular — badejo antes, trinta-réis por
+        # último entre os 4s.
         resposta = self._post({'poligono': None, 'ordenar': 'menos'})
         self.assertEqual(resposta.status_code, 200)
         especies = resposta.json()['especies']
-        self.assertEqual(especies[-1]['slug'], 'badejo')
+        self.assertEqual(especies[-3]['slug'], 'badejo')
+        self.assertEqual(especies[-1]['slug'], 'trinta-reis')
         self.assertEqual(especies[-1]['contagem'], 4)
         self.assertEqual(
             [item['nome_popular'] for item in especies],
             [
                 'Aratu',
-                'Atobá',
+                'Caranguejeiro-laranja-do-norte',
                 'Caranguejo maria-farinha',
                 'Guaiamum',
+                'Atobá',
                 'Robalo-peva',
-                'Siri-azul',
-                'Trinta-réis',
-                'Caranguejo-uçá',
                 'Garoupa',
+                'Siri-azul',
                 'Badejo',
+                'Caranguejo-uçá',
+                'Trinta-réis',
             ],
         )
         contagens = [item['contagem'] for item in especies]
@@ -103,7 +112,10 @@ class CA3ConsultaAreaTest(TestCase):
         nomes = [item['nome_popular'] for item in resposta.json()['especies']]
         self.assertEqual(nomes, sorted(nomes))
 
-    def test_poligono_que_engloba_o_paranaiba_devolve_o_ponto_com_total_223(self):
+    def test_poligono_que_engloba_o_paranaiba_devolve_o_ponto_com_especies_demo(self):
+        # Lapidação 8 (SPEC-0005): espécies demo do dono (reversível). Sem
+        # número mockado (lapidação 4): 'total' = contagem real da view,
+        # igual a len(especie_slugs).
         poligono_paranaiba = {
             'type': 'Polygon',
             'coordinates': [
@@ -122,8 +134,11 @@ class CA3ConsultaAreaTest(TestCase):
         por_nome = {feature['properties']['nome']: feature for feature in features}
         self.assertIn('Parnaíba', por_nome)
         paranaiba = por_nome['Parnaíba']['properties']
-        self.assertEqual(paranaiba['total'], 223)
-        self.assertEqual(paranaiba['especie_slugs'], [])
+        self.assertEqual(
+            paranaiba['especie_slugs'],
+            ['caranguejo-uca', 'caranguejeiro-laranja-do-norte'],
+        )
+        self.assertEqual(paranaiba['total'], len(paranaiba['especie_slugs']))
         self.assertEqual(
             por_nome['Parnaíba']['geometry']['coordinates'],
             [-41.7767, -2.9035],

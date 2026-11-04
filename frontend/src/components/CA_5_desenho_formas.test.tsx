@@ -66,26 +66,26 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('CA-5: desenho de quadrado e círculo', () => {
-  it('arrastar define o lado do quadrado ancorado no ponto inicial', async () => {
+describe('CA-5: desenho de retângulo e círculo', () => {
+  it('arrastar define largura e altura independentes do retângulo', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
     await usuario.click(screen.getByTestId('ferramenta-desenhar'))
-    await usuario.click(screen.getByTestId('desenho-quadrado'))
+    await usuario.click(screen.getByTestId('desenho-retangulo'))
 
     const container = screen.getByTestId('mapa-container')
     fireEvent.mouseDown(container, { clientX: 10, clientY: 10 })
     fireEvent.mouseMove(container, { clientX: 30, clientY: 25 })
 
     const preview = screen.getByTestId('preview-desenho')
-    expect(preview).toHaveAttribute('data-forma', 'quadrado')
+    expect(preview).toHaveAttribute('data-forma', 'retangulo')
     const retangulo = preview.querySelector('rect')
     expect(retangulo).not.toBeNull()
     expect(retangulo?.getAttribute('x')).toBe('10')
     expect(retangulo?.getAttribute('y')).toBe('10')
     expect(retangulo?.getAttribute('width')).toBe('20')
-    expect(retangulo?.getAttribute('height')).toBe('20')
+    expect(retangulo?.getAttribute('height')).toBe('15')
     expect(preview.querySelector('polyline')).toBeNull()
 
     fireEvent.mouseUp(container)
@@ -98,8 +98,8 @@ describe('CA-5: desenho de quadrado e círculo', () => {
     expect(poligono.coordinates[0]).toEqual([
       [10, 10],
       [30, 10],
-      [30, 30],
-      [10, 30],
+      [30, 25],
+      [10, 25],
       [10, 10],
     ])
     expect(screen.getByTestId('area-tamanho-1')).toHaveTextContent('km²')

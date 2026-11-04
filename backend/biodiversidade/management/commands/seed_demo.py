@@ -16,6 +16,7 @@ ESPECIES = [
             'Os dados desta ficha são mockados para o protótipo do mapa.'
         ),
         'infos': {
+            'grupo': 'Crustáceo',
             'tamanho_max_cm': 9.0,
             'habitat': 'Manguezal',
             'sazonalidade': 'Andada (coleta vedada) de novembro a janeiro',
@@ -37,6 +38,7 @@ ESPECIES = [
             'Os dados desta ficha são mockados para o protótipo do mapa.'
         ),
         'infos': {
+            'grupo': 'Crustáceo',
             'tamanho_max_cm': 4.0,
             'habitat': 'Praia arenosa',
             'periodo_atividade': 'Crepúsculo e noite',
@@ -57,6 +59,7 @@ ESPECIES = [
             'informações inventadas para fins de demonstração.'
         ),
         'infos': {
+            'grupo': 'Crustáceo',
             'tamanho_max_cm': 7.5,
             'habitat': 'Restinga e apicuns',
             'cor': 'Laranja intenso',
@@ -76,13 +79,14 @@ ESPECIES = [
             'piauiense. Os dados desta ficha são mockados para o protótipo do mapa.'
         ),
         'infos': {
+            'grupo': 'Crustáceo',
             'tamanho_max_cm': 11.0,
             'habitat': 'Manguezal e apicum',
             'cor': 'Azul-escuro',
             'uso': 'Pescado artesanal',
             'curiosidade': 'Volta à toca antes da maré subir e fecha a entrada com lama.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/guaiamum.jpg',
     },
     {
         'slug': 'aratu',
@@ -95,13 +99,14 @@ ESPECIES = [
             'Os dados desta ficha são mockados para o protótipo do mapa.'
         ),
         'infos': {
+            'grupo': 'Crustáceo',
             'tamanho_max_cm': 5.0,
             'habitat': 'Manguezal',
             'cor': 'Vermelho-alaranjado',
             'periodo_atividade': 'Maré baixa',
             'curiosidade': 'Anda de lado pelas raízes como se fosse uma ponte.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/aratu.webp',
     },
     {
         'slug': 'siri-azul',
@@ -114,13 +119,14 @@ ESPECIES = [
             'Os dados desta ficha são mockados para o protótipo do mapa.'
         ),
         'infos': {
+            'grupo': 'Crustáceo',
             'tamanho_max_cm': 10.0,
             'habitat': 'Estuário e praia arenosa',
             'cor': 'Azul',
             'periodo_atividade': 'Noite',
             'curiosidade': 'Nada de lado com as patas traseiras em formato de remo.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/siri-azul.jpg',
     },
     {
         'slug': 'badejo',
@@ -137,7 +143,7 @@ ESPECIES = [
             'habitat': 'Recife de coral e costão rochoso',
             'curiosidade': 'Muda de cor e de padrão para se camuflar no recife.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/badejo.jpg',
     },
     {
         'slug': 'garoupa',
@@ -154,7 +160,7 @@ ESPECIES = [
             'habitat': 'Costão rochoso',
             'curiosidade': 'Começa a vida como fêmea e pode virar macho ao envelhecer.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/garoupa.webp',
     },
     {
         'slug': 'robalo-peva',
@@ -171,7 +177,7 @@ ESPECIES = [
             'habitat': 'Estuário e manguezal',
             'curiosidade': 'Sobe os rios na maré enchente para caçar em água doce.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/robalo-peva.webp',
     },
     {
         'slug': 'trinta-reis',
@@ -188,7 +194,7 @@ ESPECIES = [
             'habitat': 'Praia e estuário',
             'curiosidade': 'Mergulha em picada para capturar peixes na arrebentação.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/trinta-reis.jpg',
     },
     {
         'slug': 'atoba',
@@ -205,7 +211,7 @@ ESPECIES = [
             'habitat': 'Ilha e costão rochoso',
             'curiosidade': 'Mergulha de até 20 metros e usa as asas para nadar.',
         },
-        'imagem': '',
+        'imagem': 'biodiversidade/midia/atoba.jpg',
     },
 ]
 
@@ -245,18 +251,49 @@ LOCALIDADES = [
         'coordenadas': [-34.825, -7.748],
         'especies': ['badejo'],
     },
+    # Lapidação 10 (SPEC-0005): premissa do runner (demo igual às demais,
+    # reversível) para tirar o vazio do litoral CE/RN. Inseridas no FIM da
+    # lista (depois de Itamaracá) para minimizar mudança de ids; o bloco
+    # especial do Parnaíba continua por último.
+    {
+        'nome': 'Fortaleza',
+        'coordenadas': [-38.55, -3.72],
+        'especies': ['siri-azul', 'trinta-reis'],
+    },
+    {
+        'nome': 'Areia Branca',
+        'coordenadas': [-36.94, -4.97],
+        'especies': ['atoba', 'robalo-peva'],
+    },
+    {
+        'nome': 'Natal',
+        'coordenadas': [-35.19, -5.79],
+        'especies': ['siri-azul', 'trinta-reis'],
+    },
 ]
 
-GEOMETRIAS = [
-    {
-        'nome': 'Parnaíba',
-        'tipo': 'ponto',
-        'descricao': '223 espécies de caranguejos encontradas',
-        'propriedades': {'total': 223},
-        'especie_slug': None,
-        'geojson': {'type': 'Point', 'coordinates': [-41.7767, -2.9035]},
-    },
-] + [
+# Lapidação 4 (SPEC-0005): o 'total: 223' aqui era número mockado e pintava
+# o pin do Parnaíba na carga. Removido: não há contagem real para embutir —
+# o mapa conta especie_slugs.length; a API só devolve 'total' quando existe
+# valor real (nº de entradas do ponto). Descrição factual, sem número.
+PONTO_PARNAIBA = {
+    'nome': 'Parnaíba',
+    'tipo': 'ponto',
+    'descricao': 'Ponto amostral de caranguejos em Parnaíba (PI)',
+    'propriedades': {},
+    'especie_slug': None,
+    'geojson': {'type': 'Point', 'coordinates': [-41.7767, -2.9035]},
+}
+
+# Lapidação 8 (SPEC-0005): o pin do Parnaíba ficava liso porque o ponto não
+# tinha espécies (especie_slugs []). Premissa do dono (autorizada por
+# "resolva", reversível): espécies demo para o ponto do Parnaíba — caranguejo
+# + caranguejeiro; caranguejeiro é a única espécie do seed sem ponto. Mesmo
+# formato das demais localidades (uma geometria por espécie), sem 'total'
+# (regra da lapidação 4) e sem mudar nome/coordenadas/propriedades do ponto.
+ESPECIES_PARNAIBA = ['caranguejo-uca', 'caranguejeiro-laranja-do-norte']
+
+GEOMETRIAS = [PONTO_PARNAIBA] + [
     {
         'nome': localidade['nome'],
         'tipo': 'ponto',
@@ -267,6 +304,11 @@ GEOMETRIAS = [
     }
     for localidade in LOCALIDADES
     for slug in localidade['especies']
+] + [
+    # No fim da lista para os ids existentes não mudarem (id 15 = ponto sem
+    # espécie; o grupo da view agrupa por (nome, coordenadas) e herda
+    # id/descrição do primeiro registro — a linha sem espécie).
+    {**PONTO_PARNAIBA, 'especie_slug': slug} for slug in ESPECIES_PARNAIBA
 ]
 
 

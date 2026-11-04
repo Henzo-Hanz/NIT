@@ -7,8 +7,9 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 import biodiversidade
+from django.db import connection
 from django.db.models import Q
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -20,7 +21,6 @@ from biodiversidade.models import Especie, Geometria
 TIPOS_VALIDOS = [valor for valor, _ in Geometria.Tipo.choices]
 RAIZ_APP = Path(biodiversidade.__file__).resolve().parent
 BASE_PHYLOPIC = 'https://api.phylopic.org'
-PASTA_ICONES = RAIZ_APP / 'midia' / 'icones'
 ERROS_REDE = (URLError, TimeoutError)
 # Vínculos escolhidos pelo usuário (lapidações 6c/6f): 2ª representação da
 # página do gênero Cancer no site (garras grandes à direita — chegou lá
@@ -36,7 +36,23 @@ URL_VETOR_BASE = 'https://images.phylopic.org/images'
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def especies(request):
-    resumos = serializers.EspecieResumoSerializer(Especie.objects.all(), many=True).data
+    # Lapidação 10 (SPEC-0005): ?q= filtra a lista pela MESMA busca FTS
+    # (tokens/prefixo) do mapa; sem q, comportamento atual (todos por
+    # nome_popular). Casadas voltam ordenadas pelo rank bm25.
+    termo = (request.query_params.get('q') or '').strip()
+    if termo:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f'SELECT rowid FROM {TABELA_FTS} '
+                f"WHERE {TABELA_FTS} MATCH %s ORDER BY bm25({TABELA_FTS})",
+                [_consulta_fts(termo)],
+            )
+            ids_por_rank = [linha[0] for linha in cursor.fetchall()]
+        por_id = Especie.objects.in_bulk(ids_por_rank)
+        ordenadas = [por_id[id_especie] for id_especie in ids_por_rank if id_especie in por_id]
+    else:
+        ordenadas = list(Especie.objects.all())
+    resumos = serializers.EspecieResumoSerializer(ordenadas, many=True).data
     return Response(resumos)
 
 
@@ -62,11 +78,6 @@ def _pegar_json(url):
     pedido = Request(url, headers={'Accept': 'application/vnd.phylopic.v2+json'})
     with urlopen(pedido, timeout=15) as resposta:
         return json.loads(resposta.read().decode('utf-8'))
-
-
-def _baixar_arquivo(url, destino):
-    with urlopen(url, timeout=30) as resposta:
-        destino.write_bytes(resposta.read())
 
 
 def _uuid_de_href(href):
@@ -113,23 +124,31 @@ def _procurar_imagem_por_nomes(nomes):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def icone_especie(request, slug):
+    # Premissa do dono (SPEC-0005): silhueta resolvida on demand APENAS
+    # para os pins do mapa — consumidor único (htmlDoPin). Nenhum outro
+    # consumidor (ficha/lista) ganha fluxo de streaming. Nada é gravado ou
+    # servido de disco; Cache-Control só evita refetch em re-render do pin.
     registro = get_object_or_404(Especie, slug=slug)
-    PASTA_ICONES.mkdir(parents=True, exist_ok=True)
-    caminho = PASTA_ICONES / f'{slug}.svg'
-    if not (caminho.is_file() and caminho.stat().st_size > 0):
-        nomes = (
-            [registro.nome_cientifico, registro.nome_cientifico.split()[0]]
-            if registro.nome_cientifico
-            else []
-        ) + ['cancer', 'brachyura']
-        try:
-            url = _procurar_imagem_por_nomes(nomes)
-        except ERROS_REDE:
-            url = None
-        if url is None:
-            raise Http404
-        _baixar_arquivo(url, caminho)
-    return FileResponse(caminho.open('rb'), content_type='image/svg+xml')
+    nomes = (
+        [registro.nome_cientifico, registro.nome_cientifico.split()[0]]
+        if registro.nome_cientifico
+        else []
+    ) + ['cancer', 'brachyura']
+    try:
+        url = _procurar_imagem_por_nomes(nomes)
+    except ERROS_REDE:
+        url = None
+    if url is not None:
+        resposta = HttpResponseRedirect(url)
+        resposta['Cache-Control'] = 'max-age=300'
+        return resposta
+    # Sem silhueta na PhyloPic (ou rede fora): cai para a foto da própria
+    # espécie servida por /imagem/; 404 só quando não há silhueta nem foto.
+    if registro.imagem:
+        resposta = HttpResponseRedirect(f'/api/especies/{slug}/imagem/')
+        resposta['Cache-Control'] = 'max-age=60'
+        return resposta
+    raise Http404
 
 
 @api_view(['GET'])
@@ -207,37 +226,7 @@ def _ponto_no_poligono(x, y, aneis):
     return not any(_ponto_em_anel(x, y, anel) for anel in aneis[1:])
 
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def consulta_area(request):
-    try:
-        corpo = json.loads(request.body or b'{}')
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return Response({'erro': 'Corpo da requisição deve ser um JSON objeto.'}, status=400)
-    if not isinstance(corpo, dict):
-        return Response({'erro': 'Corpo da requisição deve ser um JSON objeto.'}, status=400)
-
-    poligono = corpo.get('poligono')
-    animal = corpo.get('animal')
-    ordenar = corpo.get('ordenar')
-
-    erro = _validar_poligono(poligono)
-    if erro:
-        return Response({'erro': erro}, status=400)
-    if animal is not None and not isinstance(animal, str):
-        return Response({'erro': 'animal deve ser uma string ou null.'}, status=400)
-    if ordenar not in (None, 'mais', 'menos'):
-        return Response({'erro': "ordenar deve ser 'mais', 'menos' ou null."}, status=400)
-
-    registros = Geometria.objects.select_related('especie').filter(tipo='ponto')
-    termo = (animal or '').strip()
-    if termo:
-        registros = registros.filter(
-            Q(especie__nome_popular__icontains=termo)
-            | Q(especie__nome_cientifico__icontains=termo)
-        )
-
-    aneis = poligono['coordinates'] if poligono else None
+def _agrupar_pontos(registros, aneis=None):
     bbox = None
     if aneis:
         externo = aneis[0]
@@ -277,12 +266,74 @@ def consulta_area(request):
             }
             grupos[chave] = grupo
         if registro.especie is None:
-            grupo['total_sem_especie'] = registro.propriedades.get('total', 0)
+            # SEM número mockado: só entra como contagem real; ausente → None.
+            grupo['total_sem_especie'] = registro.propriedades.get('total')
         else:
             grupo['especies'].setdefault(registro.especie.slug, registro.especie.nome_popular)
+    return grupos
+
+
+def _features_de_grupos(grupos, busca_slugs_por_chave=None):
+    features = []
+    for (nome, coordenadas), grupo in grupos.items():
+        propriedades = {
+            'id': grupo['id'],
+            'nome': nome,
+            'descricao': grupo['descricao'],
+            'especie_slugs': list(grupo['especies']),
+        }
+        # 'total' só aparece quando existe valor real: contagem de
+        # especie_slugs ou o total guardado no seed. Sem valor → ausente.
+        if grupo['especies']:
+            propriedades['total'] = len(grupo['especies'])
+        elif grupo['total_sem_especie'] is not None:
+            propriedades['total'] = grupo['total_sem_especie']
+        if busca_slugs_por_chave is not None:
+            propriedades['busca_slugs'] = busca_slugs_por_chave.get((nome, coordenadas), [])
+        features.append(
+            {
+                'type': 'Feature',
+                'properties': propriedades,
+                'geometry': {'type': 'Point', 'coordinates': list(coordenadas)},
+            }
+        )
+    return features
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def consulta_area(request):
+    try:
+        corpo = json.loads(request.body or b'{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return Response({'erro': 'Corpo da requisição deve ser um JSON objeto.'}, status=400)
+    if not isinstance(corpo, dict):
+        return Response({'erro': 'Corpo da requisição deve ser um JSON objeto.'}, status=400)
+
+    poligono = corpo.get('poligono')
+    animal = corpo.get('animal')
+    ordenar = corpo.get('ordenar')
+
+    erro = _validar_poligono(poligono)
+    if erro:
+        return Response({'erro': erro}, status=400)
+    if animal is not None and not isinstance(animal, str):
+        return Response({'erro': 'animal deve ser uma string ou null.'}, status=400)
+    if ordenar not in (None, 'mais', 'menos'):
+        return Response({'erro': "ordenar deve ser 'mais', 'menos' ou null."}, status=400)
+
+    registros = Geometria.objects.select_related('especie').filter(tipo='ponto')
+    termo = (animal or '').strip()
+    if termo:
+        registros = registros.filter(
+            Q(especie__nome_popular__icontains=termo)
+            | Q(especie__nome_cientifico__icontains=termo)
+        )
+
+    aneis = poligono['coordinates'] if poligono else None
+    grupos = _agrupar_pontos(registros, aneis)
 
     contagens = {}
-    features = []
     for (nome, coordenadas), grupo in grupos.items():
         for slug, nome_popular in grupo['especies'].items():
             contagem = contagens.setdefault(
@@ -290,23 +341,8 @@ def consulta_area(request):
                 {'slug': slug, 'nome_popular': nome_popular, 'localidades': set()},
             )
             contagem['localidades'].add((nome, coordenadas))
-        if grupo['especies']:
-            total = len(grupo['especies'])
-        else:
-            total = grupo['total_sem_especie'] or 0
-        features.append(
-            {
-                'type': 'Feature',
-                'properties': {
-                    'id': grupo['id'],
-                    'nome': nome,
-                    'descricao': grupo['descricao'],
-                    'especie_slugs': list(grupo['especies']),
-                    'total': total,
-                },
-                'geometry': {'type': 'Point', 'coordinates': list(coordenadas)},
-            }
-        )
+
+    features = _features_de_grupos(grupos)
 
     especies = [
         {
@@ -322,6 +358,88 @@ def consulta_area(request):
         especies.sort(key=lambda item: (item['contagem'], item['nome_popular']))
     else:
         especies.sort(key=lambda item: item['nome_popular'])
+
+    return Response(
+        {
+            'especies': especies,
+            'pontos': {'type': 'FeatureCollection', 'features': features},
+        }
+    )
+
+
+# Índice FTS5 criado pela migração 0002 (content table externa sobre
+# biodiversidade_especie). O tokenizer padrão (unicode61) já normaliza caixa
+# e remove acentos — verificado no SQLite 3.51.2 do projeto: 'uca*' encontra
+# 'Caranguejo-uçá', então não há premissa pendente sobre acentuação.
+TABELA_FTS = 'biodiversidade_especies_fts'
+# Ao menos um caractere que o tokenizer unicode61 indexa (letra/dígito
+# unicode; sublinha só é separador).
+CARACTERE_UTIL = re.compile(r'[^\W_]')
+
+
+def _consulta_fts(termo):
+    # Margem de segurança contra a sintaxe FTS5: cada token do usuário vira
+    # string entre aspas duplas (aspas internas dobradas) seguida de '*' —
+    # busca prefixada case/acentos-insensível, tokens unidos por AND implícito.
+    return ' '.join('"%s"*' % token.replace('"', '""') for token in termo.split())
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def busca_pontos(request):
+    termo = (request.GET.get('q') or '').strip()
+    if not CARACTERE_UTIL.search(termo):
+        return Response(
+            {'erro': 'Parâmetro q é obrigatório e deve conter letras ou números.'},
+            status=400,
+        )
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f'SELECT rowid, bm25({TABELA_FTS}) AS posicao '
+            f'FROM {TABELA_FTS} WHERE {TABELA_FTS} MATCH %s ORDER BY posicao',
+            [_consulta_fts(termo)],
+        )
+        linhas = cursor.fetchall()
+
+    ids_por_rank = [linha[0] for linha in linhas]
+    especies_achadas = Especie.objects.in_bulk(ids_por_rank)
+    especies = [
+        {
+            'slug': especies_achadas[id_especie].slug,
+            'nome_popular': especies_achadas[id_especie].nome_popular,
+        }
+        for id_especie in ids_por_rank
+        if id_especie in especies_achadas
+    ]
+    slugs_rank = [item['slug'] for item in especies]
+
+    registros = (
+        Geometria.objects.select_related('especie')
+        .filter(tipo='ponto')
+        .filter(Q(especie__slug__in=slugs_rank) | Q(nome__icontains=termo))
+    )
+    grupos = _agrupar_pontos(registros)
+
+    # Premissas registradas: (a) o ponto do Parnaíba entra mesmo sem espécie
+    # com match, porque o nome da localidade contém o termo (icontains);
+    # (b) pontos que batem só pelo nome ficam com busca_slugs vazio e caem no
+    # fim da ordenação, pois têm 0 correspondências de espécie.
+    posicao_do_slug = {slug: posicao for posicao, slug in enumerate(slugs_rank)}
+    busca_slugs_por_chave = {
+        chave: sorted(
+            (slug for slug in grupo['especies'] if slug in posicao_do_slug),
+            key=posicao_do_slug.__getitem__,
+        )
+        for chave, grupo in grupos.items()
+    }
+    features = _features_de_grupos(grupos, busca_slugs_por_chave)
+    features.sort(
+        key=lambda feature: (
+            -len(feature['properties']['busca_slugs']),
+            feature['properties']['nome'],
+        )
+    )
 
     return Response(
         {
