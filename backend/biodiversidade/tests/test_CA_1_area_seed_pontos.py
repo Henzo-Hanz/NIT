@@ -88,7 +88,9 @@ class CA1AreaSeedPontosTest(TestCase):
     def test_seed_sem_recriar_nao_duplica_pontos(self):
         call_command('seed_demo', stdout=StringIO())
         pontos = Geometria.objects.filter(tipo='ponto', especie__isnull=False)
-        self.assertEqual(pontos.count(), 20)
+        # Lapidação 10 (SPEC-0005): +2 pontos por localidade nova
+        # (Fortaleza, Areia Branca, Natal): 20 → 26.
+        self.assertEqual(pontos.count(), 26)
         self.assertEqual(
             set(pontos.values_list('nome', flat=True).distinct()),
             {
@@ -100,5 +102,8 @@ class CA1AreaSeedPontosTest(TestCase):
                 'Porto de Galinhas',
                 'Tamandaré',
                 'Itamaracá',
+                'Fortaleza',
+                'Areia Branca',
+                'Natal',
             },
         )
