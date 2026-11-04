@@ -16,6 +16,7 @@ ESPECIES = [
             'Os dados desta ficha são mockados para o protótipo do mapa.'
         ),
         'infos': {
+            'grupo': 'Crustáceo',
             'tamanho_max_cm': 9.0,
             'habitat': 'Manguezal',
             'sazonalidade': 'Andada (coleta vedada) de novembro a janeiro',
@@ -37,6 +38,7 @@ ESPECIES = [
             'Os dados desta ficha são mockados para o protótipo do mapa.'
         ),
         'infos': {
+            'grupo': 'Crustáceo',
             'tamanho_max_cm': 4.0,
             'habitat': 'Praia arenosa',
             'periodo_atividade': 'Crepúsculo e noite',
@@ -57,6 +59,7 @@ ESPECIES = [
             'informações inventadas para fins de demonstração.'
         ),
         'infos': {
+            'grupo': 'Crustáceo',
             'tamanho_max_cm': 7.5,
             'habitat': 'Restinga e apicuns',
             'cor': 'Laranja intenso',
@@ -76,6 +79,7 @@ ESPECIES = [
             'piauiense. Os dados desta ficha são mockados para o protótipo do mapa.'
         ),
         'infos': {
+            'grupo': 'Crustáceo',
             'tamanho_max_cm': 11.0,
             'habitat': 'Manguezal e apicum',
             'cor': 'Azul-escuro',
@@ -95,6 +99,7 @@ ESPECIES = [
             'Os dados desta ficha são mockados para o protótipo do mapa.'
         ),
         'infos': {
+            'grupo': 'Crustáceo',
             'tamanho_max_cm': 5.0,
             'habitat': 'Manguezal',
             'cor': 'Vermelho-alaranjado',
@@ -114,6 +119,7 @@ ESPECIES = [
             'Os dados desta ficha são mockados para o protótipo do mapa.'
         ),
         'infos': {
+            'grupo': 'Crustáceo',
             'tamanho_max_cm': 10.0,
             'habitat': 'Estuário e praia arenosa',
             'cor': 'Azul',
