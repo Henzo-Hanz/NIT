@@ -36,7 +36,23 @@ URL_VETOR_BASE = 'https://images.phylopic.org/images'
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def especies(request):
-    resumos = serializers.EspecieResumoSerializer(Especie.objects.all(), many=True).data
+    # Lapidação 10 (SPEC-0005): ?q= filtra a lista pela MESMA busca FTS
+    # (tokens/prefixo) do mapa; sem q, comportamento atual (todos por
+    # nome_popular). Casadas voltam ordenadas pelo rank bm25.
+    termo = (request.query_params.get('q') or '').strip()
+    if termo:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f'SELECT rowid FROM {TABELA_FTS} '
+                f"WHERE {TABELA_FTS} MATCH %s ORDER BY bm25({TABELA_FTS})",
+                [_consulta_fts(termo)],
+            )
+            ids_por_rank = [linha[0] for linha in cursor.fetchall()]
+        por_id = Especie.objects.in_bulk(ids_por_rank)
+        ordenadas = [por_id[id_especie] for id_especie in ids_por_rank if id_especie in por_id]
+    else:
+        ordenadas = list(Especie.objects.all())
+    resumos = serializers.EspecieResumoSerializer(ordenadas, many=True).data
     return Response(resumos)
 
 
