@@ -57,9 +57,8 @@ const PONTO_PARNAIBA = {
   properties: {
     id: 1,
     nome: 'Parnaíba',
-    descricao: '223 espécies de caranguejos encontradas',
+    descricao: 'Ponto de monitoramento do litoral do Parnaíba',
     especie_slugs: [],
-    total: 223,
   },
   geometry: { type: 'Point', coordinates: [-41.7767, -2.9035] },
 }
@@ -128,12 +127,13 @@ describe('CA-7: ponto da Parnaíba sem espécie dentro do resultado da consulta'
     })
 
     await usuario.click(screen.getByTestId('ponto-area'))
+    // Lapidação 4: 1º clique só sobe o pin; a bolha vem no 2º clique no ponto.
+    expect(screen.getByTestId('pin-area')).toBeInTheDocument()
+    expect(screen.queryByTestId('bolha-area')).toBeNull()
 
-    const bolha = screen.getByTestId('bolha-area')
-    expect(bolha).toHaveTextContent('223 espécies de caranguejos encontradas')
-    expect(screen.getByTestId('ver-especies-area')).toBeInTheDocument()
-
-    await usuario.click(screen.getByTestId('ver-especies-area'))
+    await usuario.click(screen.getByTestId('ponto-area'))
+    expect(screen.getByTestId('bolha-area')).toBeInTheDocument()
+    expect(screen.queryByTestId('ver-especies-area')).toBeNull()
 
     await vi.waitFor(() => {
       expect(fetchFake).toHaveBeenCalledWith('/api/especies/')

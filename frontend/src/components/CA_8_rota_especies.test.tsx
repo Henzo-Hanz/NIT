@@ -1,6 +1,6 @@
 import App from '../App'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const estadoMapa = vi.hoisted(() => ({
@@ -19,6 +19,7 @@ vi.mock('maplibre-gl', () => {
     addLayer = vi.fn()
     setLayoutProperty = vi.fn()
     project = vi.fn(() => ({ x: 120, y: 180 }))
+    unproject = vi.fn(([x, y]: [number, number]) => [x, y])
     remove = vi.fn()
     on = (evento: string, cb: (evento?: unknown) => void) => {
       this.registro.set(evento, cb)
@@ -88,13 +89,48 @@ const FEATURE_COLLECTION = {
         id: 1,
         nome: 'Parnaíba',
         tipo: 'ponto',
-        descricao: '223 espécies de caranguejos encontradas',
+        descricao: 'Ponto de monitoramento do litoral do Parnaíba',
         especie_slug: null,
-        total: 223,
       },
       geometry: { type: 'Point', coordinates: [-41.7767, -2.9035] },
     },
   ],
+}
+
+const RESULTADO_CONSULTA = {
+  especies: [],
+  pontos: {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        properties: {
+          id: 7,
+          nome: 'Parnaíba',
+          descricao: '',
+          especie_slugs: ['caranguejo-uca', 'caranguejo-maria-farinha'],
+        },
+        geometry: { type: 'Point', coordinates: [-41.7767, -2.9035] },
+      },
+      {
+        type: 'Feature',
+        properties: {
+          id: 8,
+          nome: 'Camocim',
+          descricao: '',
+          especie_slugs: ['caranguejo-maria-farinha'],
+        },
+        geometry: { type: 'Point', coordinates: [-40.8392, -2.9072] },
+      },
+    ],
+  },
+}
+
+function desenharArea(container: HTMLElement) {
+  fireEvent.mouseDown(container, { clientX: 10, clientY: 10 })
+  fireEvent.mouseMove(container, { clientX: 30, clientY: 10 })
+  fireEvent.mouseMove(container, { clientX: 20, clientY: 20 })
+  fireEvent.mouseUp(container)
 }
 
 function configurarFetch(rotas: (string | Record<string, unknown>)[]) {
@@ -150,25 +186,32 @@ describe('CA-8: rota /especies com listagem que abre o modal', () => {
 })
 
 describe('CA-8: seta do modal volta para a listagem de caranguejos no mapa', () => {
-  it('abre ficha pela lista da bolha e a seta reabre a lista', async () => {
+  it('abre ficha pela lista da bolha do ponto e a seta reabre a lista', async () => {
     const usuario = userEvent.setup()
     configurarFetch([
       { '/api/ping/': { status: 'ok' } },
       { '/api/geometrias/': FEATURE_COLLECTION },
       { '/api/especies/': ESPECIES },
       { '/api/especies/caranguejo-uca/': FICHA_UCA },
+      { '/api/consulta/area/': RESULTADO_CONSULTA },
     ])
     render(<App />)
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    await desenharArea(screen.getByTestId('mapa-container'))
     await vi.waitFor(() => {
-      expect(document.querySelector('[data-testid="pin-parnaiba"]')).not.toBeNull()
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
     })
-    await usuario.click(document.querySelector('[data-testid="pin-parnaiba"]') as HTMLElement)
-    await usuario.click(screen.getByTestId('ver-especies'))
-    await usuario.click(await screen.findByTestId('especie-opcao-caranguejo-uca'))
+    // Lapidação 4: pin no 1º clique, bolha no 2º; o ficha abre pela lista da bolha.
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    expect(screen.getByTestId('lista-especies-area')).toBeInTheDocument()
+    await usuario.click(screen.getByTestId('area-especie-caranguejo-uca'))
     expect(await screen.findByTestId('modal-especie')).toBeInTheDocument()
     await usuario.click(screen.getByTestId('voltar-lista'))
     expect(screen.queryByTestId('modal-especie')).toBeNull()
-    expect(await screen.findByTestId('lista-especies-bolha')).toBeInTheDocument()
-    expect(screen.getByTestId('especie-opcao-caranguejo-maria-farinha')).toBeInTheDocument()
+    // A seta volta exatamente para a bolha do ponto de origem.
+    expect(await screen.findByTestId('lista-especies-area')).toBeInTheDocument()
+    expect(screen.getByTestId('bolha-area')).toBeInTheDocument()
+    expect(screen.getByTestId('area-especie-caranguejo-maria-farinha')).toBeInTheDocument()
   })
 })

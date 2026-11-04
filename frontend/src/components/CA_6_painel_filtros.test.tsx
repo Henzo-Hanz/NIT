@@ -213,14 +213,63 @@ describe('CA-6: painel de filtros no lugar do de camadas', () => {
       },
       { timeout: 3000 },
     )
+
+    // PREMISSA (lapidação 5): o texto do campo já filtra server-side (CA-3) — os
+    // pontos sem o animal saem do escopo da consulta. Com a regra da lapidação 5
+    // (não-casado não muda de tamanho), o resultado fica evidente: só o ponto com
+    // o animal permanece, no tamanho normal, sem destaque nem esmaecimento.
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(1)
+    })
+    const ponto = screen.getAllByTestId('ponto-area')[0]
+    expect(ponto).toHaveAttribute('aria-label', 'Camocim')
+    expect(ponto).not.toHaveAttribute('data-destacado')
+    expect(ponto.className).toContain('size-4')
+    expect(ponto.className).toContain('bg-teal-600')
+    expect(ponto.className).not.toContain('size-3')
+    expect(ponto.className).not.toContain('opacity-40')
+  })
+
+  it('hover por tema: opções do painel usam muted no claro e primário leve no escuro', async () => {
+    configurarFetch()
+    render(<MapView />)
+    await screen.findByTestId('filtro-especie-caranguejo-uca')
+
+    // Lapidação 5: duplicar claro/escuro — claro volta ao muted (como antes da
+    // lapidação 4); escuro sobe no primary/60.
+    for (const botao of [
+      screen.getByTestId('filtro-mais'),
+      screen.getByTestId('recolher-filtros'),
+      screen.getByTestId('filtro-especie-caranguejo-uca'),
+    ]) {
+      expect(botao.className).toContain('hover:bg-muted')
+      expect(botao.className).toContain('hover:text-foreground')
+      expect(botao.className).toContain('dark:hover:bg-primary/60')
+      expect(botao.className).toContain('dark:hover:text-primary-foreground')
+      expect(botao.className).not.toMatch(/(^|\s)hover:bg-primary\/60(?=\s|$)/)
+    }
+    const ativo = screen.getByTestId('filtro-todas')
+    expect(ativo.className).toContain('bg-primary')
+    expect(ativo.className).toContain('hover:bg-primary/90')
+    expect(ativo.className).toContain('dark:hover:bg-primary/90')
+
+    // Ativa de espécie segue com accent (mantém o padrão existente).
+    const usuario = userEvent.setup()
+    await usuario.click(screen.getByTestId('filtro-especie-caranguejo-uca'))
+    const especieAtiva = screen.getByTestId('filtro-especie-caranguejo-uca')
+    expect(especieAtiva.className).toContain('bg-accent')
+    expect(especieAtiva.className).toContain('hover:bg-accent/90')
   })
 
   it('a lista mostra as espécies com a contagem', async () => {
     configurarFetch()
     render(<MapView />)
+    // Lapidação 4: nome à esquerda e contagem alinhada à direita (sem parênteses).
     const item = await screen.findByTestId('filtro-especie-caranguejo-uca')
-    expect(item).toHaveTextContent('Caranguejo-uçá (2)')
-    expect(screen.getByTestId('filtro-especie-guaiamum')).toHaveTextContent('Guaiamum (1)')
+    expect(item).toHaveTextContent('Caranguejo-uçá')
+    expect(item).toHaveTextContent('2')
+    expect(screen.getByTestId('filtro-especie-guaiamum')).toHaveTextContent('Guaiamum')
+    expect(screen.getByTestId('filtro-especie-guaiamum')).toHaveTextContent('1')
   })
 
   it('destaca os pontos da espécie mantendo todos visíveis', async () => {
@@ -253,8 +302,10 @@ describe('CA-6: painel de filtros no lugar do de camadas', () => {
     expect(destacado?.className).toContain('ring-4')
     expect(destacado?.className).toContain('ring-amber-400')
     expect(destacado?.className).toContain('z-20')
+    // Lapidação 5: não-casado NÃO muda de tamanho — fica no size-4 do neutro, só esmaece.
     expect(apagado).toHaveAttribute('data-destacado', 'false')
-    expect(apagado?.className).toContain('size-3')
+    expect(apagado?.className).toContain('size-4')
     expect(apagado?.className).toContain('opacity-40')
+    expect(apagado?.className).not.toContain('size-3')
   })
 })

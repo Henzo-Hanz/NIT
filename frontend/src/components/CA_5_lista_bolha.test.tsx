@@ -19,6 +19,9 @@ vi.mock('maplibre-gl', () => {
     addLayer = vi.fn()
     setLayoutProperty = vi.fn()
     project = vi.fn(() => ({ x: 120, y: 180 }))
+    unproject = vi.fn(([x, y]: [number, number]) => [x, y])
+    getSource = vi.fn(() => ({ setData: vi.fn() }))
+    dragPan = { enable: vi.fn(), disable: vi.fn() }
     remove = vi.fn()
     on = (evento: string, cb: (evento?: unknown) => void) => {
       this.registro.set(evento, cb)
@@ -79,13 +82,23 @@ const FEATURE_COLLECTION = {
         id: 1,
         nome: 'Parnaíba',
         tipo: 'ponto',
-        descricao: '223 espécies de caranguejos encontradas',
+        descricao: 'Ponto de monitoramento do litoral do Parnaíba',
         especie_slug: null,
-        total: 223,
       },
       geometry: { type: 'Point', coordinates: [-41.7767, -2.9035] },
     },
   ],
+}
+
+const PARNAIBA_PONTO = {
+  type: 'Feature',
+  properties: {
+    id: 7,
+    nome: 'Parnaíba',
+    descricao: 'Ponto de monitoramento do litoral do Parnaíba',
+    especie_slugs: [],
+  },
+  geometry: { type: 'Point', coordinates: [-41.7767, -2.9035] },
 }
 
 function configurarFetch(rotas: Record<string, unknown>) {
@@ -111,35 +124,46 @@ afterEach(() => {
 })
 
 describe('CA-5: bolha mostra as 3 espécies e cada opção abre o modal', () => {
-  it('Ver espécies lista as três e o clique do uçá chama onAbrirEspecie', async () => {
+  it('sem espécie vinculada o ponto lista as 3 do escopo e o clique do uçá chama onAbrirEspecie', async () => {
     const usuario = userEvent.setup()
     const aoAbrir = vi.fn()
-    const fetchFake = configurarFetch({
+    configurarFetch({
       '/api/geometrias/': FEATURE_COLLECTION,
+      '/api/consulta/area/': {
+        especies: [],
+        pontos: { type: 'FeatureCollection', features: [PARNAIBA_PONTO] },
+      },
       '/api/especies/': ESPECIES,
     })
     render(<MapView onAbrirEspecie={aoAbrir} />)
     await vi.waitFor(() => {
       expect(instancia().addSource).toHaveBeenCalled()
     })
-    await vi.waitFor(() => {
-      expect(document.querySelector('[data-testid="pin-parnaiba"]')).not.toBeNull()
-    })
-    await usuario.click(document.querySelector('[data-testid="pin-parnaiba"]') as HTMLElement)
-    await usuario.click(screen.getByTestId('ver-especies'))
-    await vi.waitFor(() => {
-      expect(fetchFake).toHaveBeenCalledWith('/api/especies/')
-    })
-    expect(screen.getByTestId('lista-especies-bolha')).toBeInTheDocument()
-    expect(screen.getByTestId('especie-opcao-caranguejo-uca')).toHaveTextContent('Caranguejo-uçá')
-    expect(screen.getByTestId('especie-opcao-caranguejo-maria-farinha')).toHaveTextContent(
+    const ponto = await screen.findByTestId('ponto-area')
+    // Lapidação 4: 1º clique = só pin; 2º = bolha com contagem e lista.
+    await usuario.click(ponto)
+    await usuario.click(ponto)
+    expect(screen.getByTestId('bolha-area')).toBeInTheDocument()
+    expect(screen.queryByTestId('ver-especies-area')).toBeNull()
+    expect(screen.getByTestId('bolha-contagem')).toHaveTextContent(
+      'Ponto de monitoramento do litoral do Parnaíba',
+    )
+    expect(await screen.findByTestId('especie-opcao-caranguejo-uca')).toHaveTextContent(
+      'Caranguejo-uçá',
+    )
+    expect(await screen.findByTestId('especie-opcao-caranguejo-maria-farinha')).toHaveTextContent(
       'Caranguejo maria-farinha',
     )
-    expect(screen.getByTestId('especie-opcao-caranguejeiro-laranja-do-norte')).toHaveTextContent(
-      'Caranguejeiro-laranja-do-norte',
-    )
+    expect(
+      await screen.findByTestId('especie-opcao-caranguejeiro-laranja-do-norte'),
+    ).toHaveTextContent('Caranguejeiro-laranja-do-norte')
     await usuario.click(screen.getByTestId('especie-opcao-caranguejo-uca'))
     expect(aoAbrir).toHaveBeenCalledWith('caranguejo-uca')
-    expect(screen.queryByTestId('bolha-parnaiba')).toBeNull()
+    expect(screen.queryByTestId('bolha-area')).toBeNull()
+    // A ficha fecha o pin ANIMADO (SPEC-0005): classe antes da remoção real.
+    const pinSaindo = screen.getByTestId('pin-area')
+    expect(pinSaindo.classList).toContain('pin-sumir')
+    pinSaindo.dispatchEvent(new Event('animationend'))
+    expect(screen.queryByTestId('pin-area')).toBeNull()
   })
 })

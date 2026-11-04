@@ -48,7 +48,7 @@ class CA1AreaSeedPontosTest(TestCase):
             Geometria.objects.filter(tipo__in=('linha', 'poligono')).exists()
         )
 
-    def test_ponto_paranaiba_permanece_no_seed_com_total_223(self):
+    def test_ponto_paranaiba_permanece_no_seed_sem_total_mock(self):
         resposta = self.client.get('/api/geometrias/')
         self.assertEqual(resposta.status_code, 200)
         dados = json.loads(resposta.content)
@@ -57,11 +57,27 @@ class CA1AreaSeedPontosTest(TestCase):
             for feature in dados['features']
             if feature['properties']['nome'] == 'Parnaíba'
         ]
-        self.assertEqual(len(paranaiba), 1)
-        propriedades = paranaiba[0]['properties']
-        self.assertEqual(propriedades['tipo'], 'ponto')
-        self.assertEqual(propriedades['especie_slug'], None)
-        self.assertEqual(propriedades['total'], 223)
+        # Lapidação 8 (SPEC-0005): 1 linha sem espécie + 1 por espécie demo
+        # (premissa do dono, reversível) — todas sem 'total' (lapidação 4).
+        self.assertEqual(len(paranaiba), 3)
+        for feature in paranaiba:
+            self.assertNotIn('total', feature['properties'])
+        sem_especie = [
+            feature
+            for feature in paranaiba
+            if feature['properties']['especie_slug'] is None
+        ]
+        self.assertEqual(len(sem_especie), 1)
+        self.assertEqual(sem_especie[0]['properties']['tipo'], 'ponto')
+        slugs = {
+            feature['properties']['especie_slug']
+            for feature in paranaiba
+            if feature['properties']['especie_slug'] is not None
+        }
+        self.assertEqual(
+            slugs,
+            {'caranguejo-uca', 'caranguejeiro-laranja-do-norte'},
+        )
 
     def test_especies_lista_contem_os_slugs_novos(self):
         resposta = self.client.get('/api/especies/')
@@ -72,16 +88,22 @@ class CA1AreaSeedPontosTest(TestCase):
     def test_seed_sem_recriar_nao_duplica_pontos(self):
         call_command('seed_demo', stdout=StringIO())
         pontos = Geometria.objects.filter(tipo='ponto', especie__isnull=False)
-        self.assertEqual(pontos.count(), 18)
+        # Lapidação 10 (SPEC-0005): +2 pontos por localidade nova
+        # (Fortaleza, Areia Branca, Natal): 20 → 26.
+        self.assertEqual(pontos.count(), 26)
         self.assertEqual(
             set(pontos.values_list('nome', flat=True).distinct()),
             {
                 'Jericoacoara',
                 'Camocim',
                 'Luís Correia',
+                'Parnaíba',
                 'Recife',
                 'Porto de Galinhas',
                 'Tamandaré',
                 'Itamaracá',
+                'Fortaleza',
+                'Areia Branca',
+                'Natal',
             },
         )

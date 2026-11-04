@@ -106,6 +106,31 @@ export type ConsultaArea = {
   pontos: { type: 'FeatureCollection'; features: PontoDaArea[] }
 }
 
+export type EspecieBusca = { slug: string; nome_popular: string }
+
+export type PontoDaBusca = {
+  type: 'Feature'
+  properties: PontoDaArea['properties'] & { busca_slugs: string[] }
+  geometry: { type: 'Point'; coordinates: [number, number] }
+}
+
+export type ResultadoBusca = {
+  especies: EspecieBusca[]
+  pontos: { type: 'FeatureCollection'; features: PontoDaBusca[] }
+}
+
+export async function consultarBusca(termo: string): Promise<ResultadoBusca | null> {
+  try {
+    const resposta = await fetch(`/api/consulta/busca/?q=${encodeURIComponent(termo)}`)
+    if (!resposta.ok) {
+      return null
+    }
+    return (await resposta.json()) as ResultadoBusca
+  } catch {
+    return null
+  }
+}
+
 export async function consultarArea(parametros: {
   poligono: PolygonGeoJSON | null
   animal: string | null

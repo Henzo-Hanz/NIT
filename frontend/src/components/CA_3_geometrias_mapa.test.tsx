@@ -59,9 +59,8 @@ const FEATURE_COLLECTION = {
         id: 1,
         nome: 'Parnaíba',
         tipo: 'ponto',
-        descricao: '223 espécies de caranguejos encontradas',
+        descricao: 'Ponto de monitoramento do litoral do Parnaíba',
         especie_slug: null,
-        total: 223,
       },
       geometry: { type: 'Point', coordinates: [-41.7767, -2.9035] },
     },
@@ -114,12 +113,13 @@ describe('CA-3: geometrias do backend carregadas no mapa', () => {
     expect(source.data).toMatchObject({
       type: 'FeatureCollection',
       features: expect.arrayContaining([
-        expect.objectContaining({ properties: expect.objectContaining({ total: 223 }) }),
+        expect.objectContaining({ properties: expect.not.objectContaining({ total: 223 }) }),
       ]),
     })
     const idsCamadas = instancia().addLayer.mock.calls.map((call: any) => call[0].id)
     expect(idsCamadas).toEqual(['camada-pontos', 'camada-linhas', 'camada-poligonos'])
-    expect(document.body.querySelector('[data-testid="pin-parnaiba"]')).not.toBeNull()
+    // Lapidação 4: o Parnaíba não sobe pin automático na carga.
+    expect(document.body.querySelector('[data-testid="pin-parnaiba"]')).toBeNull()
     expect(screen.queryByTestId('mapa-erro')).toBeNull()
   })
 })
