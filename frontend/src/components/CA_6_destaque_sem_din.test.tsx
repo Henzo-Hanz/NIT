@@ -112,8 +112,8 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('CA-6 lapidação 5: destaque sem mudança de tamanho e pisca só de opacidade', () => {
-  it('ao assentar, ponto com a espécie fica grande e o sem a espécie mantém o tamanho neutro esmaecido', async () => {
+describe('CA-6 lapidação 5/11: destaque sem mudança de tamanho e pisca só de opacidade', () => {
+  it('espécie clicada determina os pontos: o que contém fica grande amber e nada esmaece', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
@@ -133,7 +133,7 @@ describe('CA-6 lapidação 5: destaque sem mudança de tamanho e pisca só de op
     // opacidade apenas e ninguém encolhe/cofira nem recebe size menor.
     await vi.waitFor(() => {
       const pontos = screen.getAllByTestId('ponto-area')
-      expect(pontos).toHaveLength(2)
+      expect(pontos).toHaveLength(1)
       expect(pontos.every((ponto) => ponto.hasAttribute('data-pisca'))).toBe(true)
     })
     for (const ponto of screen.getAllByTestId('ponto-area')) {
@@ -142,35 +142,26 @@ describe('CA-6 lapidação 5: destaque sem mudança de tamanho e pisca só de op
       expect(ponto.className).not.toContain('size-3')
     }
 
-    // Assoalho (fim da animação — estado final): o que importa é aqui.
+    // Assentar (fim da animação — estado final): o que importa é aqui.
     await vi.waitFor(
       () => {
         const pontos = screen.getAllByTestId('ponto-area')
-        expect(pontos).toHaveLength(2)
+        expect(pontos).toHaveLength(1)
         expect(pontos.every((ponto) => !ponto.hasAttribute('data-pisca'))).toBe(true)
       },
       { timeout: 3000 },
     )
 
-    const pontos = screen.getAllByTestId('ponto-area')
-    const casado = pontos.find((ponto) => ponto.getAttribute('aria-label') === 'Jericoacoara')
-    const naoCasado = pontos.find((ponto) => ponto.getAttribute('aria-label') === 'Camocim')
-    expect(casado).toBeDefined()
-    expect(naoCasado).toBeDefined()
-
+    // Lapidação 11: a espécie clicada DETERMINA os pontos — Camocim (sem o
+    // guaiamum) SAI da DOM, então não existe ponto esmaecido neste estado.
+    const casado = screen.getAllByTestId('ponto-area')[0]
+    expect(casado.getAttribute('aria-label')).toBe('Jericoacoara')
     expect(casado).toHaveAttribute('data-destacado', 'true')
-    expect(casado?.className).toContain('size-6')
-    expect(casado?.className).toContain('bg-amber-500')
-    expect(casado?.className).toContain('ring-4')
-    expect(casado?.className).toContain('ring-amber-400')
-    expect(casado?.className).not.toContain('opacity-40')
-
-    // Não-casado: MESMO tamanho do neutro (size-4), só esmaece — nunca size-3.
-    expect(naoCasado).toHaveAttribute('data-destacado', 'false')
-    expect(naoCasado?.className).toContain('size-4')
-    expect(naoCasado?.className).toContain('opacity-40')
-    expect(naoCasado?.className).not.toContain('size-3')
-    expect(naoCasado?.className).not.toContain('ponto-pisca')
+    expect(casado.className).toContain('size-6')
+    expect(casado.className).toContain('bg-amber-500')
+    expect(casado.className).toContain('ring-4')
+    expect(casado.className).toContain('ring-amber-400')
+    expect(casado.className).not.toContain('opacity-40')
   })
 
   it('@keyframes ponto-piscar é animação de opacity APENAS (sem transform/scale)', () => {
