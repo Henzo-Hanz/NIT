@@ -344,12 +344,34 @@ export function MapView({
   const chavesBusca = new Set(
     buscaAtiva ? (buscaResultado?.pontos.features ?? []).map(CHAVE_DO_PONTO) : [],
   )
+  // Lapidação 11: os filtros DETERMINAM os pontos renderizados. "Mais"/"menos"
+  // = os 3 primeiros de `resultado.especies` (o server envia `mais` desc. por
+  // contagem e `menos` asc. — mesma lista invertida, empate por nome); com
+  // menos de 3 espécies no resultado, o top é a lista inteira. Espécie clicada
+  // (painel ou busca) restringe ao que a contém. Específico por texto já fica
+  // no server (o resultado chega filtrado). PREMISSA: mais/menos junto de
+  // espécie clicada vira união dos slugs. Área primeiro: a consulta só devolve
+  // pontos internos às áreas e o filtro opera sobre esse resultado — nunca
+  // ressuscita ponto fora de área; o overlay da busca segue a mesma regra.
+  const slugsDoFiltro: string[] =
+    filtro === 'mais' || filtro === 'menos'
+      ? (resultado?.especies ?? []).slice(0, 3).map((especie) => especie.slug)
+      : []
+  const conjuntoFiltro = new Set([
+    ...slugsDoFiltro,
+    ...(especieSelecionada ? [especieSelecionada] : []),
+  ])
+  const casaComFiltro = (ponto: PontoDaArea) =>
+    conjuntoFiltro.size === 0 ||
+    ponto.properties.especie_slugs.some((slug) => conjuntoFiltro.has(slug))
   const pontosVisiveis: PontoExibido[] = buscaAtiva
     ? [
-        ...(buscaResultado?.pontos.features ?? []),
-        ...pontosEscopo.filter((ponto) => !chavesBusca.has(CHAVE_DO_PONTO(ponto))),
+        ...(buscaResultado?.pontos.features ?? []).filter(casaComFiltro),
+        ...pontosEscopo.filter(
+          (ponto) => !chavesBusca.has(CHAVE_DO_PONTO(ponto)) && casaComFiltro(ponto),
+        ),
       ]
-    : pontosEscopo
+    : pontosEscopo.filter(casaComFiltro)
 
   useEffect(() => {
     resultadoRef.current = resultado
