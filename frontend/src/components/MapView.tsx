@@ -159,9 +159,16 @@ function sumirPin(el: HTMLElement, remover: () => void) {
 }
 
 // Despedida do Marker do pin: anima a saída do elemento e solta o Marker só
-// no fim (o próprio conteúdo se resolve, sem re-render no React).
+// no fim (o próprio conteúdo se resolve, sem re-render no React). No runtime
+// real (maplibre-gl 6), o elemento é acessado por getElement() e a prop
+// interna é `_element` — `.element` fica como último recurso para os fakes.
 function despedirPin(pin: Marker) {
-  const elemento = (pin as unknown as { element?: HTMLElement }).element
+  const candidato = pin as unknown as {
+    getElement?: () => HTMLElement
+    _element?: HTMLElement
+    element?: HTMLElement
+  }
+  const elemento = candidato.getElement?.() ?? candidato._element ?? candidato.element
   if (!elemento) {
     pin.remove()
     return
