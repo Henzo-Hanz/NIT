@@ -89,11 +89,13 @@ class CA2ConsultaAreaTest(TestCase):
         )
 
     def test_sem_poligono_retorna_todos_os_pontos_inclusive_paranaiba(self):
+        # Lapidação 10 (SPEC-0005): Fortaleza/Areia Branca/Natal (premissa
+        # do runner, reversível) entram na contagem de pontos e espécies.
         resposta = self._post({'poligono': None})
         self.assertEqual(resposta.status_code, 200)
         dados = resposta.json()
         features = dados['pontos']['features']
-        self.assertEqual(len(features), 8)
+        self.assertEqual(len(features), 11)
         self.assertEqual(
             {feature['properties']['nome'] for feature in features},
             {
@@ -105,6 +107,9 @@ class CA2ConsultaAreaTest(TestCase):
                 'Porto de Galinhas',
                 'Tamandaré',
                 'Itamaracá',
+                'Fortaleza',
+                'Areia Branca',
+                'Natal',
             },
         )
         por_nome = {feature['properties']['nome']: feature for feature in features}
@@ -124,12 +129,14 @@ class CA2ConsultaAreaTest(TestCase):
         especies = {item['slug']: item for item in dados['especies']}
         self.assertEqual(especies['caranguejo-uca']['contagem'], 4)
         self.assertEqual(especies['aratu']['contagem'], 1)
-        self.assertEqual(especies['siri-azul']['contagem'], 1)
+        # Lapidação 10: siri-azul já estava em Luís Correia; Fortaleza e
+        # Natal somam → 3 localidades.
+        self.assertEqual(especies['siri-azul']['contagem'], 3)
         self.assertEqual(especies['badejo']['contagem'], 4)
         self.assertEqual(especies['garoupa']['contagem'], 3)
-        self.assertEqual(especies['trinta-reis']['contagem'], 2)
-        self.assertEqual(especies['robalo-peva']['contagem'], 1)
-        self.assertEqual(especies['atoba']['contagem'], 1)
+        self.assertEqual(especies['trinta-reis']['contagem'], 4)
+        self.assertEqual(especies['robalo-peva']['contagem'], 2)
+        self.assertEqual(especies['atoba']['contagem'], 2)
 
     def test_filtro_animal_maria_exclui_paranaiba_e_caranguejo_inclui(self):
         # Lapidação 8 (SPEC-0005): o ponto do Parnaíba agora tem espécies
