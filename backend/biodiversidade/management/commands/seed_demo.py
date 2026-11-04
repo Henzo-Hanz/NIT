@@ -245,6 +245,25 @@ LOCALIDADES = [
         'coordenadas': [-34.825, -7.748],
         'especies': ['badejo'],
     },
+    # Lapidação 10 (SPEC-0005): premissa do runner (demo igual às demais,
+    # reversível) para tirar o vazio do litoral CE/RN. Inseridas no FIM da
+    # lista (depois de Itamaracá) para minimizar mudança de ids; o bloco
+    # especial do Parnaíba continua por último.
+    {
+        'nome': 'Fortaleza',
+        'coordenadas': [-38.55, -3.72],
+        'especies': ['siri-azul', 'trinta-reis'],
+    },
+    {
+        'nome': 'Areia Branca',
+        'coordenadas': [-36.94, -4.97],
+        'especies': ['atoba', 'robalo-peva'],
+    },
+    {
+        'nome': 'Natal',
+        'coordenadas': [-35.19, -5.79],
+        'especies': ['siri-azul', 'trinta-reis'],
+    },
 ]
 
 # Lapidação 4 (SPEC-0005): o 'total: 223' aqui era número mockado e pintava
