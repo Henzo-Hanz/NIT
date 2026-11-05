@@ -185,6 +185,47 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
     expect(container).not.toHaveAttribute('data-editando')
   })
 
+  it('alças acompanham o anel do setData NO MESMO tick do mousemove (sem atraso)', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    const fonte = { setData: vi.fn() }
+    estadoMapa.fonte = fonte
+    render(<MapView />)
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+
+    const container = screen.getByTestId('mapa-container')
+    fireEvent.mouseDown(container, { clientX: 10, clientY: 10 })
+    fireEvent.mouseMove(container, { clientX: 30, clientY: 10 })
+    fireEvent.mouseMove(container, { clientX: 20, clientY: 20 })
+    fireEvent.mouseUp(container)
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
+    })
+    await usuario.click(screen.getByTestId('selecionar-area-1'))
+    await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+
+    // Gesto de alça pela janela: o último setData e os círculos imperativos
+    // saem do MESMO dispatch de mousemove — sem waitFor, mesma deixa.
+    fireEvent.mouseDown(screen.getByTestId('alca-0'))
+    const chamadasAntes = fonte.setData.mock.calls.length
+    fireEvent.mouseMove(window, { clientX: 12, clientY: 19 })
+    expect(fonte.setData.mock.calls.length).toBeGreaterThan(chamadasAntes)
+
+    const anel = fonte.setData.mock.calls.at(-1)?.[0].features[0].geometry.coordinates[0] as number[][]
+    const alcas = container.parentElement!.querySelectorAll(
+      '[data-testid="alcas-area"] circle[data-testid^="alca-"]',
+    )
+    expect(alcas).toHaveLength(anel.length - 1)
+    for (let indice = 0; indice < anel.length - 1; indice += 1) {
+      const alca = alcas[indice] as SVGCircleElement
+      expect(alca.getAttribute('cx')).toBe(String(anel[indice][0]))
+      expect(alca.getAttribute('cy')).toBe(String(anel[indice][1]))
+    }
+
+    fireEvent.mouseUp(window)
+  })
+
   it('clique fora de área continua neste modo sem pegar o ponteiro (data-editando ausente)', async () => {
     const usuario = userEvent.setup()
     configurarFetch()

@@ -341,6 +341,7 @@ export function MapView({
   const inicioEdicaoRef = useRef<{ tela: { x: number; y: number } } | null>(null)
   const anelOriginalRef = useRef<number[][]>([])
   const poligonoEdicaoRef = useRef<number[][]>([])
+  const alcasSvgRef = useRef<SVGSVGElement | null>(null)
   const areasRef = useRef<AreaDesenhada[]>([])
   const pontoAtivoRef = useRef<PontoDaArea | null>(null)
   const bolhaAreaRef = useRef(false)
@@ -592,6 +593,38 @@ export function MapView({
     },
     [areaAtivaId],
   )
+
+  // Reposiciona os círculos das alças IMPERATIVAMENTE no mesmo tick do setData:
+  // sem isso, o commit do React (assíncrono) os deixa ~1 frame atrás do fill.
+  // Ordem dos círculos = mesma do render (.slice(0, -1) do anel editado); o
+  // re-render React reescreve os mesmos valores depois (harmônico).
+  const reposicionarAlcas = useCallback(() => {
+    const svg = alcasSvgRef.current
+    const mapa = mapRef.current
+    if (!svg || !mapa) {
+      return
+    }
+    const ativa = edicaoRef.current
+    if (!ativa) {
+      return
+    }
+    const anel = poligonoEdicaoRef.current
+    if (!anel.length) {
+      return
+    }
+    const pontos = anel
+      .slice(0, -1)
+      .map((vertice) => mapa.project(vertice as [number, number]) as { x: number; y: number })
+    const circulos = svg.querySelectorAll('circle')
+    pontos.forEach((ponto, indice) => {
+      const circulo = circulos[indice] as SVGCircleElement | undefined
+      if (!circulo) {
+        return
+      }
+      circulo.setAttribute('cx', String(ponto.x))
+      circulo.setAttribute('cy', String(ponto.y))
+    })
+  }, [])
 
   const finalizarEdicao = useCallback(() => {
     const ativa = edicaoRef.current
@@ -984,6 +1017,7 @@ export function MapView({
       // Ao vivo: o desenho da área acompanha o gesto direto na fonte.
       atualizarAreaAoVivo(mapRef.current, ativa, poligonoEdicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
+      reposicionarAlcas()
     }
     const aoSoltar = () => {
       finalizarEdicao()
@@ -994,7 +1028,7 @@ export function MapView({
       window.removeEventListener('mousemove', aoMover)
       window.removeEventListener('mouseup', aoSoltar)
     }
-  }, [edicao, coordenadaDaTela, finalizarEdicao, atualizarAreaAoVivo])
+  }, [edicao, coordenadaDaTela, finalizarEdicao, atualizarAreaAoVivo, reposicionarAlcas])
 
   // Se o ponto do pin some do escopo (área apagada, troca de filtro que
   // removeu o ponto), fechar pin remove tudo: pin + bolha.
@@ -1525,6 +1559,7 @@ export function MapView({
       )}
       {areaEmDestaque && modo === 'arrastar' && (areaAtivaId === areaEmDestaque.id || !areaAtivaId) && (
         <svg
+          ref={alcasSvgRef}
           data-testid="alcas-area"
           data-selecionada={areaAtivaId === areaEmDestaque.id ? 'true' : 'false'}
           className="pointer-events-none absolute inset-0 z-10 h-full w-full"
