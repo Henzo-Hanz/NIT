@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MapView } from './MapView'
+import { anelDaElipse } from '@/utils/geo'
 
 const estadoMapa = vi.hoisted(() => ({
   instancias: [] as any[],
@@ -247,5 +248,121 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
     // (60,60) está fora do triângulo ((10..30, 10..20)) — sem edição.
     fireEvent.mouseDown(container, { clientX: 60, clientY: 60 })
     expect(container).not.toHaveAttribute('data-editando')
+  })
+})
+
+// Círculo com modelo de elipse: 5 alças (tamanho + eixos) em vez das 32
+// vértices; regeneração do anel pela util compartilhada. Áreas sem modelo
+// continuam com uma alça por vértice.
+describe('CA-5: círculo/elipse com 5 alças', () => {
+  function desenharCirculo(): HTMLElement {
+    const container = screen.getByTestId('mapa-container')
+    fireEvent.mouseDown(container, { clientX: 10, clientY: 10 })
+    fireEvent.mouseMove(container, { clientX: 20, clientY: 10 })
+    fireEvent.mouseUp(container)
+    return container
+  }
+
+  it('círculo criado mostra exatamente 5 alças (alca-0..4, sem alca-5)', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<MapView />)
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    await usuario.click(screen.getByTestId('desenho-circulo'))
+
+    desenharCirculo()
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
+    })
+    await usuario.click(screen.getByTestId('selecionar-area-1'))
+    await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+
+    for (let indice = 0; indice <= 4; indice += 1) {
+      expect(screen.getByTestId(`alca-${indice}`)).toBeInTheDocument()
+    }
+    expect(screen.queryByTestId('alca-5')).not.toBeInTheDocument()
+  })
+
+  it('alça SE escala rx E ry pelo mesmo fator com centro preservado', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<MapView />)
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    await usuario.click(screen.getByTestId('desenho-circulo'))
+
+    const container = desenharCirculo()
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
+    })
+    await usuario.click(screen.getByTestId('selecionar-area-1'))
+    await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+
+    // SE fica em (~17.07, ~17.07): a distância inicial ao centro (√(7²+7²))
+    // dobra no move para (24,24) → fator exatamente 2 → rx = ry = 20.
+    fireEvent.mouseDown(screen.getByTestId('alca-4'), { clientX: 17, clientY: 17 })
+    fireEvent.mouseMove(window, { clientX: 24, clientY: 24 })
+    fireEvent.mouseUp(window)
+
+    const poligono = JSON.parse(container.getAttribute('data-poligono-desenhado') as string)
+    // Anel regenerado: maior (raios dobrados), fechado e centro preservado.
+    expect(JSON.parse(container.getAttribute('data-poligono-desenhado') as string).coordinates[0]).toEqual(
+      anelDaElipse([10, 10], 20, 20),
+    )
+    const anel = poligono.coordinates[0] as number[][]
+    expect(anel).toHaveLength(33)
+    // Vértice oposto (índice 16 do arco) vs primeiro: ponto médio = centro.
+    const centro: [number, number] = [
+      (anel[0][0] + anel[16][0]) / 2,
+      (anel[0][1] + anel[16][1]) / 2,
+    ]
+    expect(centro[0]).toBeCloseTo(10)
+    expect(centro[1]).toBeCloseTo(10)
+  })
+
+  it('alça E altera só o rx: anel mais largo com ry intacto', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<MapView />)
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+    await usuario.click(screen.getByTestId('desenho-circulo'))
+
+    const container = desenharCirculo()
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
+    })
+    await usuario.click(screen.getByTestId('selecionar-area-1'))
+    await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+
+    // E=(20,10): arrastar até (40,10) → rx = |40-10| = 30; ry continua 10.
+    fireEvent.mouseDown(screen.getByTestId('alca-0'), { clientX: 20, clientY: 10 })
+    fireEvent.mouseMove(window, { clientX: 40, clientY: 10 })
+    fireEvent.mouseUp(window)
+
+    const anel = JSON.parse(
+      container.getAttribute('data-poligono-desenhado') as string,
+    ).coordinates[0] as number[][]
+    expect(anel).toEqual(anelDaElipse([10, 10], 30, 10))
+  })
+
+  it('áreas sem modelo (livre) continuam com uma alça por vértice', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<MapView />)
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+
+    fireEvent.mouseDown(screen.getByTestId('mapa-container'), { clientX: 10, clientY: 10 })
+    fireEvent.mouseMove(screen.getByTestId('mapa-container'), { clientX: 30, clientY: 10 })
+    fireEvent.mouseMove(screen.getByTestId('mapa-container'), { clientX: 20, clientY: 20 })
+    fireEvent.mouseUp(screen.getByTestId('mapa-container'))
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
+    })
+    await usuario.click(screen.getByTestId('selecionar-area-1'))
+    await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+
+    // 3 vértices + fechamento = 3 alças (último vértice não vira alça).
+    expect(screen.getByTestId('alca-2')).toBeInTheDocument()
+    expect(screen.queryByTestId('alca-3')).not.toBeInTheDocument()
   })
 })
