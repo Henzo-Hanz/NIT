@@ -207,7 +207,7 @@ export function EspeciesPage() {
                       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                     {/* Nome sobre a foto: bloco sólido translúcido alinhado à
-                        esquerda — nada de gradiente na UI. */}
+                        esquerda, legível sobre a foto — sem folheio suave. */}
                     <div className="absolute bottom-3 left-3 right-3 rounded-md bg-black/55 px-3 py-1.5 text-left">
                       <span className="block truncate text-sm font-semibold text-white">
                         {item.nome_popular}
