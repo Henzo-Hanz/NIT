@@ -47,12 +47,16 @@ describe('CA-6: painéis do carrossel de espécies', () => {
     expect(screen.getByTestId('carrossel-Ave')).toBeInTheDocument()
     expect(screen.getByTestId('carrossel-Peixe')).toBeInTheDocument()
 
-    expect(screen.getByTestId('carrossel-Crustáceo-contador')).toHaveTextContent('- 4')
-    expect(screen.getByTestId('carrossel-Ave-contador')).toHaveTextContent('- 1')
-    expect(screen.getByTestId('carrossel-Peixe-contador')).toHaveTextContent('- 2')
+    expect(screen.getByTestId('carrossel-Crustáceo-contador')).toHaveTextContent(/^4$/)
+    expect(screen.getByTestId('carrossel-Ave-contador')).toHaveTextContent(/^1$/)
+    expect(screen.getByTestId('carrossel-Peixe-contador')).toHaveTextContent(/^2$/)
 
     const contador = screen.getByTestId('carrossel-Crustáceo-contador')
     expect(contador.className).toContain('bg-accent')
+    expect(contador.className).not.toContain('- ')
+
+    const painel = screen.getByTestId('carrossel-Crustáceo')
+    expect(painel.className).toContain('bg-neutral-900')
 
     expect(screen.getByTestId('card-especie-caranguejo-uca')).toBeInTheDocument()
     expect(screen.getByTestId('card-especie-garca-branca')).toBeInTheDocument()
