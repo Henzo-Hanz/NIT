@@ -112,16 +112,28 @@ export function EspeciesPage() {
           Voltar ao mapa
         </Button>
 
-        <header className="mb-6 text-center">
+        <header data-testid="especies-hero" className="mb-8 text-center">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
             Catálogo
           </p>
-          <h1 data-testid="especies-titulo" className="mt-1 text-2xl font-bold tracking-tight">
+          <h1 data-testid="especies-titulo" className="mt-1 text-3xl font-bold tracking-tight">
             Espécies do litoral do Piauí
           </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Crustáceos, aves e peixes registrados na costa piauiense. Toque em uma foto para
+            abrir a ficha.
+          </p>
+          <div className="mt-3 flex justify-center">
+            <span
+              data-testid="especies-total"
+              className="rounded-full bg-accent px-3 py-1 text-xs font-semibold tabular-nums text-accent-foreground"
+            >
+              {especies?.length ?? 0}
+            </span>
+          </div>
         </header>
 
-        <div className="mb-8 flex justify-center">
+        <div className="mb-6 flex justify-center">
           <div className="relative w-full max-w-md">
             <input
               data-testid="busca-especies"
@@ -148,21 +160,22 @@ export function EspeciesPage() {
           </p>
         )}
 
-        {grupos.map((grupo) => (
-          <div key={grupo.chave} className="mb-8">
+        <div data-testid="especies-grid" className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {grupos.map((grupo) => (
             <CarrosselEspecie
+              key={grupo.chave}
               testid={`carrossel-${grupo.chave}`}
               titulo={grupo.titulo}
               itens={grupo.itens}
               onAbrir={setSlugAberto}
             />
-          </div>
-        ))}
+          ))}
+        </div>
 
         {especies !== null && especies.length === 0 && !indisponivel && (
           <p
             data-testid="busca-vazia"
-            className="rounded-xl border bg-card p-4 text-center text-sm text-muted-foreground"
+            className="mt-6 rounded-xl border bg-card p-4 text-center text-sm text-muted-foreground"
           >
             Nenhuma espécie encontrada para a busca.
           </p>
