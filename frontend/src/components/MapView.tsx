@@ -41,6 +41,24 @@ type EdicaoArea = { tipo: 'mover' | 'alca'; id: string; indice: number } | null
 export const CENTRO_LITORAL_PI: [number, number] = [-41.75, -2.9]
 export const ZOOM_INICIAL = 6
 
+// FeatureCollection da fonte 'area-desenhada': todas as áreas com as
+// propriedades id/nome/ativa preservadas. Serviço à gravação definitiva
+//(mouseup) e ao desenho AO VIVO durante a edição (mover ou alça).
+function dadosDasAreas(areas: AreaDesenhada[], ativaId: string | null) {
+  return {
+    type: 'FeatureCollection',
+    features: areas.map((area) => ({
+      type: 'Feature',
+      properties: {
+        id: area.id,
+        nome: area.nome,
+        ativa: area.id === ativaId,
+      },
+      geometry: area.polygon,
+    })),
+  }
+}
+
 const TILES_VOYAGER = [
   'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
   'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
@@ -323,11 +341,6 @@ export function MapView({
   const inicioEdicaoRef = useRef<{ tela: { x: number; y: number } } | null>(null)
   const anelOriginalRef = useRef<number[][]>([])
   const poligonoEdicaoRef = useRef<number[][]>([])
-  // Fantasma do mover: contorno tracejado que acompanha o arraste ao vivo —
-  // pontos projetados mantidos em ref e aplicados DIRETO no elemento SVG
-  // (sem re-render por frame).
-  const fantasmaRef = useRef<SVGPolylineElement | null>(null)
-  const pontosFantasmaRef = useRef('')
   const areasRef = useRef<AreaDesenhada[]>([])
   const pontoAtivoRef = useRef<PontoDaArea | null>(null)
   const bolhaAreaRef = useRef(false)
@@ -544,21 +557,40 @@ export function MapView({
       anelOriginalRef.current = anel.map((ponto) => [...ponto])
       poligonoEdicaoRef.current = anel.map((ponto) => [...ponto])
       inicioEdicaoRef.current = tela ? { tela } : null
-      // Fantasma parte da forma ORIGINAL da área no início do gesto.
-      const mapaInicial = mapRef.current
-      if (tipo === 'mover') {
-        pontosFantasmaRef.current = anel
-          .map((vertice) => {
-            const projetado = mapaInicial?.project(vertice as [number, number])
-            return projetado ? `${projetado.x},${projetado.y}` : `${vertice[0]},${vertice[1]}`
-          })
-          .join(' ')
-      }
       setEdicao(edicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
       mapRef.current?.dragPan?.disable?.()
     },
     [],
+  )
+
+  // Desenho AO VIVO durante a edição (mover ou alça): troca, na fonte
+  // 'area-desenhada', o anel da área editada (id/nome/ativa preservados),
+  // sem esperar o mouseup — o fill/contorno acompanham o gesto por frame.
+  const atualizarAreaAoVivo = useCallback(
+    (mapa: MapLibreMap | null, ativa: EdicaoArea, anel: number[][]) => {
+      if (!mapa || !ativa) {
+        return
+      }
+      const fonte = mapa.getSource?.('area-desenhada') as
+        | { setData?: (dados: unknown) => void }
+        | undefined
+      const editada = areasRef.current.find((area) => area.id === ativa.id)
+      if (!fonte?.setData || !editada) {
+        return
+      }
+      fonte.setData(
+        dadosDasAreas(
+          areasRef.current.map((area) =>
+            area.id === ativa.id
+              ? { ...area, polygon: { type: 'Polygon', coordinates: [anel] } }
+              : area,
+          ),
+          areaAtivaId,
+        ),
+      )
+    },
+    [areaAtivaId],
   )
 
   const finalizarEdicao = useCallback(() => {
@@ -938,15 +970,6 @@ export function MapView({
           vertice[0] + dLon,
           vertice[1] + dLat,
         ])
-        // Fantasma ao vivo: pontos projetados na hora, direto no SVG.
-        const pontosFantasma = poligonoEdicaoRef.current
-          .map((vertice) => {
-            const projetado = mapRef.current?.project(vertice as [number, number])
-            return projetado ? `${projetado.x},${projetado.y}` : `${vertice[0]},${vertice[1]}`
-          })
-          .join(' ')
-        pontosFantasmaRef.current = pontosFantasma
-        fantasmaRef.current?.setAttribute('points', pontosFantasma)
       } else {
         const vertice = coordenadaDaTela(tela)
         const anel = anelOriginalRef.current.map((ponto, indice) =>
@@ -958,6 +981,8 @@ export function MapView({
         }
         poligonoEdicaoRef.current = anel
       }
+      // Ao vivo: o desenho da área acompanha o gesto direto na fonte.
+      atualizarAreaAoVivo(mapRef.current, ativa, poligonoEdicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
     }
     const aoSoltar = () => {
@@ -969,7 +994,7 @@ export function MapView({
       window.removeEventListener('mousemove', aoMover)
       window.removeEventListener('mouseup', aoSoltar)
     }
-  }, [edicao, coordenadaDaTela, finalizarEdicao])
+  }, [edicao, coordenadaDaTela, finalizarEdicao, atualizarAreaAoVivo])
 
   // Se o ponto do pin some do escopo (área apagada, troca de filtro que
   // removeu o ponto), fechar pin remove tudo: pin + bolha.
@@ -1011,18 +1036,7 @@ export function MapView({
     if (!map || !carregado) {
       return
     }
-    const dados = {
-      type: 'FeatureCollection',
-      features: areas.map((area) => ({
-        type: 'Feature',
-        properties: {
-          id: area.id,
-          nome: area.nome,
-          ativa: area.id === areaAtivaId,
-        },
-        geometry: area.polygon,
-      })),
-    }
+    const dados = dadosDasAreas(areas, areaAtivaId)
     const fonte = map.getSource?.('area-desenhada') as
       | { setData?: (dados: unknown) => void }
       | undefined
@@ -1537,25 +1551,6 @@ export function MapView({
               />
             )
           })}
-        </svg>
-      )}
-      {/* Fantasma do mover: contorno tracejado translúcido com a forma/posição
-          ATUAL durante o arraste; some ao soltar (reconsulta segue igual). */}
-      {edicao?.tipo === 'mover' && (
-        <svg
-          data-testid="fantasma-area"
-          className="pointer-events-none absolute inset-0 z-10 h-full w-full"
-          aria-hidden="true"
-        >
-          <polyline
-            ref={fantasmaRef}
-            points={pontosFantasmaRef.current}
-            fill="rgba(217,119,6,0.15)"
-            stroke="#d97706"
-            strokeWidth={2}
-            strokeDasharray="6 4"
-            strokeLinejoin="round"
-          />
         </svg>
       )}
       {linhaMedicao && (
