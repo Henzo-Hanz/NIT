@@ -4,11 +4,19 @@ import { Button } from '@/components/ui/button'
 import { formatarKm2 } from '@/utils/geo'
 import type { PolygonGeoJSON } from '@/lib/api'
 
+export type ModeloElipse = {
+  tipo: 'elipse'
+  centro: [number, number]
+  rx: number
+  ry: number
+}
+
 export type AreaDesenhada = {
   id: string
   polygon: PolygonGeoJSON
   nome: string
   areaKm2: number
+  modelo?: ModeloElipse
 }
 
 interface PainelAreasProps {
