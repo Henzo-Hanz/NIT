@@ -39,23 +39,25 @@ export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEs
   return (
     <section
       data-testid={testid}
-      className="relative rounded-2xl bg-card p-4 shadow-sm sm:p-6"
+      className="relative flex flex-col rounded-2xl bg-neutral-900 p-4 shadow-sm sm:p-5"
       onMouseEnter={() => setPausado(true)}
       onMouseLeave={() => setPausado(false)}
       onFocus={() => setPausado(true)}
       onBlur={() => setPausado(false)}
     >
-      <header className="mb-4 flex items-center justify-between gap-3">
-        <span
-          data-testid={testid ? `${testid}-contador` : 'carrossel-contador'}
-          className="rounded-full bg-accent px-3 py-1 text-xs font-semibold tabular-nums text-accent-foreground"
-        >
-          {`- ${total}`}
-        </span>
-        <h2 className="truncate text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-          {titulo}
-        </h2>
-        <div className="flex gap-1">
+      <header className="mb-3 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="truncate text-sm font-bold uppercase tracking-[0.18em] text-neutral-100">
+            {titulo}
+          </h2>
+          <span
+            data-testid={testid ? `${testid}-contador` : 'carrossel-contador'}
+            className="mt-1.5 inline-block rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold tabular-nums text-accent-foreground"
+          >
+            {total}
+          </span>
+        </div>
+        <div className="flex shrink-0 gap-1">
           <button
             type="button"
             aria-label={`Anteriores em ${titulo}`}
@@ -77,7 +79,7 @@ export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEs
 
       <div
         data-testid={testid ? `${testid}-palco` : 'carrossel-palco'}
-        className="relative flex h-72 items-center justify-center overflow-hidden sm:h-80"
+        className="relative flex h-64 items-center justify-center overflow-hidden"
       >
         {itens.map((item, indice) => {
           const deslocamento = deslocamentoDe(indice)
@@ -103,9 +105,9 @@ export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEs
                 onClick={() => (ativoAgora ? onAbrir(item.slug) : setAtivo(indice))}
                 aria-label={ativoAgora ? `Abrir ficha de ${item.nome_popular}` : undefined}
                 className={cn(
-                  'group relative block h-64 w-52 overflow-hidden rounded-xl border bg-card text-left shadow-sm transition-all duration-300 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:h-80 sm:w-64',
-                  direita && 'translate-x-[55%]',
-                  esquerda && '-translate-x-[55%]',
+                'group relative block h-64 w-48 overflow-hidden rounded-xl border bg-card text-left shadow-sm transition-all duration-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                direita && 'translate-x-[50%]',
+                esquerda && '-translate-x-[50%]',
                 )}
               >
                 <div className="relative h-full w-full overflow-hidden bg-muted">
@@ -118,11 +120,11 @@ export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEs
                 </div>
                 {ativoAgora && (
                   <div className="absolute bottom-3 left-3 right-3 rounded-md bg-black/55 px-3 py-2 text-left">
-                    <span className="block truncate text-sm font-semibold text-white">
+                    <span className="block truncate text-xs font-semibold text-white">
                       {item.nome_popular}
                     </span>
                     {item.nome_cientifico && (
-                      <span className="block truncate text-[11px] italic text-white/70">
+                      <span className="block truncate text-[10px] italic text-white/70">
                         {item.nome_cientifico}
                       </span>
                     )}
