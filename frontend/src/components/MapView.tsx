@@ -9,8 +9,8 @@ import {
   type ModoFerramenta,
 } from '@/components/FerramentasToolbar'
 import { FiltroAnimaisPanel, type FiltroEspecie } from '@/components/FiltroAnimaisPanel'
-import { PainelAreas, type AreaDesenhada } from '@/components/PainelAreas'
-import { areaKm2, convexHull, distanciaKm, formatarKm, formatarKm2 } from '@/utils/geo'
+import { PainelAreas, type AreaDesenhada, type ModeloElipse } from '@/components/PainelAreas'
+import { areaKm2, anelDaElipse, convexHull, distanciaKm, formatarKm, formatarKm2 } from '@/utils/geo'
 import {
   buscarGeometrias,
   buscarEspecies,
@@ -35,8 +35,17 @@ const CHAVE_DO_PONTO = (ponto: PontoExibido) =>
 type MarcaMedicao = { ponto: PontoDaArea }
 
 // Edição de área: mover o anel inteiro (drag no interior) ou reposicionar um
-// vértice pela alça correspondente.
-type EdicaoArea = { tipo: 'mover' | 'alca'; id: string; indice: number } | null
+// vértice pela alça correspondente. Elipse com modelo uso `extra` como
+// semântica da alça (tamanho = escala uniforme pela SE; rx/ry = eixos).
+type EdicaoArea = {
+  tipo: 'mover' | 'alca'
+  id: string
+  indice: number
+  extra: 'tamanho' | 'rx' | 'ry' | null
+} | null
+
+// Ordem das alças do modelo de elipse: E, W (rx) / N, S (ry) / SE (tamanho).
+const EXTRAS_DA_ELIPSE: ['rx', 'rx', 'ry', 'ry', 'tamanho'] = ['rx', 'rx', 'ry', 'ry', 'tamanho']
 
 export const CENTRO_LITORAL_PI: [number, number] = [-41.75, -2.9]
 export const ZOOM_INICIAL = 6
@@ -342,6 +351,10 @@ export function MapView({
   const anelOriginalRef = useRef<number[][]>([])
   const poligonoEdicaoRef = useRef<number[][]>([])
   const alcasSvgRef = useRef<SVGSVGElement | null>(null)
+  // Modelo de elipse da área em edição: snapshot inicial (para fator/clamp)
+  // e vivo (atualizado pelo gesto); o espelho em state alimenta o render.
+  const modeloInicialRef = useRef<ModeloElipse | null>(null)
+  const modeloEdicaoRef = useRef<ModeloElipse | null>(null)
   const areasRef = useRef<AreaDesenhada[]>([])
   const pontoAtivoRef = useRef<PontoDaArea | null>(null)
   const bolhaAreaRef = useRef(false)
@@ -378,6 +391,7 @@ export function MapView({
   const [sobreArea, setSobreArea] = useState(false)
   const [edicao, setEdicao] = useState<EdicaoArea>(null)
   const [poligonoEdicao, setPoligonoEdicao] = useState<number[][] | null>(null)
+  const [modeloEdicao, setModeloEdicao] = useState<ModeloElipse | null>(null)
   const [pontoAtivo, setPontoAtivo] = useState<PontoDaArea | null>(null)
   const [posicoesPontos, setPosicoesPontos] = useState<Record<string, { x: number; y: number }>>({})
   const baixadosPrefetchRef = useRef<Set<string>>(new Set())
@@ -518,7 +532,7 @@ export function MapView({
     setPosArea({ x: projetado.x, y: projetado.y })
   }, [])
 
-  const telaDoEvento = (evento: MouseEvento<HTMLDivElement>): { x: number; y: number } => {
+  const telaDoEvento = (evento: { clientX: number; clientY: number }): { x: number; y: number } => {
     const rect = containerRef.current?.getBoundingClientRect()
     return {
       x: evento.clientX - (rect?.left ?? 0),
@@ -526,7 +540,7 @@ export function MapView({
     }
   }
 
-  const telaDeJanela = (evento: MouseEvent): { x: number; y: number } => {
+  const telaDeJanela = (evento: { clientX: number; clientY: number }): { x: number; y: number } => {
     const rect = containerRef.current?.getBoundingClientRect()
     return {
       x: evento.clientX - (rect?.left ?? 0),
@@ -548,15 +562,26 @@ export function MapView({
   }, [])
 
   const iniciarEdicao = useCallback(
-    (tipo: 'mover' | 'alca', id: string, indice: number, tela: { x: number; y: number } | null) => {
+    (
+      tipo: 'mover' | 'alca',
+      id: string,
+      indice: number,
+      tela: { x: number; y: number } | null,
+      extra: 'tamanho' | 'rx' | 'ry' | null = null,
+    ) => {
       const area = areasRef.current.find((item) => item.id === id)
       const anel = area?.polygon.coordinates[0]
       if (!area || !anel?.length) {
         return
       }
-      edicaoRef.current = { tipo, id, indice }
+      edicaoRef.current = { tipo, id, indice, extra }
       anelOriginalRef.current = anel.map((ponto) => [...ponto])
       poligonoEdicaoRef.current = anel.map((ponto) => [...ponto])
+      modeloInicialRef.current = area.modelo
+        ? { ...area.modelo, centro: [...area.modelo.centro] as [number, number] }
+        : null
+      modeloEdicaoRef.current = modeloInicialRef.current
+      setModeloEdicao(modeloInicialRef.current)
       inicioEdicaoRef.current = tela ? { tela } : null
       setEdicao(edicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
@@ -594,6 +619,24 @@ export function MapView({
     [areaAtivaId],
   )
 
+  // Posições (tela) das 5 alças do modelo: E, W, N, S e SE — MESMA ordem do
+  // render e do reposicionamento imperativo.
+  const pontosDaElipse = useCallback((modelo: ModeloElipse): { x: number; y: number }[] => {
+    const mapa = mapRef.current
+    if (!mapa) {
+      return []
+    }
+    const [cx, cy] = modelo.centro
+    const fator = Math.SQRT2 / 2
+    return [
+      mapa.project([cx + modelo.rx, cy]),
+      mapa.project([cx - modelo.rx, cy]),
+      mapa.project([cx, cy - modelo.ry]),
+      mapa.project([cx, cy + modelo.ry]),
+      mapa.project([cx + modelo.rx * fator, cy + modelo.ry * fator]),
+    ] as { x: number; y: number }[]
+  }, [])
+
   // Reposiciona os círculos das alças IMPERATIVAMENTE no mesmo tick do setData:
   // sem isso, o commit do React (assíncrono) os deixa ~1 frame atrás do fill.
   // Ordem dos círculos = mesma do render (.slice(0, -1) do anel editado); o
@@ -608,13 +651,18 @@ export function MapView({
     if (!ativa) {
       return
     }
-    const anel = poligonoEdicaoRef.current
-    if (!anel.length) {
-      return
+    let pontos: { x: number; y: number }[] = []
+    if (modeloEdicaoRef.current) {
+      pontos = pontosDaElipse(modeloEdicaoRef.current)
+    } else {
+      const anel = poligonoEdicaoRef.current
+      if (!anel.length) {
+        return
+      }
+      pontos = anel
+        .slice(0, -1)
+        .map((vertice) => mapa.project(vertice as [number, number]) as { x: number; y: number })
     }
-    const pontos = anel
-      .slice(0, -1)
-      .map((vertice) => mapa.project(vertice as [number, number]) as { x: number; y: number })
     const circulos = svg.querySelectorAll('circle')
     pontos.forEach((ponto, indice) => {
       const circulo = circulos[indice] as SVGCircleElement | undefined
@@ -624,7 +672,14 @@ export function MapView({
       circulo.setAttribute('cx', String(ponto.x))
       circulo.setAttribute('cy', String(ponto.y))
     })
-  }, [])
+  }, [pontosDaElipse])
+
+  // Mínimo de ~3px convertido para graus (eixo x) — piso dos raios ao editar.
+  const grausPorPixel = useCallback(() => {
+    const origem = coordenadaDaTela({ x: 0, y: 0 })
+    const offset = coordenadaDaTela({ x: 3, y: 0 })
+    return Math.abs(offset[0] - origem[0])
+  }, [coordenadaDaTela])
 
   const finalizarEdicao = useCallback(() => {
     const ativa = edicaoRef.current
@@ -633,7 +688,11 @@ export function MapView({
     }
     edicaoRef.current = null
     inicioEdicaoRef.current = null
+    const modeloFinal = modeloEdicaoRef.current
+    modeloInicialRef.current = null
+    modeloEdicaoRef.current = null
     setEdicao(null)
+    setModeloEdicao(null)
     setPoligonoEdicao(null)
     mapRef.current?.dragPan?.enable?.()
     const novos = poligonoEdicaoRef.current
@@ -648,13 +707,18 @@ export function MapView({
     setAreas((atuais) =>
       atuais.map((area) =>
         area.id === ativa.id
-          ? { ...area, polygon: { type: 'Polygon', coordinates: [novos] }, areaKm2: km2 }
+          ? {
+              ...area,
+              polygon: { type: 'Polygon', coordinates: [novos] },
+              areaKm2: km2,
+              ...(modeloFinal ? { modelo: modeloFinal } : {}),
+            }
           : area,
       ),
     )
   }, [])
 
-  const registrarArea = (anel: number[][]) => {
+  const registrarArea = (anel: number[][], modelo?: ModeloElipse) => {
     if (anel.length < 4) {
       return
     }
@@ -665,6 +729,7 @@ export function MapView({
       nome: `Área ${id}`,
       polygon: { type: 'Polygon', coordinates: [anel] },
       areaKm2: areaKm2(anel),
+      ...(modelo ? { modelo } : {}),
     }
     setAreas((atuais) => [...atuais, nova])
     setMedicao(null)
@@ -766,14 +831,22 @@ export function MapView({
     if (raio < 3) {
       return
     }
-    const vertices = Array.from({ length: 32 }, (_, indice) => {
-      const angulo = (indice / 32) * Math.PI * 2
-      return coordenadaDaTela({
-        x: inicio.tela.x + raio * Math.cos(angulo),
-        y: inicio.tela.y + raio * Math.sin(angulo),
-      })
+    // Círculo com modelo de elipse: centro = origem do arrasto; raios em graus
+    // repondo um offset de tela do próprio raio (PREMISSA: distorção da
+    // latitude aceitável para a demo). O anel é gerado pela util compartilhada.
+    const centro = coordenadaDaTela(inicio.tela)
+    const rx = Math.abs(
+      coordenadaDaTela({ x: inicio.tela.x + raio, y: inicio.tela.y })[0] - centro[0],
+    )
+    const ry = Math.abs(
+      coordenadaDaTela({ x: inicio.tela.x, y: inicio.tela.y + raio })[1] - centro[1],
+    )
+    registrarArea(anelDaElipse(centro, rx, ry, 32), {
+      tipo: 'elipse',
+      centro,
+      rx,
+      ry,
     })
-    registrarArea([...vertices, vertices[0]])
   }
 
   useEffect(() => {
@@ -999,10 +1072,57 @@ export function MapView({
         const coordInicial = coordenadaDaTela(inicio.tela)
         const dLon = coordAtual[0] - coordInicial[0]
         const dLat = coordAtual[1] - coordInicial[1]
-        poligonoEdicaoRef.current = anelOriginalRef.current.map((vertice) => [
-          vertice[0] + dLon,
-          vertice[1] + dLat,
-        ])
+        const modelo = modeloInicialRef.current
+        if (modelo) {
+          // Elipse: translada o CENTRO do modelo e regenera o anel pela util.
+          const novo: ModeloElipse = {
+            ...modelo,
+            centro: [modelo.centro[0] + dLon, modelo.centro[1] + dLat],
+          }
+          modeloEdicaoRef.current = novo
+          setModeloEdicao(novo)
+          poligonoEdicaoRef.current = anelDaElipse(novo.centro, novo.rx, novo.ry)
+        } else {
+          poligonoEdicaoRef.current = anelOriginalRef.current.map((vertice) => [
+            vertice[0] + dLon,
+            vertice[1] + dLat,
+          ])
+        }
+      } else if (ativa.extra && modeloInicialRef.current) {
+        // Alça SEMÂNTICA da elipse: E/W mexe só o rx, N/S só o ry e SE escala
+        // os dois raios PELO MESMO fator (distância centro→cursor; piso ~3px).
+        const modelo = modeloInicialRef.current
+        const cursor = coordenadaDaTela(tela)
+        const minimo = grausPorPixel()
+        let novo: ModeloElipse | null = null
+        if (ativa.extra === 'rx') {
+          novo = { ...modelo, rx: Math.max(minimo, Math.abs(cursor[0] - modelo.centro[0])) }
+        } else if (ativa.extra === 'ry') {
+          novo = { ...modelo, ry: Math.max(minimo, Math.abs(cursor[1] - modelo.centro[1])) }
+        } else {
+          const inicio = inicioEdicaoRef.current
+          if (!inicio) {
+            return
+          }
+          const origem = coordenadaDaTela(inicio.tela)
+          const distInicial = Math.hypot(
+            origem[0] - modelo.centro[0],
+            origem[1] - modelo.centro[1],
+          )
+          if (distInicial <= 0) {
+            return
+          }
+          const distAtual = Math.hypot(cursor[0] - modelo.centro[0], cursor[1] - modelo.centro[1])
+          const fator = distAtual / distInicial
+          novo = {
+            ...modelo,
+            rx: Math.max(minimo, modelo.rx * fator),
+            ry: Math.max(minimo, modelo.ry * fator),
+          }
+        }
+        modeloEdicaoRef.current = novo
+        setModeloEdicao(novo)
+        poligonoEdicaoRef.current = anelDaElipse(novo.centro, novo.rx, novo.ry)
       } else {
         const vertice = coordenadaDaTela(tela)
         const anel = anelOriginalRef.current.map((ponto, indice) =>
@@ -1028,7 +1148,7 @@ export function MapView({
       window.removeEventListener('mousemove', aoMover)
       window.removeEventListener('mouseup', aoSoltar)
     }
-  }, [edicao, coordenadaDaTela, finalizarEdicao, atualizarAreaAoVivo, reposicionarAlcas])
+  }, [edicao, coordenadaDaTela, grausPorPixel, finalizarEdicao, atualizarAreaAoVivo, reposicionarAlcas])
 
   // Se o ponto do pin some do escopo (área apagada, troca de filtro que
   // removeu o ponto), fechar pin remove tudo: pin + bolha.
@@ -1490,6 +1610,24 @@ export function MapView({
   }
 
   const poligonoEmEdicao = poligonoEdicao ?? areaEmDestaque?.polygon.coordinates[0] ?? null
+  // Modelo já COMMITADO na área vence fora do gesto; durante o gesto, o vivo.
+  const modeloDestaque = modeloEdicao ?? areaEmDestaque?.modelo ?? null
+  let alcasDaArea: { x: number; y: number }[] = []
+  if (areaEmDestaque && modo === 'arrastar' && (areaAtivaId === areaEmDestaque.id || !areaAtivaId)) {
+    if (modeloDestaque) {
+      alcasDaArea = pontosDaElipse(modeloDestaque)
+    } else if (poligonoEmEdicao) {
+      alcasDaArea = (poligonoEmEdicao ?? [])
+        .slice(0, -1)
+        .map(
+          (vertice) =>
+            mapRef.current?.project(vertice as [number, number]) as
+              | { x: number; y: number }
+              | undefined,
+        )
+        .filter((ponto): ponto is { x: number; y: number } => Boolean(ponto))
+    }
+  }
 
   return (
     <div data-testid="mapa" className="absolute inset-0">
@@ -1565,15 +1703,14 @@ export function MapView({
           className="pointer-events-none absolute inset-0 z-10 h-full w-full"
           aria-hidden="true"
         >
-          {(poligonoEmEdicao ?? areaEmDestaque.polygon.coordinates[0] ?? []).slice(0, -1).map((vertice, indice) => {
-            const projetado = mapRef.current?.project(vertice as [number, number]) ?? { x: 0, y: 0 }
+          {alcasDaArea.map((alca, indice) => {
             return (
               <circle
                 key={`${areaEmDestaque.id}-alca-${indice}`}
                 data-testid={`alca-${indice}`}
                 data-editando={edicao ? 'true' : 'false'}
-                cx={projetado.x}
-                cy={projetado.y}
+                cx={alca.x}
+                cy={alca.y}
                 r={5}
                 fill="#ffffff"
                 stroke="#0f766e"
@@ -1581,7 +1718,13 @@ export function MapView({
                 className="pointer-events-auto cursor-move"
                 onMouseDown={(evento) => {
                   evento.stopPropagation()
-                  iniciarEdicao('alca', areaEmDestaque.id, indice, null)
+                  iniciarEdicao(
+                    'alca',
+                    areaEmDestaque.id,
+                    indice,
+                    modeloDestaque ? telaDoEvento(evento) : null,
+                    modeloDestaque ? EXTRAS_DA_ELIPSE[indice] : null,
+                  )
                 }}
               />
             )
