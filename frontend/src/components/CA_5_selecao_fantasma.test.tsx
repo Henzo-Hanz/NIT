@@ -6,6 +6,8 @@ import { MapView } from './MapView'
 const estadoMapa = vi.hoisted(() => ({
   instancias: [] as any[],
   disparoImediato: true,
+  // Fonte 'area-desenhada' controlável por teste (null = mapa sem fonte).
+  fonte: null as { setData: ReturnType<typeof vi.fn> } | null,
 }))
 
 vi.mock('maplibre-gl', () => {
@@ -20,7 +22,7 @@ vi.mock('maplibre-gl', () => {
     setLayoutProperty = vi.fn()
     project = vi.fn((coordenadas: [number, number]) => ({ x: coordenadas[0], y: coordenadas[1] }))
     unproject = vi.fn(([x, y]: [number, number]) => [x, y])
-    getSource = vi.fn().mockImplementation(() => null)
+    getSource = vi.fn(() => estadoMapa.fonte)
     dragPan = { enable: vi.fn(), disable: vi.fn() }
     remove = vi.fn()
     on = (evento: string, cb: (evento?: unknown) => void) => {
@@ -67,6 +69,7 @@ const borracha = () => {
   cleanup()
   document.body.innerHTML = ''
   estadoMapa.instancias.length = 0
+  estadoMapa.fonte = null
   vi.unstubAllGlobals()
   vi.clearAllMocks()
 }
@@ -87,11 +90,11 @@ async function desenharTriangulo(usuario: ReturnType<typeof userEvent.setup>) {
   return container
 }
 
-// Lapidação 7: seleção de área com estado VISÍVEL distinto (data-selecionada +
-// destaque âmbar no painel e no polígono) e fantasma em tempo real durante o
-// mover — contorno tracejado translúcido que acompanha o arraste e some ao
-// soltar (a reconsulta de sempre permanece).
-describe('CA-5: seleção de área e fantasma do mover', () => {
+// Lapidação 10: seleção de área com estado VISÍVEL distinto (data-selecionada +
+// destaque âmbar no painel e no polígono) e desenho AO VIVO na edição — o anel
+// editado é empurrado direto na fonte 'area-desenhada' (setData) conforme o
+// vértice/lugar se move; a gravação definitiva só acontece ao soltar.
+describe('CA-5: seleção de área e desenho ao vivo na edição', () => {
   it('clicar na área no painel marca SELECIONADA no painel e no polígono', async () => {
     const usuario = userEvent.setup()
     const container = await desenharTriangulo(usuario)
@@ -119,36 +122,66 @@ describe('CA-5: seleção de área e fantasma do mover', () => {
     expect(screen.getByTestId('area-item-1')).toHaveAttribute('data-selecionada', 'false')
   })
 
-  it('o fantasma acompanha o mover ao vivo e some ao soltar, com a reconsulta intacta', async () => {
+  it('o desenho acompanha o mover AO VIVO via setData e grava o polígono só ao soltar', async () => {
     const usuario = userEvent.setup()
     const fetchFake = configurarFetch()
+    const fonte = { setData: vi.fn() }
+    estadoMapa.fonte = fonte
     const container = await desenharTriangulo(usuario)
-    await usuario.click(screen.getByTestId('selecionar-area-1'))
     await usuario.click(screen.getByTestId('ferramenta-arrastar'))
 
+    // Sem fantasma SVG: o desenho ao vivo acontece na fonte do próprio mapa.
     expect(screen.queryByTestId('fantasma-area')).toBeNull()
 
     // (18,12) está dentro do triângulo: começa o mover.
     fireEvent.mouseDown(container, { clientX: 18, clientY: 12 })
     expect(container).toHaveAttribute('data-editando', 'true')
 
-    const fantasma = screen.getByTestId('fantasma-area')
-    const contorno = (el: HTMLElement) => el.querySelector('polyline') as SVGPolylineElement
-    expect(contorno(fantasma)).toHaveAttribute('points', '10,10 30,10 20,20 10,10')
-    expect(contorno(fantasma)).toHaveAttribute('stroke-dasharray', '6 4')
+    // DURANTE o gesto: o estado `areas` NÃO muda (o polígono gravado segue antigo).
+    const anelGravado = container.getAttribute('data-poligono-desenhado') as string
+    const chamadasAntes = fonte.setData.mock.calls.length
+    fireEvent.mouseMove(window, { clientX: 23, clientY: 17 }) // translação (+5,+5)
+    expect(container.getAttribute('data-poligono-desenhado')).toBe(anelGravado)
 
-    // Formas de arrematar: a mãozinha vai em (+5,+5); o contorno acompanha
-    // direto no overlay (translação de todos os vértices).
-    fireEvent.mouseMove(window, { clientX: 23, clientY: 17 })
-    expect(contorno(fantasma)).toHaveAttribute('points', '15,15 35,15 25,25 15,15')
-    expect(contorno(fantasma)).toHaveAttribute('fill', 'rgba(217,119,6,0.15)')
+    // AO VIVO: setData com TODAS as áreas, a editada pelo anel transladado.
+    expect(fonte.setData.mock.calls.length).toBeGreaterThan(chamadasAntes)
+    const dadosAoVivo = fonte.setData.mock.calls.at(-1)?.[0]
+    expect(dadosAoVivo.type).toBe('FeatureCollection')
+    expect(dadosAoVivo.features).toHaveLength(1)
+    expect(dadosAoVivo.features[0].properties).toEqual({ id: '1', nome: 'Área 1', ativa: false })
+    expect(dadosAoVivo.features[0].geometry.coordinates[0]).toEqual([
+      [15, 15],
+      [35, 15],
+      [25, 25],
+      [15, 15],
+    ])
 
-    // Ao soltar: fantasma removido e a reconsulta recebe o polígono novo.
+    // Ao soltar: gravação definitiva no estado `areas` (idempotente na fonte).
     fireEvent.mouseUp(window)
     expect(container).not.toHaveAttribute('data-editando')
-    await vi.waitFor(() => {
-      expect(screen.queryByTestId('fantasma-area')).toBeNull()
+    const movido = JSON.stringify({
+      type: 'Polygon',
+      coordinates: [
+        [
+          [15, 15],
+          [35, 15],
+          [25, 25],
+          [15, 15],
+        ],
+      ],
     })
+    await vi.waitFor(() => {
+      expect(container.getAttribute('data-poligono-desenhado')).toBe(movido)
+    })
+    const dadosFinal = fonte.setData.mock.calls.at(-1)?.[0]
+    expect(dadosFinal.features[0].geometry.coordinates[0]).toEqual([
+      [15, 15],
+      [35, 15],
+      [25, 25],
+      [15, 15],
+    ])
+
+    // A reconsulta recebe o polígono novo.
     await vi.waitFor(() => {
       const chamadas = consultas(fetchFake)
       expect(chamadas.length).toBeGreaterThanOrEqual(2)
