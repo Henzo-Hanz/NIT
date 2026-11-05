@@ -151,6 +151,27 @@ describe('CA-6: busca por nome na listagem de espécies (FTS no servidor)', () =
     expect(screen.queryByTestId('busca-vazia')).toBeNull()
   })
 
+  it('hero compacto com total e grade unica de grupos (1/2/3 colunas)', async () => {
+    const usuario = userEvent.setup()
+    const fetchFake = await abrirPagina(usuario)
+    expect(await screen.findByTestId('card-especie-caranguejo-uca')).toBeInTheDocument()
+
+    // Hero: titulo grande + subtitulo muted + badge solida com o TOTAL do catalogo.
+    expect(screen.getByTestId('especies-hero')).toBeInTheDocument()
+    expect(screen.getByTestId('especies-titulo').className).toContain('text-3xl')
+    const total = screen.getByTestId('especies-total')
+    expect(total).toHaveTextContent(/^3$/)
+    expect(total.className).toContain('bg-accent')
+
+    // Grade unica: os 3 grupos dividem a MESMA linha (lg), colunas menores md/mobile.
+    const grade = screen.getByTestId('especies-grid')
+    expect(grade.className).toContain('grid-cols-1')
+    expect(grade.className).toContain('md:grid-cols-2')
+    expect(grade.className).toContain('lg:grid-cols-3')
+
+    expect(chamadasLista(fetchFake)).toHaveLength(1)
+  })
+
   it('termo com acento é codificado na query (encodeURIComponent) e a resposta pinta', async () => {
     const usuario = userEvent.setup()
     const fetchFake = await abrirPagina(usuario)
