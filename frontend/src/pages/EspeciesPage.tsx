@@ -16,15 +16,6 @@ const ROTULO_GRUPO: Record<string, string> = {
 }
 const GRUPO_SEM_INFO = 'Outras espécies'
 
-// "Full text" no cliente: sem acento e sem caixa, casando em qualquer trecho
-// do nome popular ou científico (a lista inteira já está carregada).
-function normalizar(texto: string) {
-  return texto
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-}
-
 function agrupar(especies: EspecieResumo[]) {
   const porGrupo = new Map<string, EspecieResumo[]>()
   for (const item of especies) {
@@ -52,34 +43,58 @@ export function EspeciesPage() {
   const [indisponivel, setIndisponivel] = useState(false)
   const [slugAberto, setSlugAberto] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
+  // Busca no SERVIDOR (FTS com ?q=): debounce de 300ms e respostas obsoletas
+  // descartadas por contador — enquanto uma busca carrega, a lista anterior
+  // continua pintada (sem flash). `termoAplicadoRef` evita refetch no mount e
+  // dispara recarga da lista completa quando a busca volta a zero caracteres.
+  const pedidoRef = useRef(0)
+  const termoAplicadoRef = useRef<string | null>(null)
   const trilhos = useRef<Record<string, HTMLDivElement | null>>({})
   const navegar = useNavigate()
 
   useEffect(() => {
-    let vivo = true
+    pedidoRef.current += 1
+    const pedido = pedidoRef.current
     buscarEspecies().then((dados) => {
-      if (!vivo) {
+      if (pedido !== pedidoRef.current) {
         return
       }
+      termoAplicadoRef.current = ''
       if (dados) {
         setEspecies(dados)
       } else {
         setIndisponivel(true)
       }
     })
-    return () => {
-      vivo = false
-    }
   }, [])
 
-  const termo = normalizar(busca.trim())
-  const filtradas = (especies ?? []).filter(
-    (item) =>
-      !termo ||
-      normalizar(item.nome_popular).includes(termo) ||
-      normalizar(item.nome_cientifico ?? '').includes(termo),
-  )
-  const grupos = agrupar(filtradas)
+  useEffect(() => {
+    const termo = busca.trim()
+    if (termo === termoAplicadoRef.current) {
+      return
+    }
+    const temporizador = setTimeout(() => {
+      termoAplicadoRef.current = termo
+      pedidoRef.current += 1
+      const pedido = pedidoRef.current
+      buscarEspecies(termo || undefined).then((dados) => {
+        if (pedido !== pedidoRef.current) {
+          return
+        }
+        if (dados) {
+          setEspecies(dados)
+          setIndisponivel(false)
+        } else {
+          setIndisponivel(true)
+        }
+      })
+    }, 300)
+    return () => {
+      clearTimeout(temporizador)
+    }
+  }, [busca])
+
+  const grupos = agrupar(especies ?? [])
 
   const rolar = (chave: string, direcao: 1 | -1) => {
     const trilho = trilhos.current[chave]
@@ -210,7 +225,7 @@ export function EspeciesPage() {
           </div>
         ))}
 
-        {especies !== null && filtradas.length === 0 && (
+        {especies !== null && especies.length === 0 && !indisponivel && (
           <p
             data-testid="busca-vazia"
             className="rounded-xl border bg-card p-4 text-center text-sm text-muted-foreground"

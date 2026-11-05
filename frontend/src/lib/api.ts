@@ -52,9 +52,15 @@ export async function buscarPing(): Promise<SeloStatus> {
   }
 }
 
-export async function buscarEspecies(): Promise<EspecieResumo[] | null> {
+// Busca FTS do servidor: com termo, GET /api/especies/?q= (rank no backend);
+// sem termo, lista completa como sempre.
+export async function buscarEspecies(termo?: string): Promise<EspecieResumo[] | null> {
   try {
-    const resposta = await fetch('/api/especies/')
+    const consultado = termo?.trim()
+    const rota = consultado
+      ? `/api/especies/?q=${encodeURIComponent(consultado)}`
+      : '/api/especies/'
+    const resposta = await fetch(rota)
     if (!resposta.ok) {
       return null
     }
