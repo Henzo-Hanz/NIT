@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ArrowLeft, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { ArrowLeft, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CarrosselEspecie } from '@/components/CarrosselEspecie'
 import { EspecieModal } from '@/components/EspecieModal'
-import { FotoEspecie } from '@/components/FotoEspecie'
 import { buscarEspecies, type EspecieResumo } from '@/lib/api'
 
 // Ordem fixa dos carrosséis; qualquer grupo fora dela cai no fim, na ordem em
-// que o backend mandar. Rótulos no plural para o título do trilho.
+// que o backend mandar. Rótulos no plural para o título do painel.
 const ORDEM_GRUPOS = ['Crustáceo', 'Ave', 'Peixe']
 const ROTULO_GRUPO: Record<string, string> = {
   Crustáceo: 'Crustáceos',
@@ -49,7 +49,6 @@ export function EspeciesPage() {
   // dispara recarga da lista completa quando a busca volta a zero caracteres.
   const pedidoRef = useRef(0)
   const termoAplicadoRef = useRef<string | null>(null)
-  const trilhos = useRef<Record<string, HTMLDivElement | null>>({})
   const navegar = useNavigate()
 
   useEffect(() => {
@@ -95,14 +94,6 @@ export function EspeciesPage() {
   }, [busca])
 
   const grupos = agrupar(especies ?? [])
-
-  const rolar = (chave: string, direcao: 1 | -1) => {
-    const trilho = trilhos.current[chave]
-    if (!trilho) {
-      return
-    }
-    trilho.scrollBy({ left: direcao * trilho.clientWidth * 0.8, behavior: 'smooth' })
-  }
 
   return (
     <section
@@ -158,68 +149,13 @@ export function EspeciesPage() {
         )}
 
         {grupos.map((grupo) => (
-          <div key={grupo.chave} className="mb-8" data-testid={`carrossel-${grupo.chave}`}>
-            <div className="mb-2 flex items-end justify-between gap-3">
-              <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                {grupo.titulo}
-                <span className="ml-2 font-medium tabular-nums text-muted-foreground/60">
-                  {grupo.itens.length}
-                </span>
-              </h2>
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  aria-label={`Anteriores em ${grupo.titulo}`}
-                  onClick={() => rolar(grupo.chave, -1)}
-                  className="grid size-7 place-items-center rounded-full border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  <ChevronLeft className="size-4" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Próximas em ${grupo.titulo}`}
-                  onClick={() => rolar(grupo.chave, 1)}
-                  className="grid size-7 place-items-center rounded-full border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  <ChevronRight className="size-4" aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-            <div
-              ref={(elemento) => {
-                trilhos.current[grupo.chave] = elemento
-              }}
-              className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-2 no-scrollbar"
-            >
-              {grupo.itens.map((item) => (
-                <button
-                  key={item.slug}
-                  type="button"
-                  data-testid={`card-especie-${item.slug}`}
-                  onClick={() => setSlugAberto(item.slug)}
-                  className="group w-52 shrink-0 snap-start overflow-hidden rounded-xl border bg-card text-left shadow-sm transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  <div className="relative h-36 w-full overflow-hidden bg-muted">
-                    <FotoEspecie
-                      slug={item.slug}
-                      imagem={item.imagem}
-                      alt={item.nome_popular}
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    {/* Nome sobre a foto: bloco sólido translúcido alinhado à
-                        esquerda, legível sobre a foto — sem folheio suave. */}
-                    <div className="absolute bottom-3 left-3 right-3 rounded-md bg-black/55 px-3 py-1.5 text-left">
-                      <span className="block truncate text-sm font-semibold text-white">
-                        {item.nome_popular}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="min-h-[2.25rem] truncate px-3 py-2 text-[11px] italic text-muted-foreground">
-                    {item.nome_cientifico ?? ''}
-                  </p>
-                </button>
-              ))}
-            </div>
+          <div key={grupo.chave} className="mb-8">
+            <CarrosselEspecie
+              testid={`carrossel-${grupo.chave}`}
+              titulo={grupo.titulo}
+              itens={grupo.itens}
+              onAbrir={setSlugAberto}
+            />
           </div>
         ))}
 
