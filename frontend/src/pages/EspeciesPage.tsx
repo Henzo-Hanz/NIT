@@ -206,15 +206,13 @@ export function EspeciesPage() {
                       alt={item.nome_popular}
                       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
-                    {/* Sombra inferior do card: scrim curto só para o nome
-                        ficar legível sobre a foto — nada de gradiente na UI. */}
-                    <div
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/75 to-transparent"
-                    />
-                    <span className="absolute inset-x-0 bottom-0 truncate px-3 pb-2 text-sm font-semibold text-white">
-                      {item.nome_popular}
-                    </span>
+                    {/* Nome sobre a foto: bloco sólido translúcido alinhado à
+                        esquerda — nada de gradiente na UI. */}
+                    <div className="absolute bottom-3 left-3 right-3 rounded-md bg-black/55 px-3 py-1.5 text-left">
+                      <span className="block truncate text-sm font-semibold text-white">
+                        {item.nome_popular}
+                      </span>
+                    </div>
                   </div>
                   <p className="min-h-[2.25rem] truncate px-3 py-2 text-[11px] italic text-muted-foreground">
                     {item.nome_cientifico ?? ''}
