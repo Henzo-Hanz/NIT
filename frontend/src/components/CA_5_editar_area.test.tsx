@@ -6,6 +6,8 @@ import { MapView } from './MapView'
 const estadoMapa = vi.hoisted(() => ({
   instancias: [] as any[],
   disparoImediato: true,
+  // Fonte 'area-desenhada' controlável por teste (null = mapa sem fonte).
+  fonte: null as { setData: ReturnType<typeof vi.fn> } | null,
 }))
 
 vi.mock('maplibre-gl', () => {
@@ -20,7 +22,7 @@ vi.mock('maplibre-gl', () => {
     setLayoutProperty = vi.fn()
     project = vi.fn((coordenadas: [number, number]) => ({ x: coordenadas[0], y: coordenadas[1] }))
     unproject = vi.fn(([x, y]: [number, number]) => [x, y])
-    getSource = vi.fn().mockImplementation(() => null)
+    getSource = vi.fn(() => estadoMapa.fonte)
     dragPan = { enable: vi.fn(), disable: vi.fn() }
     remove = vi.fn()
     on = (evento: string, cb: (evento?: unknown) => void) => {
@@ -67,6 +69,7 @@ afterEach(() => {
   cleanup()
   document.body.innerHTML = ''
   estadoMapa.instancias.length = 0
+  estadoMapa.fonte = null
   vi.unstubAllGlobals()
   vi.clearAllMocks()
 })
@@ -131,6 +134,8 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
   it('arrastar a alça-0 move SÓ o vértice escolhido e mantém área positiva', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
+    const fonte = { setData: vi.fn() }
+    estadoMapa.fonte = fonte
     render(<MapView />)
     await usuario.click(screen.getByTestId('ferramenta-desenhar'))
 
@@ -152,7 +157,22 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
     expect(container).toHaveAttribute('data-editando', 'true')
     expect(screen.getByTestId('alca-0')).toHaveAttribute('data-editando', 'true')
 
+    // AO VIVO: o fill/contorno acompanham o vértice direto na fonte do mapa,
+    // enquanto o polígono GRAVADO (estado `areas`) só muda ao soltar.
+    const chamadasAntes = fonte.setData.mock.calls.length
     fireEvent.mouseMove(window, { clientX: 12, clientY: 19 })
+    expect(fonte.setData.mock.calls.length).toBeGreaterThan(chamadasAntes)
+    const dadosAoVivo = fonte.setData.mock.calls.at(-1)?.[0]
+    expect(dadosAoVivo.type).toBe('FeatureCollection')
+    expect(dadosAoVivo.features).toHaveLength(1)
+    expect(dadosAoVivo.features[0].properties).toEqual({ id: '1', nome: 'Área 1', ativa: false })
+    expect(dadosAoVivo.features[0].geometry.coordinates[0]).toEqual([
+      [12, 19],
+      [30, 10],
+      [20, 20],
+      [12, 19],
+    ])
+
     fireEvent.mouseUp(window)
 
     const poligono = JSON.parse(container.getAttribute('data-poligono-desenhado') as string)
