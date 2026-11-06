@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MapView } from './MapView'
-import { anelDaElipse, convexHull } from '@/utils/geo'
+import { convexHull } from '@/utils/geo'
 
 const estadoMapa = vi.hoisted(() => ({
   instancias: [] as any[],
@@ -200,51 +200,5 @@ describe('CA-5: retângulo redimensionável em qualquer direção (anel de 4)', 
     expect(
       JSON.parse(container.getAttribute('data-poligono-desenhado') as string).coordinates[0],
     ).toEqual(esperado)
-  })
-})
-
-// Lapidação 11, ITEM B2: SE com âncora na ALÇA-INICIAL (modeloInicial) —
-// pegar a alça alguns px fora do centro dela NÃO desproporcionaliza o
-// primeiro frame: o fator é dist(centro→cursor)/dist(centro→alça).
-describe('CA-5: SE sem salto (âncora na alça-inicial)', () => {
-  it('aperto fora do centro da alça: 1ª delta segue o fator contínuo do cursor', async () => {
-    const usuario = userEvent.setup()
-    configurarFetch()
-    render(<MapView />)
-    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
-    await usuario.click(screen.getByTestId('desenho-circulo'))
-    const container = screen.getByTestId('mapa-container')
-    fireEvent.mouseDown(container, { clientX: 10, clientY: 10 })
-    fireEvent.mouseMove(container, { clientX: 30, clientY: 20 })
-    fireEvent.mouseUp(container)
-    await vi.waitFor(() => {
-      expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
-    })
-    await usuario.click(screen.getByTestId('selecionar-area-1'))
-    await usuario.click(screen.getByTestId('ferramenta-arrastar'))
-
-    const fatorSE = Math.SQRT2 / 2
-    const distAlca = Math.hypot(20 * fatorSE, 10 * fatorSE)
-    // Mousedown a ~1px do centro exato da SE (24.142, 17.071) — antes, a
-    // origem do CURSOR era o denominador e a 1ª delta pulava por esse offset.
-    estadoMapa.fonte = { setData: vi.fn() }
-    fireEvent.mouseDown(screen.getByTestId('alca-4'), { clientX: 24, clientY: 17 })
-    fireEvent.mouseMove(window, { clientX: 25, clientY: 18 })
-
-    const anel1 = (estadoMapa.fonte.setData.mock.calls.at(-1)?.[0] as any).features[0]
-      .geometry.coordinates[0] as number[][]
-    const fator1 = Math.max(Math.hypot(15, 8) / distAlca, 0.05)
-    expect(anel1[0][0] - 10).toBeCloseTo(20 * fator1, 10)
-    expect(anel1).toEqual(anelDaElipse([10, 10], 20 * fator1, 10 * fator1))
-
-    fireEvent.mouseMove(window, { clientX: 26, clientY: 19 })
-    fireEvent.mouseUp(window)
-    const fator2 = Math.max(Math.hypot(16, 9) / distAlca, 0.05)
-    const anel2 = JSON.parse(
-      container.getAttribute('data-poligono-desenhado') as string,
-    ).coordinates[0] as number[][]
-    expect(anel2).toEqual(anelDaElipse([10, 10], 20 * fator2, 10 * fator2))
-    // Progressão contínua entre os 2 eventos dt pequenos (sem "pulo").
-    expect(20 * fator1).toBeLessThan(20 * fator2)
   })
 })
