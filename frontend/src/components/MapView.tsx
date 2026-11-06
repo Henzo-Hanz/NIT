@@ -1129,8 +1129,9 @@ export function MapView({
           ])
         }
       } else if (ativa.extra && modeloInicialRef.current) {
-        // Alça SEMÂNTICA da elipse: E/W mexe só o rx, N/S só o ry e SE escala
-        // os dois raios PELO MESMO fator (distância centro→cursor; piso ~3px).
+        // Alça SEMÂNTICA da elipse: E/W mexe só o rx e N/S só o ry (abs já
+        // robusto — cruzar o centro trava no piso, sem espelhar), e SE escala
+        // os dois raios PELO MESMO fator (distância da alça-inicial; piso ~3px).
         const modelo = modeloInicialRef.current
         const cursor = coordenadaDaTela(tela)
         const minimo = grausPorPixels(3)
@@ -1140,20 +1141,20 @@ export function MapView({
         } else if (ativa.extra === 'ry') {
           novo = { ...modelo, ry: Math.max(minimo, Math.abs(cursor[1] - modelo.centro[1])) }
         } else {
-          const inicio = inicioEdicaoRef.current
-          if (!inicio) {
-            return
-          }
-          const origem = coordenadaDaTela(inicio.tela)
-          const distInicial = Math.hypot(
-            origem[0] - modelo.centro[0],
-            origem[1] - modelo.centro[1],
-          )
-          if (distInicial <= 0) {
+          // Lapidação 11: o fator vem da distância da ALÇA-INICIAL (SE do
+          // modeloInicial) ao centro — não da posição do cursor no mousedown.
+          // Assim a 1ª delta não pula (o cursor pode pegar a alça alguns px
+          // fora do seu centro exato); clamp max(fator, 0.05).
+          const alca: [number, number] = [
+            modelo.centro[0] + modelo.rx * FATOR_SE,
+            modelo.centro[1] + modelo.ry * FATOR_SE,
+          ]
+          const distAlca = Math.hypot(alca[0] - modelo.centro[0], alca[1] - modelo.centro[1])
+          if (distAlca <= 0) {
             return
           }
           const distAtual = Math.hypot(cursor[0] - modelo.centro[0], cursor[1] - modelo.centro[1])
-          const fator = distAtual / distInicial
+          const fator = Math.max(distAtual / distAlca, 0.05)
           novo = {
             ...modelo,
             rx: Math.max(minimo, modelo.rx * fator),
@@ -1164,15 +1165,49 @@ export function MapView({
         setModeloEdicao(novo)
         poligonoEdicaoRef.current = anelDaElipse(novo.centro, novo.rx, novo.ry)
       } else {
+        const original = anelOriginalRef.current
         const vertice = coordenadaDaTela(tela)
-        const anel = anelOriginalRef.current.map((ponto, indice) =>
-          indice === ativa.indice ? vertice : ponto,
-        )
-        // O anel é fechado: a alça 0 também define o vértice final.
-        if (ativa.indice === 0 && anel.length > 0) {
-          anel[anel.length - 1] = [...vertice]
+        // PREMISSA (lapidação 11): anel de 4 vértices fechado (5 pontos) é um
+        // RETÂNGULO — puxar QUALQUER canto o redimensiona em qualquer direção,
+        // com o canto OPOSTO ancorado e o rect recomputado pelo cursor (clamp
+        // mínimo ~4px por eixo, sem virar/interseção própria — abs trava).
+        // Polígonos livres (5+ vértices) e triângulos MANTÊM o movimento de
+        // vértice atual.
+        if (original.length === 5) {
+          const indiceCanto = ((ativa.indice % 4) + 4) % 4
+          const oposto = original[(indiceCanto + 2) % 4]
+          const dx = vertice[0] - oposto[0]
+          const dy = vertice[1] - oposto[1]
+          const minX = grausPorPixels(4, 'x')
+          const minY = grausPorPixels(4, 'y')
+          const canto: [number, number] = [
+            Math.abs(dx) < minX ? oposto[0] + Math.sign(dx || 1) * minX : vertice[0],
+            Math.abs(dy) < minY ? oposto[1] + Math.sign(dy || 1) * minY : vertice[1],
+          ]
+          const anel: number[][] = []
+          for (let passo = 0; passo < 4; passo += 1) {
+            const posicao = (indiceCanto + passo) % 4
+            anel[posicao] =
+              passo === 0
+                ? canto
+                : passo === 2
+                  ? [...oposto]
+                  : passo === 1
+                    ? [canto[0], oposto[1]]
+                    : [oposto[0], canto[1]]
+          }
+          anel.push([...anel[0]])
+          poligonoEdicaoRef.current = anel
+        } else {
+          const anel = anelOriginalRef.current.map((ponto, indice) =>
+            indice === ativa.indice ? vertice : ponto,
+          )
+          // O anel é fechado: a alça 0 também define o vértice final.
+          if (ativa.indice === 0 && anel.length > 0) {
+            anel[anel.length - 1] = [...vertice]
+          }
+          poligonoEdicaoRef.current = anel
         }
-        poligonoEdicaoRef.current = anel
       }
       // Ao vivo: o desenho da área acompanha o gesto direto na fonte.
       const setDataChamado = atualizarAreaAoVivo(mapRef.current, ativa, poligonoEdicaoRef.current)
