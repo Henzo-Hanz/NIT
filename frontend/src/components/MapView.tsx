@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent as MouseEvento } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as MouseEvento,
+} from 'react'
 import { X } from 'lucide-react'
 import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -431,14 +438,39 @@ export function MapView({
   // espécie clicada vira união dos slugs. Área primeiro: a consulta só devolve
   // pontos internos às áreas e o filtro opera sobre esse resultado — nunca
   // ressuscita ponto fora de área; o overlay da busca segue a mesma regra.
-  const slugsDoFiltro: string[] =
-    filtro === 'mais' || filtro === 'menos'
-      ? (resultado?.especies ?? []).slice(0, 3).map((especie) => especie.slug)
-      : []
-  const conjuntoFiltro = new Set([
-    ...slugsDoFiltro,
-    ...(especieSelecionada ? [especieSelecionada] : []),
-  ])
+  // Memoizado: a identidade estável permite o efeito que recria o pin quando
+  // o conjunto muda (pin/bolha refletem o subconjunto novo).
+  const slugsDoFiltro: string[] = useMemo(() => {
+    if (filtro === 'mais' || filtro === 'menos') {
+      return (resultado?.especies ?? []).slice(0, 3).map((especie) => especie.slug)
+    }
+    // Premissa aprovada (lapidação 11): com 'específica' + texto, o conjunto é
+    // o que `resultado.especies` traz (o server já devolveu tudo filtrado);
+    // sem texto NÃO há restrição — pin/bolha mostram o ponto inteiro.
+    if (filtro === 'especifica' && animalAplicado.trim()) {
+      return (resultado?.especies ?? []).map((especie) => especie.slug)
+    }
+    return []
+  }, [filtro, resultado, animalAplicado])
+  const conjuntoFiltro = useMemo(
+    () => new Set([...slugsDoFiltro, ...(especieSelecionada ? [especieSelecionada] : [])]),
+    [slugsDoFiltro, especieSelecionada],
+  )
+  // Espelho do conjunto para o caminho imperativo: o filtro determina TAMBÉM o
+  // CONTEÚDO do pin/bolha (premissa da lapidação 11 — não exclui os outros
+  // animais dos pontos, corta a exibição deles), e o clique/lá no momento do
+  // click precisa do conjunto VIVO, não da closure do render.
+  const conjuntoFiltroRef = useRef<Set<string>>(conjuntoFiltro)
+  conjuntoFiltroRef.current = conjuntoFiltro
+  // Subconjunto do ponto dentro do conjunto do filtro, na ordem original de
+  // `especie_slugs`. Sem conjunto (todas / sem texto) → o ponto inteiro.
+  const slugsDoFiltroNoPonto = (ponto: PontoDaArea): string[] => {
+    const conjunto = conjuntoFiltroRef.current
+    if (conjunto.size === 0) {
+      return ponto.properties.especie_slugs
+    }
+    return ponto.properties.especie_slugs.filter((slug) => conjunto.has(slug))
+  }
   const casaComFiltro = (ponto: PontoDaArea) =>
     conjuntoFiltro.size === 0 ||
     ponto.properties.especie_slugs.some((slug) => conjuntoFiltro.has(slug))
@@ -1492,7 +1524,10 @@ export function MapView({
     el.setAttribute('data-testid', 'pin-area')
     el.setAttribute('aria-label', ponto.properties.nome)
     el.className = 'relative cursor-pointer select-none'
-    el.innerHTML = htmlDoPin(ponto.properties.especie_slugs)
+    // Lapidação 11: o pin exibe o SUBCONJUNTO do ponto dentro do conjunto do
+    // filtro (sem filtro = todas as espécies do ponto). Lido no ref, o
+    // conjunto está vivo na hora do clique.
+    el.innerHTML = htmlDoPin(slugsDoFiltroNoPonto(ponto))
     conectarCadeiaDeIcones(el)
     el.addEventListener('mousedown', (evento) => evento.stopPropagation())
     el.addEventListener('click', () => {
@@ -1522,6 +1557,33 @@ export function MapView({
     },
     [abrirBolhaArea, criarPinArea],
   )
+
+  // Lapidação 11: quando o conjunto do filtro muda COM pin aberto (novo
+  // resultado, filtro trocado ou espécie clicada), o pin é recriado para
+  // exibir o subconjunto novo. Bolha aberta permanece aberta: o conteúdo
+  // dela já re-renderiza pelo mesmo conjunto.
+  const conjuntoVivoRef = useRef(conjuntoFiltro)
+  useEffect(() => {
+    if (conjuntoVivoRef.current === conjuntoFiltro) {
+      return
+    }
+    conjuntoVivoRef.current = conjuntoFiltro
+    const ponto = pontoAtivoRef.current
+    if (!ponto) {
+      return
+    }
+    // O ponto pode ter SAÍDO do conjunto com o filtro novo (o efeito do
+    // escopo não reavalia em mudanças só de conjunto): fecha pin+bolha.
+    if (conjuntoFiltroRef.current.size && slugsDoFiltroNoPonto(ponto).length === 0) {
+      removerPinAreaRef.current()
+      return
+    }
+    const bolhaEstavaAberta = bolhaAreaRef.current
+    criarPinArea(ponto)
+    if (bolhaEstavaAberta) {
+      setBolhaAreaAberta(true)
+    }
+  }, [conjuntoFiltro, criarPinArea])
 
   const marcarMedicao = (ponto: PontoDaArea) => {
     // Medições só nascem em pontos: A no primeiro, B no segundo, terceiro
@@ -2002,48 +2064,59 @@ export function MapView({
               data-testid="bolha-contagem"
               className="px-3 pb-1 pt-3 pr-8 text-sm font-medium leading-snug text-foreground"
             >
-              {pontoAtivo.properties.especie_slugs.length
-                ? (() => {
-                    const contagem =
-                      pontoAtivo.properties.total ?? pontoAtivo.properties.especie_slugs.length
-                    return `${contagem} ${contagem === 1 ? 'espécie encontrada' : 'espécies encontradas'}`
-                  })()
-                : pontoAtivo.properties.descricao}
+              {(() => {
+                // Lapidação 11: a contagem reflete o SUBCONJUNTO do filtro
+                // (sem filtro = total do ponto, comportamento atual).
+                const subconjunto = slugsDoFiltroNoPonto(pontoAtivo)
+                if (!subconjunto.length) {
+                  return pontoAtivo.properties.descricao
+                }
+                const contagem = conjuntoFiltro.size
+                  ? subconjunto.length
+                  : (pontoAtivo.properties.total ?? subconjunto.length)
+                return `${contagem} ${contagem === 1 ? 'espécie encontrada' : 'espécies encontradas'}`
+              })()}
             </p>
             <ul className="flex max-h-56 flex-col overflow-y-auto p-2 no-scrollbar">
-              {pontoAtivo.properties.especie_slugs.length
-                ? pontoAtivo.properties.especie_slugs.map((slug) => (
-                    <li key={slug}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        data-testid={`area-especie-${slug}`}
-                        className="w-full justify-start rounded-lg hover:bg-accent"
-                        onClick={() => {
-                          removerPinArea()
-                          onAbrirEspecie?.(slug)
-                        }}
-                      >
-                        {nomesDasEspecies.get(slug) ?? slug}
-                      </Button>
-                    </li>
-                  ))
-                : (especies ?? []).map((item) => (
-                    <li key={item.slug}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        data-testid={`especie-opcao-${item.slug}`}
-                        className="w-full justify-start rounded-lg hover:bg-accent"
-                        onClick={() => {
-                          removerPinArea()
-                          onAbrirEspecie?.(item.slug)
-                        }}
-                      >
-                        {item.nome_popular}
-                      </Button>
-                    </li>
-                  ))}
+              {(() => {
+                // Lapidação 11: só o subconjunto do filtro, na ordem original
+                // (sem filtro = todas as espécies do ponto). Ponto sem espécie
+                // (só existe sem conjunto) segue listando as gerais.
+                const subconjunto = slugsDoFiltroNoPonto(pontoAtivo)
+                return subconjunto.length
+                  ? subconjunto.map((slug) => (
+                      <li key={slug}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          data-testid={`area-especie-${slug}`}
+                          className="w-full justify-start rounded-lg hover:bg-accent"
+                          onClick={() => {
+                            removerPinArea()
+                            onAbrirEspecie?.(slug)
+                          }}
+                        >
+                          {nomesDasEspecies.get(slug) ?? slug}
+                        </Button>
+                      </li>
+                    ))
+                  : (especies ?? []).map((item) => (
+                      <li key={item.slug}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          data-testid={`especie-opcao-${item.slug}`}
+                          className="w-full justify-start rounded-lg hover:bg-accent"
+                          onClick={() => {
+                            removerPinArea()
+                            onAbrirEspecie?.(item.slug)
+                          }}
+                        >
+                          {item.nome_popular}
+                        </Button>
+                      </li>
+                    ))
+              })()}
             </ul>
           </div>
         </div>
