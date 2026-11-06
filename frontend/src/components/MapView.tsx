@@ -43,21 +43,17 @@ const CHAVE_DO_PONTO = (ponto: PontoExibido) =>
 type MarcaMedicao = { ponto: PontoDaArea }
 
 // Edição de área: mover o anel inteiro (drag no interior) ou reposicionar um
-// vértice pela alça correspondente. Elipse com modelo uso `extra` como
-// semântica da alça (tamanho = escala uniforme pela SE; rx/ry = eixos).
+// vértice pela alça correspondente. Elipse com modelo usa `extra` como
+// semântica da alça: cada face move SÓ o seu lado, com a face oposta fixa.
 type EdicaoArea = {
   tipo: 'mover' | 'alca'
   id: string
   indice: number
-  extra: 'tamanho' | 'rx' | 'ry' | null
+  extra: 'e' | 'w' | 'n' | 's' | null
 } | null
 
-// Ordem das alças do modelo de elipse: E, W (rx) / N, S (ry) / SE (tamanho).
-const EXTRAS_DA_ELIPSE: ['rx', 'rx', 'ry', 'ry', 'tamanho'] = ['rx', 'rx', 'ry', 'ry', 'tamanho']
-
-// Função paramétrica da alça SE: canto do modelo no 45° inferior-direito —
-// usada no render das alças e como âncora da escala (distância alça-inicial).
-const FATOR_SE = Math.SQRT2 / 2
+// Ordem das alças do modelo de elipse: uma por face do bbox (E, W, N, S).
+const EXTRAS_DA_ELIPSE: ['e', 'w', 'n', 's'] = ['e', 'w', 'n', 's']
 
 // 1 casa decimal — vetor de valores de tela nos logs do gesto (nit:debug).
 const arred1 = (valor: number) => Math.round(valor * 10) / 10
@@ -611,7 +607,7 @@ export function MapView({
       id: string,
       indice: number,
       tela: { x: number; y: number } | null,
-      extra: 'tamanho' | 'rx' | 'ry' | null = null,
+      extra: 'e' | 'w' | 'n' | 's' | null = null,
     ) => {
       const area = areasRef.current.find((item) => item.id === id)
       const anel = area?.polygon.coordinates[0]
@@ -672,21 +668,23 @@ export function MapView({
     [areaAtivaId],
   )
 
-  // Posições (tela) das 5 alças do modelo: E, W, N, S e SE — MESMA ordem do
-  // render e do reposicionamento imperativo.
+  // Posições (tela) das 4 alças do modelo — uma por face do bbox — MESMA
+  // ordem do render e do reposicionamento imperativo.
   const pontosDaElipse = useCallback((modelo: ModeloElipse): { x: number; y: number }[] => {
     const mapa = mapRef.current
     if (!mapa) {
       return []
     }
     const [cx, cy] = modelo.centro
-    const fator = FATOR_SE
+    const left = cx - modelo.rx
+    const right = cx + modelo.rx
+    const bottom = cy - modelo.ry
+    const top = cy + modelo.ry
     return [
-      mapa.project([cx + modelo.rx, cy]),
-      mapa.project([cx - modelo.rx, cy]),
-      mapa.project([cx, cy - modelo.ry]),
-      mapa.project([cx, cy + modelo.ry]),
-      mapa.project([cx + modelo.rx * fator, cy + modelo.ry * fator]),
+      mapa.project([right, cy]),
+      mapa.project([left, cy]),
+      mapa.project([cx, top]),
+      mapa.project([cx, bottom]),
     ] as { x: number; y: number }[]
   }, [])
 
@@ -1161,36 +1159,49 @@ export function MapView({
           ])
         }
       } else if (ativa.extra && modeloInicialRef.current) {
-        // Alça SEMÂNTICA da elipse: E/W mexe só o rx e N/S só o ry (abs já
-        // robusto — cruzar o centro trava no piso, sem espelhar), e SE escala
-        // os dois raios PELO MESMO fator (distância da alça-inicial; piso ~3px).
+        // Alça de FACE da elipse: move só a face puxada e mantém a OPOSTA
+        // fixa (nada de crescimento simétrico). Cruzar a face oposta trava no
+        // piso ~3px, sem inverter/espelhar.
         const modelo = modeloInicialRef.current
         const cursor = coordenadaDaTela(tela)
         const minimo = grausPorPixels(3)
-        let novo: ModeloElipse | null = null
-        if (ativa.extra === 'rx') {
-          novo = { ...modelo, rx: Math.max(minimo, Math.abs(cursor[0] - modelo.centro[0])) }
-        } else if (ativa.extra === 'ry') {
-          novo = { ...modelo, ry: Math.max(minimo, Math.abs(cursor[1] - modelo.centro[1])) }
-        } else {
-          // Lapidação 11: o fator vem da distância da ALÇA-INICIAL (SE do
-          // modeloInicial) ao centro — não da posição do cursor no mousedown.
-          // Assim a 1ª delta não pula (o cursor pode pegar a alça alguns px
-          // fora do seu centro exato); clamp max(fator, 0.05).
-          const alca: [number, number] = [
-            modelo.centro[0] + modelo.rx * FATOR_SE,
-            modelo.centro[1] + modelo.ry * FATOR_SE,
-          ]
-          const distAlca = Math.hypot(alca[0] - modelo.centro[0], alca[1] - modelo.centro[1])
-          if (distAlca <= 0) {
-            return
-          }
-          const distAtual = Math.hypot(cursor[0] - modelo.centro[0], cursor[1] - modelo.centro[1])
-          const fator = Math.max(distAtual / distAlca, 0.05)
+        const [cx, cy] = modelo.centro
+        const left = cx - modelo.rx
+        const right = cx + modelo.rx
+        const bottom = cy - modelo.ry
+        const top = cy + modelo.ry
+        let novo: ModeloElipse
+        if (ativa.extra === 'e') {
+          const novoRight = Math.max(cursor[0], left + minimo)
           novo = {
-            ...modelo,
-            rx: Math.max(minimo, modelo.rx * fator),
-            ry: Math.max(minimo, modelo.ry * fator),
+            tipo: 'elipse',
+            centro: [(left + novoRight) / 2, cy],
+            rx: (novoRight - left) / 2,
+            ry: modelo.ry,
+          }
+        } else if (ativa.extra === 'w') {
+          const novoLeft = Math.min(cursor[0], right - minimo)
+          novo = {
+            tipo: 'elipse',
+            centro: [(novoLeft + right) / 2, cy],
+            rx: (right - novoLeft) / 2,
+            ry: modelo.ry,
+          }
+        } else if (ativa.extra === 'n') {
+          const novoTop = Math.max(cursor[1], bottom + minimo)
+          novo = {
+            tipo: 'elipse',
+            centro: [cx, (bottom + novoTop) / 2],
+            rx: modelo.rx,
+            ry: (novoTop - bottom) / 2,
+          }
+        } else {
+          const novoBottom = Math.min(cursor[1], top - minimo)
+          novo = {
+            tipo: 'elipse',
+            centro: [cx, (top + novoBottom) / 2],
+            rx: modelo.rx,
+            ry: (top - novoBottom) / 2,
           }
         }
         modeloEdicaoRef.current = novo
