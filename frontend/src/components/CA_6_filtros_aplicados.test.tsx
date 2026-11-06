@@ -214,3 +214,289 @@ describe('CA-6: estado aplicado e pisca dos filtros', () => {
     ).toHaveLength(0)
   })
 })
+
+// Lapidação 11: o filtro determina TAMBÉM o CONTEÚDO do pin/bolha — sem
+// excluir os outros animais dos PONTOS mantidos, cortando o que se exibe
+// deles. Premissa registrada no MapView: 'específica' com texto usa os slugs
+// que resultado.especies traz (server já filtrou); sem texto, sem restrição.
+const ESPECIES_CONJUNTO = [
+  { slug: 'caranguejo-uca', nome_popular: 'Caranguejo-uçá', contagem: 9 },
+  { slug: 'guaiamum', nome_popular: 'Guaiamum', contagem: 8 },
+  { slug: 'badejo', nome_popular: 'Badejo', contagem: 7 },
+  { slug: 'sardinha-laje', nome_popular: 'Sardinha-laje', contagem: 6 },
+]
+
+const PONTO_MISTO = {
+  type: 'Feature',
+  properties: {
+    id: 12,
+    nome: 'Tamboril',
+    descricao: '4 espécies encontradas',
+    especie_slugs: ['caranguejo-uca', 'sardinha-laje', 'guaiamum', 'badejo'],
+    total: 4,
+  },
+  geometry: { type: 'Point', coordinates: [-40.2, -2.6] },
+}
+
+function configurarFetchCortado(opcoes?: {
+  busca?: unknown
+  animal?: string | null
+  especificaEspecies?: unknown[]
+}) {
+  const fetchFake = vi.fn(async (entrada: RequestInfo | URL, init?: RequestInit) => {
+    const rota = String(entrada)
+    if (rota === '/api/consulta/area/') {
+      const corpo = init?.body ? JSON.parse(String(init.body)) : {}
+      if (corpo.animal && opcoes?.especificaEspecies) {
+        return {
+          ok: true,
+          json: async () => ({
+            especies: opcoes.especificaEspecies,
+            pontos: { type: 'FeatureCollection', features: [PONTO_MISTO] },
+          }),
+        }
+      }
+      const lista = corpo.ordenar === 'menos' ? [...ESPECIES_CONJUNTO].reverse() : ESPECIES_CONJUNTO
+      return {
+        ok: true,
+        json: async () => ({
+          especies: lista,
+          pontos: { type: 'FeatureCollection', features: [PONTO_MISTO] },
+        }),
+      }
+    }
+    if (opcoes?.busca && rota.startsWith('/api/consulta/busca/')) {
+      return { ok: true, json: async () => opcoes.busca }
+    }
+    return { ok: false, json: async () => ({}) }
+  })
+  vi.stubGlobal('fetch', fetchFake)
+  return fetchFake
+}
+
+const ouvinteDoPonto = (nome: string) =>
+  screen
+    .getAllByTestId('ponto-area')
+    .find((ponto) => ponto.getAttribute('aria-label') === nome)
+
+const hrefsDoPin = (pin: HTMLElement) =>
+  Array.from(pin.querySelectorAll('image[data-icono-phylopic]')).map((imagem) =>
+    imagem.getAttribute('href'),
+  )
+
+describe('CA-6: filtro determina o conteúdo do pin/bolha do ponto mantido', () => {
+  it('sem filtro o pin e a bolha mostram TODAS as espécies do ponto', async () => {
+    const usuario = userEvent.setup()
+    configurarFetchCortado()
+    render(<MapView />)
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(1)
+    })
+
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    expect(hrefsDoPin(screen.getByTestId('pin-area'))).toEqual([
+      '/api/especies/caranguejo-uca/icone/',
+      '/api/especies/sardinha-laje/icone/',
+      '/api/especies/guaiamum/icone/',
+      '/api/especies/badejo/icone/',
+    ])
+
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    const bolha = screen.getByTestId('bolha-area')
+    expect(screen.getByTestId('bolha-contagem')).toHaveTextContent('4 espécies encontradas')
+    for (const slug of ['caranguejo-uca', 'sardinha-laje', 'guaiamum', 'badejo']) {
+      expect(screen.getByTestId(`area-especie-${slug}`)).toBeInTheDocument()
+    }
+    expect(bolha.querySelector('[data-testid="area-especie-sardinha-laje"]')).not.toBeNull()
+  })
+
+  it('filtro MAIS corta pin/bolha ao top-3: contagem e lista refletem o subconjunto', async () => {
+    const usuario = userEvent.setup()
+    configurarFetchCortado()
+    render(<MapView />)
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(1)
+    })
+    await usuario.click(screen.getByTestId('filtro-mais'))
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('filtro-aplicado')).toHaveTextContent('Filtrando por: Mais presente')
+    })
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    // O ponto mantém [uca, sardinha, guaiamum, badejo] na ordem original; o
+    // conjunto é [uca, guaiamum, badejo] (sardinha-laje fora do top-3).
+    expect(hrefsDoPin(screen.getByTestId('pin-area'))).toEqual([
+      '/api/especies/caranguejo-uca/icone/',
+      '/api/especies/guaiamum/icone/',
+      '/api/especies/badejo/icone/',
+    ])
+
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    expect(screen.getByTestId('bolha-contagem')).toHaveTextContent('3 espécies encontradas')
+    expect(screen.getByTestId('area-especie-caranguejo-uca')).toBeInTheDocument()
+    expect(screen.getByTestId('area-especie-guaiamum')).toBeInTheDocument()
+    expect(screen.getByTestId('area-especie-badejo')).toBeInTheDocument()
+    expect(screen.queryByTestId('area-especie-sardinha-laje')).toBeNull()
+  })
+
+  it('filtro MENOS corta ao top-3 da lista asc e o pin segue a ordem do ponto', async () => {
+    const usuario = userEvent.setup()
+    configurarFetchCortado()
+    render(<MapView />)
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(1)
+    })
+    await usuario.click(screen.getByTestId('filtro-menos'))
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('filtro-menos')).toHaveAttribute('data-ativo', 'true')
+    })
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    // menos asc = [sardinha-laje, badejo, guaiamum, uca] → top-3 sardinha/
+    // badejo/guaiamum; na ordem do ponto sobra [sardinha, guaiamum, badejo].
+    expect(hrefsDoPin(screen.getByTestId('pin-area'))).toEqual([
+      '/api/especies/sardinha-laje/icone/',
+      '/api/especies/guaiamum/icone/',
+      '/api/especies/badejo/icone/',
+    ])
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    expect(screen.getByTestId('bolha-contagem')).toHaveTextContent('3 espécies encontradas')
+    expect(screen.queryByTestId('area-especie-caranguejo-uca')).toBeNull()
+    expect(screen.getByTestId('area-especie-sardinha-laje')).toBeInTheDocument()
+  })
+
+  it('espécie clicada deixa só ela no pin e na bolha do ponto mantido', async () => {
+    const usuario = userEvent.setup()
+    configurarFetchCortado()
+    render(<MapView />)
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('filtro-especie-guaiamum')).toBeInTheDocument()
+    })
+    await usuario.click(screen.getByTestId('filtro-especie-guaiamum'))
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    expect(hrefsDoPin(screen.getByTestId('pin-area'))).toEqual([
+      '/api/especies/guaiamum/icone/',
+    ])
+
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    expect(screen.getByTestId('bolha-contagem')).toHaveTextContent('1 espécie encontrada')
+    expect(screen.getByTestId('area-especie-guaiamum')).toBeInTheDocument()
+    expect(screen.queryByTestId('area-especie-caranguejo-uca')).toBeNull()
+    expect(screen.queryByTestId('area-especie-sardinha-laje')).toBeNull()
+    expect(screen.queryByTestId('area-especie-badejo')).toBeNull()
+  })
+
+  it('mudança de filtro redesenha o pin do ponto ativo e a bolha aberta segue', async () => {
+    const usuario = userEvent.setup()
+    configurarFetchCortado()
+    render(<MapView />)
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(1)
+    })
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    expect(screen.getByTestId('bolha-contagem')).toHaveTextContent('4 espécies encontradas')
+
+    await usuario.click(screen.getByTestId('filtro-mais'))
+    // O pin velho sai em fade (elemento próprio, 250ms): o NOVO pin é o que
+    // já nasce com 3 imagens. A bolha aberta permanece, agora do subconjunto.
+    await vi.waitFor(() => {
+      const pinNovo = screen
+        .getAllByTestId('pin-area')
+        .find((pin) => hrefsDoPin(pin).length === 3)
+      expect(pinNovo).toBeDefined()
+      expect(hrefsDoPin(pinNovo!)).toEqual([
+        '/api/especies/caranguejo-uca/icone/',
+        '/api/especies/guaiamum/icone/',
+        '/api/especies/badejo/icone/',
+      ])
+    })
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('bolha-contagem')).toHaveTextContent('3 espécies encontradas')
+    })
+    expect(screen.queryByTestId('area-especie-sardinha-laje')).toBeNull()
+  })
+
+  it('específica com texto corta ao que resultado.especies traz (server filtrou)', async () => {
+    const usuario = userEvent.setup()
+    configurarFetchCortado({
+      especificaEspecies: [
+        { slug: 'caranguejo-uca', nome_popular: 'Caranguejo-uçá', contagem: 9 },
+      ],
+    })
+    render(<MapView />)
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(1)
+    })
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    expect(hrefsDoPin(screen.getByTestId('pin-area'))).toHaveLength(4)
+
+    await usuario.click(screen.getByTestId('filtro-especifica'))
+    await usuario.type(screen.getByTestId('filtro-animal'), 'Caranguejo')
+    // animalAplicado dispara nova consulta com o termo; o resultado (mock
+    // já filtrado pelo server) traz só uca — e o pin do ponto ativo é
+    // REDOGADO ao subconjunto sem fechar nada além do necessário.
+    await vi.waitFor(() => {
+      const pinNovo = screen
+        .getAllByTestId('pin-area')
+        .find((pin) => hrefsDoPin(pin).length === 1)
+      expect(pinNovo).toBeDefined()
+      expect(hrefsDoPin(pinNovo!)).toEqual(['/api/especies/caranguejo-uca/icone/'])
+    })
+
+    await usuario.click(screen.getAllByTestId('ponto-area')[0])
+    expect(screen.getByTestId('bolha-contagem')).toHaveTextContent('1 espécie encontrada')
+    expect(screen.queryByTestId('area-especie-sardinha-laje')).toBeNull()
+    expect(screen.queryByTestId('area-especie-guaiamum')).toBeNull()
+    expect(screen.queryByTestId('area-especie-badejo')).toBeNull()
+  })
+
+  it('overlay da busca segue o conjunto: ponto fora não renderiza, o mantido corta o pin', async () => {
+    const usuario = userEvent.setup()
+    configurarFetchCortado({
+      busca: {
+        especies: [{ slug: 'guaiamum', nome_popular: 'Guaiamum' }],
+        pontos: {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              properties: {
+                id: 30,
+                nome: 'Ilha do Mato',
+                descricao: '2 espécies encontradas',
+                especie_slugs: ['guaiamum', 'sardinha-laje'],
+                total: 2,
+                busca_slugs: ['guaiamum'],
+              },
+              geometry: { type: 'Point', coordinates: [-40.4, -2.7] },
+            },
+            {
+              type: 'Feature',
+              properties: {
+                id: 31,
+                nome: 'Fora do Conjunto',
+                descricao: '1 espécie encontrada',
+                especie_slugs: ['sardinha-laje'],
+                total: 1,
+                busca_slugs: ['sardinha-laje'],
+              },
+              geometry: { type: 'Point', coordinates: [-40.1, -2.8] },
+            },
+          ],
+        },
+      },
+    })
+    render(<MapView />)
+    await usuario.click(screen.getByTestId('filtro-mais'))
+    await usuario.click(screen.getByTestId('ferramenta-pesquisar'))
+    await usuario.type(screen.getByTestId('campo-busca'), 'guaiamum')
+    await vi.waitFor(() => {
+      expect(ouvinteDoPonto('Ilha do Mato')).toBeDefined()
+      expect(ouvinteDoPonto('Fora do Conjunto')).toBeUndefined()
+    })
+
+    await usuario.click(ouvinteDoPonto('Ilha do Mato')!)
+    expect(hrefsDoPin(screen.getByTestId('pin-area'))).toEqual([
+      '/api/especies/guaiamum/icone/',
+    ])
+  })
+})
