@@ -701,12 +701,16 @@ export function MapView({
     return setados
   }, [pontosDaElipse])
 
-  // Mínimo de ~3px convertido para graus (eixo x) — piso dos raios ao editar.
-  const grausPorPixel = useCallback(() => {
-    const origem = coordenadaDaTela({ x: 0, y: 0 })
-    const offset = coordenadaDaTela({ x: 3, y: 0 })
-    return Math.abs(offset[0] - origem[0])
-  }, [coordenadaDaTela])
+  // Pixels → graus por eixo: distância entre a tela (0,0) e a tela (px,0) /
+  // (0,px) — piso dos raios/elipse (~3px) e clamp do retângulo (~4px/eixo).
+  const grausPorPixels = useCallback(
+    (pixels: number, eixo: 'x' | 'y' = 'x') => {
+      const origem = coordenadaDaTela({ x: 0, y: 0 })
+      const offset = coordenadaDaTela(eixo === 'x' ? { x: pixels, y: 0 } : { x: 0, y: pixels })
+      return Math.abs(offset[eixo === 'x' ? 0 : 1] - origem[eixo === 'x' ? 0 : 1])
+    },
+    [coordenadaDaTela],
+  )
 
   const finalizarEdicao = useCallback(() => {
     const ativa = edicaoRef.current
@@ -858,15 +862,20 @@ export function MapView({
     if (raio < 3) {
       return
     }
-    // Círculo com modelo de elipse: centro = origem do arrasto; raios em graus
-    // repondo um offset de tela do próprio raio (PREMISSA: distorção da
-    // latitude aceitável para a demo). O anel é gerado pela util compartilhada.
+    // Elipse DESDE o desenho (lapidação 11): rx = |dx| e ry = |dy| de tela,
+    // INDEPENDENTES desde o gesto e em qualquer direção (abs), com piso
+    // ~3px por raio. Centro = origem do arrasto; raios em graus repondo um
+    // offset de tela do próprio delta (PREMISSA: distorção da latitude
+    // aceitável para a demo). Anel gerado pela util compartilhada.
     const centro = coordenadaDaTela(inicio.tela)
-    const rx = Math.abs(
-      coordenadaDaTela({ x: inicio.tela.x + raio, y: inicio.tela.y })[0] - centro[0],
+    const minimo = grausPorPixels(3)
+    const rx = Math.max(
+      minimo,
+      Math.abs(coordenadaDaTela({ x: inicio.tela.x + dx, y: inicio.tela.y })[0] - centro[0]),
     )
-    const ry = Math.abs(
-      coordenadaDaTela({ x: inicio.tela.x, y: inicio.tela.y + raio })[1] - centro[1],
+    const ry = Math.max(
+      minimo,
+      Math.abs(coordenadaDaTela({ x: inicio.tela.x, y: inicio.tela.y + dy })[1] - centro[1]),
     )
     registrarArea(anelDaElipse(centro, rx, ry, 32), {
       tipo: 'elipse',
@@ -1124,7 +1133,7 @@ export function MapView({
         // os dois raios PELO MESMO fator (distância centro→cursor; piso ~3px).
         const modelo = modeloInicialRef.current
         const cursor = coordenadaDaTela(tela)
-        const minimo = grausPorPixel()
+        const minimo = grausPorPixels(3)
         let novo: ModeloElipse | null = null
         if (ativa.extra === 'rx') {
           novo = { ...modelo, rx: Math.max(minimo, Math.abs(cursor[0] - modelo.centro[0])) }
@@ -1204,7 +1213,7 @@ export function MapView({
       window.removeEventListener('mousemove', aoMover)
       window.removeEventListener('mouseup', aoSoltar)
     }
-  }, [edicao, coordenadaDaTela, grausPorPixel, finalizarEdicao, atualizarAreaAoVivo, reposicionarAlcas])
+  }, [edicao, coordenadaDaTela, grausPorPixels, finalizarEdicao, atualizarAreaAoVivo, reposicionarAlcas])
 
   // Se o ponto do pin some do escopo (área apagada, troca de filtro que
   // removeu o ponto), fechar pin remove tudo: pin + bolha.
@@ -1583,9 +1592,15 @@ export function MapView({
     formaDesenho === 'retangulo' && inicioPreview && atualPreview
       ? Math.abs(atualPreview.y - inicioPreview.y)
       : 0
-  const raioPreview =
+  // Elipse desde o desenho (lapidação 11): preview com rx=|dx| e ry=|dy|
+  // de tela, INDEPENDENTES (o gesto já mostra a elipse real, não um círculo).
+  const larguraElipsePreview =
     formaDesenho === 'circulo' && inicioPreview && atualPreview
-      ? Math.hypot(atualPreview.x - inicioPreview.x, atualPreview.y - inicioPreview.y)
+      ? Math.abs(atualPreview.x - inicioPreview.x)
+      : 0
+  const alturaElipsePreview =
+    formaDesenho === 'circulo' && inicioPreview && atualPreview
+      ? Math.abs(atualPreview.y - inicioPreview.y)
       : 0
 
   // Pisca dos pontos: a classe existe APENAS durante a animação (~600ms).
@@ -1758,13 +1773,15 @@ export function MapView({
               strokeDasharray="6 4"
             />
           )}
-          {formaDesenho === 'circulo' && raioPreview > 0 && inicioPreview && (
+          {formaDesenho === 'circulo' &&
+            (larguraElipsePreview > 0 || alturaElipsePreview > 0) &&
+            inicioPreview && (
             <ellipse
               data-testid="preview-circulo"
               cx={inicioPreview.x}
               cy={inicioPreview.y}
-              rx={raioPreview}
-              ry={raioPreview}
+              rx={larguraElipsePreview}
+              ry={alturaElipsePreview}
               fill="none"
               stroke="#0f766e"
               strokeWidth={2}
