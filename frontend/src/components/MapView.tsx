@@ -11,6 +11,7 @@ import {
 import { FiltroAnimaisPanel, type FiltroEspecie } from '@/components/FiltroAnimaisPanel'
 import { PainelAreas, type AreaDesenhada, type ModeloElipse } from '@/components/PainelAreas'
 import { areaKm2, anelDaElipse, convexHull, distanciaKm, formatarKm, formatarKm2 } from '@/utils/geo'
+import { logDebug } from '@/lib/debug'
 import {
   buscarGeometrias,
   buscarEspecies,
@@ -46,6 +47,13 @@ type EdicaoArea = {
 
 // Ordem das alças do modelo de elipse: E, W (rx) / N, S (ry) / SE (tamanho).
 const EXTRAS_DA_ELIPSE: ['rx', 'rx', 'ry', 'ry', 'tamanho'] = ['rx', 'rx', 'ry', 'ry', 'tamanho']
+
+// Função paramétrica da alça SE: canto do modelo no 45° inferior-direito —
+// usada no render das alças e como âncora da escala (distância alça-inicial).
+const FATOR_SE = Math.SQRT2 / 2
+
+// 1 casa decimal — vetor de valores de tela nos logs do gesto (nit:debug).
+const arred1 = (valor: number) => Math.round(valor * 10) / 10
 
 export const CENTRO_LITORAL_PI: [number, number] = [-41.75, -2.9]
 export const ZOOM_INICIAL = 6
@@ -348,6 +356,10 @@ export function MapView({
   const dicaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const edicaoRef = useRef<EdicaoArea>(null)
   const inicioEdicaoRef = useRef<{ tela: { x: number; y: number } } | null>(null)
+  // nit:debug — timestamp do evento 'alca' anterior (dtms por frame).
+  const ultimoEventoAlcaRef = useRef({ t: 0 })
+  // nit:debug — número sequencial dos re-renders durante o gesto (tag 'render.seq').
+  const sequenciaRenderRef = useRef(0)
   const anelOriginalRef = useRef<number[][]>([])
   const poligonoEdicaoRef = useRef<number[][]>([])
   const alcasSvgRef = useRef<SVGSVGElement | null>(null)
@@ -585,6 +597,14 @@ export function MapView({
       inicioEdicaoRef.current = tela ? { tela } : null
       setEdicao(edicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
+      logDebug('alca', () => ({
+        evento: 'iniciar',
+        tipo,
+        areaId: id,
+        modelo: modeloInicialRef.current,
+        extra,
+        telaInicio: tela,
+      }), 'iniciar')
       mapRef.current?.dragPan?.disable?.()
     },
     [],
@@ -594,16 +614,16 @@ export function MapView({
   // 'area-desenhada', o anel da área editada (id/nome/ativa preservados),
   // sem esperar o mouseup — o fill/contorno acompanham o gesto por frame.
   const atualizarAreaAoVivo = useCallback(
-    (mapa: MapLibreMap | null, ativa: EdicaoArea, anel: number[][]) => {
+    (mapa: MapLibreMap | null, ativa: EdicaoArea, anel: number[][]): boolean => {
       if (!mapa || !ativa) {
-        return
+        return false
       }
       const fonte = mapa.getSource?.('area-desenhada') as
         | { setData?: (dados: unknown) => void }
         | undefined
       const editada = areasRef.current.find((area) => area.id === ativa.id)
       if (!fonte?.setData || !editada) {
-        return
+        return false
       }
       fonte.setData(
         dadosDasAreas(
@@ -615,6 +635,7 @@ export function MapView({
           areaAtivaId,
         ),
       )
+      return true
     },
     [areaAtivaId],
   )
@@ -627,7 +648,7 @@ export function MapView({
       return []
     }
     const [cx, cy] = modelo.centro
-    const fator = Math.SQRT2 / 2
+    const fator = FATOR_SE
     return [
       mapa.project([cx + modelo.rx, cy]),
       mapa.project([cx - modelo.rx, cy]),
@@ -641,15 +662,15 @@ export function MapView({
   // sem isso, o commit do React (assíncrono) os deixa ~1 frame atrás do fill.
   // Ordem dos círculos = mesma do render (.slice(0, -1) do anel editado); o
   // re-render React reescreve os mesmos valores depois (harmônico).
-  const reposicionarAlcas = useCallback(() => {
+  const reposicionarAlcas = useCallback((): { cx: number; cy: number }[] => {
     const svg = alcasSvgRef.current
     const mapa = mapRef.current
     if (!svg || !mapa) {
-      return
+      return []
     }
     const ativa = edicaoRef.current
     if (!ativa) {
-      return
+      return []
     }
     let pontos: { x: number; y: number }[] = []
     if (modeloEdicaoRef.current) {
@@ -657,13 +678,14 @@ export function MapView({
     } else {
       const anel = poligonoEdicaoRef.current
       if (!anel.length) {
-        return
+        return []
       }
       pontos = anel
         .slice(0, -1)
         .map((vertice) => mapa.project(vertice as [number, number]) as { x: number; y: number })
     }
     const circulos = svg.querySelectorAll('circle')
+    const setados: { cx: number; cy: number }[] = []
     pontos.forEach((ponto, indice) => {
       const circulo = circulos[indice] as SVGCircleElement | undefined
       if (!circulo) {
@@ -671,7 +693,12 @@ export function MapView({
       }
       circulo.setAttribute('cx', String(ponto.x))
       circulo.setAttribute('cy', String(ponto.y))
+      setados.push({ cx: arred1(ponto.x), cy: arred1(ponto.y) })
     })
+    // nit:debug — valores IMPERATIVOS (mesmo tick do setData) p/ comparar
+    // com o re-render React (tag 'render.seq').
+    logDebug('alca', () => ({ imperativo: true, setados }), 'imp')
+    return setados
   }, [pontosDaElipse])
 
   // Mínimo de ~3px convertido para graus (eixo x) — piso dos raios ao editar.
@@ -1063,6 +1090,10 @@ export function MapView({
         return
       }
       const tela = telaDeJanela(evento)
+      // nit:debug — dtms desde o evento anterior (atraso entre frames do gesto).
+      const agora = performance.now()
+      const dtms = ultimoEventoAlcaRef.current.t ? agora - ultimoEventoAlcaRef.current.t : null
+      ultimoEventoAlcaRef.current = { t: agora }
       if (ativa.tipo === 'mover') {
         const inicio = inicioEdicaoRef.current
         if (!inicio) {
@@ -1135,9 +1166,34 @@ export function MapView({
         poligonoEdicaoRef.current = anel
       }
       // Ao vivo: o desenho da área acompanha o gesto direto na fonte.
-      atualizarAreaAoVivo(mapRef.current, ativa, poligonoEdicaoRef.current)
+      const setDataChamado = atualizarAreaAoVivo(mapRef.current, ativa, poligonoEdicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
-      reposicionarAlcas()
+      const setados = reposicionarAlcas()
+      // nit:debug — um log por evento do gesto: dtms, cursor de tela, lng/lat,
+      // alvo editado (último vértice OU centro/rx/ry), setData e o vetor de
+      // alças setado imperativamente (comparável com tag 'render.seq').
+      logDebug('alca', () => {
+        const modelo = modeloEdicaoRef.current
+        const anel = poligonoEdicaoRef.current
+        const coordenada = coordenadaDaTela(tela)
+        return {
+          evento: 'mover',
+          dtms,
+          cursor: { x: arred1(tela.x), y: arred1(tela.y) },
+          coordenada: [arred1(coordenada[0]), arred1(coordenada[1])],
+          ...(modelo
+            ? {
+                modelo: {
+                  centro: modelo.centro,
+                  rx: arred1(modelo.rx),
+                  ry: arred1(modelo.ry),
+                },
+              }
+            : { ultimoVertice: anel[anel.length - 1] }),
+          setDataChamado,
+          alcas: { n: setados.length, setados },
+        }
+      }, 'mover')
     }
     const aoSoltar = () => {
       finalizarEdicao()
@@ -1628,6 +1684,28 @@ export function MapView({
         .filter((ponto): ponto is { x: number; y: number } => Boolean(ponto))
     }
   }
+
+  // nit:debug — posição das alças NO RE-RENDER React (pós-commit): comparável
+  // frame a frame com o conjunto imperativo (tag 'alca', chave 'imp') — é a
+  // evidência do atraso das alças (imperativo no tick vs render 1 frame atrás).
+  useEffect(() => {
+    if (!edicao || !alcasDaArea.length) {
+      return
+    }
+    logDebug('render.seq', () => ({
+      render: true,
+      seq: sequenciaRenderRef.current++,
+      alcas: alcasDaArea.map((alca) => ({ cx: arred1(alca.x), cy: arred1(alca.y) })),
+      modelo: modeloDestaque
+        ? {
+            centro: modeloDestaque.centro,
+            rx: arred1(modeloDestaque.rx),
+            ry: arred1(modeloDestaque.ry),
+          }
+        : null,
+    }), 'alcas')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poligonoEmEdicao, modeloEdicao])
 
   return (
     <div data-testid="mapa" className="absolute inset-0">
