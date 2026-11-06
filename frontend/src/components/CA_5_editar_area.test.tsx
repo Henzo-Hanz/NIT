@@ -251,11 +251,12 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
   })
 })
 
-// Círculo com modelo de elipse: 5 alças (tamanho + eixos) em vez das 32
-// vértices; regeneração do anel pela util compartilhada. Áreas sem modelo
-// continuam com uma alça por vértice. Lapidação 11: o gesto de desenho já
-// nasce ELÍPSE — o helper arrasta diagonal p/ rx=20, ry=10 independentes.
-describe('CA-5: círculo/elipse com 5 alças', () => {
+// Círculo com modelo de elipse: 4 alças, uma por FACE do bbox (E, W, N, S),
+// em vez das 32 vértices. Cada alça move SÓ a sua face e mantém a OPOSTA
+// fixa (sem crescimento simétrico). Áreas sem modelo continuam com uma alça
+// por vértice. Lapidação 11: o gesto de desenho já nasce ELÍPSE — o helper
+// arrasta diagonal p/ rx=20, ry=10 independentes (centro [10,10]).
+describe('CA-5: círculo/elipse com 4 alças de face (oposta ancorada)', () => {
   function desenharCirculo(): HTMLElement {
     const container = screen.getByTestId('mapa-container')
     fireEvent.mouseDown(container, { clientX: 10, clientY: 10 })
@@ -264,102 +265,124 @@ describe('CA-5: círculo/elipse com 5 alças', () => {
     return container
   }
 
-  it('círculo criado mostra exatamente 5 alças (alca-0..4, sem alca-5)', async () => {
+  async function prepararElipse(): Promise<HTMLElement> {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
     await usuario.click(screen.getByTestId('ferramenta-desenhar'))
     await usuario.click(screen.getByTestId('desenho-circulo'))
-
-    desenharCirculo()
+    const container = desenharCirculo()
     await vi.waitFor(() => {
       expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
     })
     await usuario.click(screen.getByTestId('selecionar-area-1'))
     await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+    return container
+  }
 
-    for (let indice = 0; indice <= 4; indice += 1) {
+  const bboxDoAnel = (anel: number[][]) => {
+    const xs = anel.slice(0, -1).map((ponto) => ponto[0])
+    const ys = anel.slice(0, -1).map((ponto) => ponto[1])
+    return {
+      left: Math.min(...xs),
+      right: Math.max(...xs),
+      bottom: Math.min(...ys),
+      top: Math.max(...ys),
+    }
+  }
+
+  const anelGravado = (container: HTMLElement) =>
+    JSON.parse(container.getAttribute('data-poligono-desenhado') as string)
+      .coordinates[0] as number[][]
+
+  it('círculo criado mostra exatamente 4 alças (alca-0..3, sem alca-4)', async () => {
+    await prepararElipse()
+
+    for (let indice = 0; indice <= 3; indice += 1) {
       expect(screen.getByTestId(`alca-${indice}`)).toBeInTheDocument()
     }
-    expect(screen.queryByTestId('alca-5')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('alca-4')).not.toBeInTheDocument()
   })
 
-  it('alça SE escala rx E ry pelo MESMO fator da alça-inicial, sem salto', async () => {
-    const usuario = userEvent.setup()
-    configurarFetch()
-    render(<MapView />)
-    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
-    await usuario.click(screen.getByTestId('desenho-circulo'))
+  it('puxar N move só o topo: bottom fica fixo', async () => {
+    const container = await prepararElipse()
+    const fonte = { setData: vi.fn() }
+    estadoMapa.fonte = fonte
 
-    const container = desenharCirculo()
-    await vi.waitFor(() => {
-      expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
-    })
-    await usuario.click(screen.getByTestId('selecionar-area-1'))
-    await usuario.click(screen.getByTestId('ferramenta-arrastar'))
-
-    // SE do modelo (centro [10,10], rx=20, ry=10): a âncora da escala é a
-    // PRÓPRIA alça inicial — o fator é dist(centro→cursor)/dist(centro→alça),
-    // que vale exatamente 1 quando o cursor está na alça (sem salto da 1ª
-    // delta p/ qualquer aperto, mesmo alguns px fora do centro da alça).
-    const fatorSE = Math.SQRT2 / 2
-    const seX = 10 + 20 * fatorSE
-    const seY = 10 + 10 * fatorSE
-    const distAlca = Math.hypot(20 * fatorSE, 10 * fatorSE)
-
-    estadoMapa.fonte = { setData: vi.fn() }
-    fireEvent.mouseDown(screen.getByTestId('alca-4'), { clientX: seX, clientY: seY })
-    // 2 eventos com passos pequenos: nenhuma "pulo" entre eles — cada rx sai
-    // do fator contínuo do SEU cursor.
-    fireEvent.mouseMove(window, { clientX: 25, clientY: 18 })
-    const fonteAoVivo = (estadoMapa.fonte?.setData.mock.calls.at(-1)?.[0] as any).features[0]
-      .geometry.coordinates[0] as number[][]
-    const fator1 = Math.max(Math.hypot(15, 8) / distAlca, 0.05)
-    expect(fonteAoVivo[0][0] - 10).toBeCloseTo(20 * fator1, 10)
-    expect(fonteAoVivo[0][1]).toBeCloseTo(10, 10)
-
-    fireEvent.mouseMove(window, { clientX: 26, clientY: 19 })
+    // N=(10,20): puxa até 25 → top=25, bottom=0 parado.
+    fireEvent.mouseDown(screen.getByTestId('alca-2'), { clientX: 10, clientY: 20 })
+    fireEvent.mouseMove(window, { clientX: 10, clientY: 25 })
+    const chamadaAoVivo = fonte.setData.mock.calls.at(-1) as any
+    const aoVivo = chamadaAoVivo[0].features[0].geometry.coordinates[0] as number[][]
+    expect(aoVivo).toEqual(anelDaElipse([10, 12.5], 20, 12.5))
+    expect(bboxDoAnel(aoVivo).bottom).toBe(0)
     fireEvent.mouseUp(window)
 
-    const poligono = JSON.parse(container.getAttribute('data-poligono-desenhado') as string)
-    const fator2 = Math.max(Math.hypot(16, 9) / distAlca, 0.05)
-    // Anel regenerado: maior, fechado, centro preservado e PROPORCIONAL
-    // (rx/ry do modelo inicial escalados pelo mesmo fator).
-    expect(poligono.coordinates[0]).toEqual(anelDaElipse([10, 10], 20 * fator2, 10 * fator2))
-    const anel = poligono.coordinates[0] as number[][]
-    expect(anel).toHaveLength(33)
-    // Vértice oposto (índice 16 do arco) vs primeiro: ponto médio = centro.
-    const centro: [number, number] = [
-      (anel[0][0] + anel[16][0]) / 2,
-      (anel[0][1] + anel[16][1]) / 2,
-    ]
-    expect(centro[0]).toBeCloseTo(10)
-    expect(centro[1]).toBeCloseTo(10)
+    const anel = anelGravado(container)
+    expect(anel).toEqual(anelDaElipse([10, 12.5], 20, 12.5))
+    const bbox = bboxDoAnel(anel)
+    expect(bbox.bottom).toBe(0)
+    expect(bbox.top).toBe(25)
   })
 
-  it('alça E altera só o rx: anel mais largo com ry intacto', async () => {
-    const usuario = userEvent.setup()
-    configurarFetch()
-    render(<MapView />)
-    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
-    await usuario.click(screen.getByTestId('desenho-circulo'))
+  it('puxar S move só a base: top fica fixo', async () => {
+    const container = await prepararElipse()
 
-    const container = desenharCirculo()
-    await vi.waitFor(() => {
-      expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
-    })
-    await usuario.click(screen.getByTestId('selecionar-area-1'))
-    await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+    // S=(10,0): puxa até -5 → bottom=-5, top=20 parado.
+    fireEvent.mouseDown(screen.getByTestId('alca-3'), { clientX: 10, clientY: 0 })
+    fireEvent.mouseMove(window, { clientX: 10, clientY: -5 })
+    fireEvent.mouseUp(window)
 
-    // E=(30,10): arrastar até (45,10) → rx = |45-10| = 35; ry continua 10.
+    const anel = anelGravado(container)
+    expect(anel).toEqual(anelDaElipse([10, 7.5], 20, 12.5))
+    const bbox = bboxDoAnel(anel)
+    expect(bbox.top).toBe(20)
+    expect(bbox.bottom).toBe(-5)
+  })
+
+  it('puxar E move só a direita: left fica fixo', async () => {
+    const container = await prepararElipse()
+
+    // E=(30,10): puxa até 45 → right=45, left=-10 parado.
     fireEvent.mouseDown(screen.getByTestId('alca-0'), { clientX: 30, clientY: 10 })
     fireEvent.mouseMove(window, { clientX: 45, clientY: 10 })
     fireEvent.mouseUp(window)
 
-    const anel = JSON.parse(
-      container.getAttribute('data-poligono-desenhado') as string,
-    ).coordinates[0] as number[][]
-    expect(anel).toEqual(anelDaElipse([10, 10], 35, 10))
+    const anel = anelGravado(container)
+    expect(anel).toEqual(anelDaElipse([17.5, 10], 27.5, 10))
+    const bbox = bboxDoAnel(anel)
+    expect(bbox.left).toBe(-10)
+    expect(bbox.right).toBe(45)
+  })
+
+  it('puxar W move só a esquerda: right fica fixo', async () => {
+    const container = await prepararElipse()
+
+    // W=(-10,10): puxa até -30 → left=-30, right=30 parado.
+    fireEvent.mouseDown(screen.getByTestId('alca-1'), { clientX: -10, clientY: 10 })
+    fireEvent.mouseMove(window, { clientX: -30, clientY: 10 })
+    fireEvent.mouseUp(window)
+
+    const anel = anelGravado(container)
+    expect(anel).toEqual(anelDaElipse([0, 10], 30, 10))
+    const bbox = bboxDoAnel(anel)
+    expect(bbox.right).toBe(30)
+    expect(bbox.left).toBe(-30)
+  })
+
+  it('clamp: arrastar N além da base trava no mínimo e bottom continua fixo', async () => {
+    const container = await prepararElipse()
+
+    // N além do bottom (0): trava em bottom + 3px, sem inverter/espelhar.
+    fireEvent.mouseDown(screen.getByTestId('alca-2'), { clientX: 10, clientY: 20 })
+    fireEvent.mouseMove(window, { clientX: 10, clientY: -50 })
+    fireEvent.mouseUp(window)
+
+    const anel = anelGravado(container)
+    expect(anel).toEqual(anelDaElipse([10, 1.5], 20, 1.5))
+    const bbox = bboxDoAnel(anel)
+    expect(bbox.bottom).toBe(0)
+    expect(bbox.top).toBe(3)
   })
 
   it('áreas sem modelo (livre) continuam com uma alça por vértice', async () => {
