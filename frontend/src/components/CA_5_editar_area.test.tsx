@@ -253,12 +253,13 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
 
 // Círculo com modelo de elipse: 5 alças (tamanho + eixos) em vez das 32
 // vértices; regeneração do anel pela util compartilhada. Áreas sem modelo
-// continuam com uma alça por vértice.
+// continuam com uma alça por vértice. Lapidação 11: o gesto de desenho já
+// nasce ELÍPSE — o helper arrasta diagonal p/ rx=20, ry=10 independentes.
 describe('CA-5: círculo/elipse com 5 alças', () => {
   function desenharCirculo(): HTMLElement {
     const container = screen.getByTestId('mapa-container')
     fireEvent.mouseDown(container, { clientX: 10, clientY: 10 })
-    fireEvent.mouseMove(container, { clientX: 20, clientY: 10 })
+    fireEvent.mouseMove(container, { clientX: 30, clientY: 20 })
     fireEvent.mouseUp(container)
     return container
   }
@@ -283,7 +284,7 @@ describe('CA-5: círculo/elipse com 5 alças', () => {
     expect(screen.queryByTestId('alca-5')).not.toBeInTheDocument()
   })
 
-  it('alça SE escala rx E ry pelo mesmo fator com centro preservado', async () => {
+  it('alça SE escala rx E ry pelo MESMO fator da alça-inicial, sem salto', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
@@ -297,17 +298,34 @@ describe('CA-5: círculo/elipse com 5 alças', () => {
     await usuario.click(screen.getByTestId('selecionar-area-1'))
     await usuario.click(screen.getByTestId('ferramenta-arrastar'))
 
-    // SE fica em (~17.07, ~17.07): a distância inicial ao centro (√(7²+7²))
-    // dobra no move para (24,24) → fator exatamente 2 → rx = ry = 20.
-    fireEvent.mouseDown(screen.getByTestId('alca-4'), { clientX: 17, clientY: 17 })
-    fireEvent.mouseMove(window, { clientX: 24, clientY: 24 })
+    // SE do modelo (centro [10,10], rx=20, ry=10): a âncora da escala é a
+    // PRÓPRIA alça inicial — o fator é dist(centro→cursor)/dist(centro→alça),
+    // que vale exatamente 1 quando o cursor está na alça (sem salto da 1ª
+    // delta p/ qualquer aperto, mesmo alguns px fora do centro da alça).
+    const fatorSE = Math.SQRT2 / 2
+    const seX = 10 + 20 * fatorSE
+    const seY = 10 + 10 * fatorSE
+    const distAlca = Math.hypot(20 * fatorSE, 10 * fatorSE)
+
+    estadoMapa.fonte = { setData: vi.fn() }
+    fireEvent.mouseDown(screen.getByTestId('alca-4'), { clientX: seX, clientY: seY })
+    // 2 eventos com passos pequenos: nenhuma "pulo" entre eles — cada rx sai
+    // do fator contínuo do SEU cursor.
+    fireEvent.mouseMove(window, { clientX: 25, clientY: 18 })
+    const fonteAoVivo = (estadoMapa.fonte?.setData.mock.calls.at(-1)?.[0] as any).features[0]
+      .geometry.coordinates[0] as number[][]
+    const fator1 = Math.max(Math.hypot(15, 8) / distAlca, 0.05)
+    expect(fonteAoVivo[0][0] - 10).toBeCloseTo(20 * fator1, 10)
+    expect(fonteAoVivo[0][1]).toBeCloseTo(10, 10)
+
+    fireEvent.mouseMove(window, { clientX: 26, clientY: 19 })
     fireEvent.mouseUp(window)
 
     const poligono = JSON.parse(container.getAttribute('data-poligono-desenhado') as string)
-    // Anel regenerado: maior (raios dobrados), fechado e centro preservado.
-    expect(JSON.parse(container.getAttribute('data-poligono-desenhado') as string).coordinates[0]).toEqual(
-      anelDaElipse([10, 10], 20, 20),
-    )
+    const fator2 = Math.max(Math.hypot(16, 9) / distAlca, 0.05)
+    // Anel regenerado: maior, fechado, centro preservado e PROPORCIONAL
+    // (rx/ry do modelo inicial escalados pelo mesmo fator).
+    expect(poligono.coordinates[0]).toEqual(anelDaElipse([10, 10], 20 * fator2, 10 * fator2))
     const anel = poligono.coordinates[0] as number[][]
     expect(anel).toHaveLength(33)
     // Vértice oposto (índice 16 do arco) vs primeiro: ponto médio = centro.
@@ -333,15 +351,15 @@ describe('CA-5: círculo/elipse com 5 alças', () => {
     await usuario.click(screen.getByTestId('selecionar-area-1'))
     await usuario.click(screen.getByTestId('ferramenta-arrastar'))
 
-    // E=(20,10): arrastar até (40,10) → rx = |40-10| = 30; ry continua 10.
-    fireEvent.mouseDown(screen.getByTestId('alca-0'), { clientX: 20, clientY: 10 })
-    fireEvent.mouseMove(window, { clientX: 40, clientY: 10 })
+    // E=(30,10): arrastar até (45,10) → rx = |45-10| = 35; ry continua 10.
+    fireEvent.mouseDown(screen.getByTestId('alca-0'), { clientX: 30, clientY: 10 })
+    fireEvent.mouseMove(window, { clientX: 45, clientY: 10 })
     fireEvent.mouseUp(window)
 
     const anel = JSON.parse(
       container.getAttribute('data-poligono-desenhado') as string,
     ).coordinates[0] as number[][]
-    expect(anel).toEqual(anelDaElipse([10, 10], 30, 10))
+    expect(anel).toEqual(anelDaElipse([10, 10], 35, 10))
   })
 
   it('áreas sem modelo (livre) continuam com uma alça por vértice', async () => {
