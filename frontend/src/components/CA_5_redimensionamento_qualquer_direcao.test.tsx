@@ -60,10 +60,6 @@ function configurarFetch() {
   return fetchFake
 }
 
-// Retângulo [[10,10],[30,10],[30,25],[10,25],[10,10]] em edição: 4 alças, uma
-// por canto (o vértice de fechamento NÃO vira alça).
-const RECT = [[10, 10], [30, 10], [30, 25], [10, 25], [10, 10]]
-
 async function desenharESelecionar(telaInicial: { clientX: number; clientY: number }, passos: { clientX: number; clientY: number }[]) {
   const usuario = userEvent.setup()
   configurarFetch()
