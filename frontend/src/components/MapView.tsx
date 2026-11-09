@@ -353,6 +353,16 @@ export function MapView({
   const proximoIdRef = useRef(1)
   const areaDestaqueRef = useRef<AreaDesenhada | null>(null)
   const resultadoRef = useRef<ConsultaArea | null>(null)
+  // Resultado POR ÁREA (cache): a consulta de um gesto re-busca só a área
+  // editada e mescla com as respostas já obtidas das demais.
+  const resultadosPorAreaRef = useRef<Map<string, { assinatura: string; resultado: ConsultaArea }>>(
+    new Map(),
+  )
+  const consultaGeracaoRef = useRef(0)
+  const parametrosConsultaRef = useRef<string | null>(null)
+  const escopoConsultaRef = useRef<string | null>(null)
+  // nit:debug — instante do fim do gesto p/ medir o delta até a consulta.
+  const gestoFimRef = useRef<{ em: number; tipo: string; areaId: string } | null>(null)
   const pontosExibeRef = useRef<PontoExibido[]>([])
   const pedidoBuscaRef = useRef(0)
   const piscaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -489,6 +499,26 @@ export function MapView({
       ]
     : pontosEscopo.filter(casaComFiltro)
 
+  // Fix 1 (SPEC-0005): durante o gesto de edição o anel VIVO recorta os pontos
+  // no cliente — o que saiu da área editada some no mesmo frame, sem esperar
+  // o server. Pontos de OUTRAS áreas permanecem (só o contorno editado mudou).
+  // PREMISSA: ao CRESCER, pontos novos só aparecem no release — o server é a
+  // fonte da verdade e não inventamos pontos.
+  const pontosDuranteEdicao = edicao && poligonoEdicao
+    ? pontosVisiveis.filter((ponto) => {
+        const coordenada = ponto.geometry.coordinates as [number, number]
+        if (pontoNoPoligono(coordenada, poligonoEdicao)) {
+          return true
+        }
+        return areas.some(
+          (area) =>
+            area.id !== edicao.id &&
+            pontoNoPoligono(coordenada, area.polygon.coordinates[0] ?? []),
+        )
+      })
+    : null
+  const pontosExibidos = pontosDuranteEdicao ?? pontosVisiveis
+
   useEffect(() => {
     resultadoRef.current = resultado
   }, [resultado])
@@ -498,8 +528,9 @@ export function MapView({
   }, [areaEmDestaque])
 
   useEffect(() => {
-    pontosExibeRef.current = pontosVisiveis
-  }, [pontosVisiveis])
+    pontosExibeRef.current = pontosExibidos
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pontosExibidos])
 
   // Prefetch dos ícones (lapidação 12): `rodadaPrefetch` existia mas NUNCA era
   // chamada — por isso o 1º clique no ponto abria o pin com o fundo branco até
@@ -747,6 +778,14 @@ export function MapView({
     if (!ativa) {
       return
     }
+    // nit:debug — fim do gesto (o dono compara com o inicio da consulta).
+    const fimEm = performance.now()
+    gestoFimRef.current = { em: fimEm, tipo: ativa.tipo, areaId: ativa.id }
+    logDebug(
+      'gesto',
+      () => ({ evento: 'fim', tipo: ativa.tipo, areaId: ativa.id, t: Math.round(fimEm) }),
+      'fim',
+    )
     edicaoRef.current = null
     inicioEdicaoRef.current = null
     const modeloFinal = modeloEdicaoRef.current
@@ -1300,14 +1339,16 @@ export function MapView({
     if (!ativo) {
       return
     }
-    const visivel = pontosVisiveis.some(
+    // Fix 1: o pin do ponto ativo fecha na hora se ele sair do anel VIVO do
+    // gesto (mesma regra de sumirPin/fade já existente).
+    const visivel = pontosExibidos.some(
       (ponto) => String(ponto.properties.id) === String(ativo.properties.id),
     )
     if (!visivel) {
       removerPinAreaRef.current()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resultado, buscaResultado, buscaAberto])
+  }, [resultado, buscaResultado, buscaAberto, edicao, poligonoEdicao])
 
   useEffect(
     () => () => {
@@ -1397,27 +1438,122 @@ export function MapView({
     }
   }, [buscaTermo, buscaAberto])
 
+  // Fix 2 (SPEC-0005): consulta POR ÁREA com cache. O fim de um gesto muda só
+  // o polígono de UMA área (mesmos ids) -> re-busca apenas ela (1 POST) e
+  // mescla com as respostas cacheadas das demais. Mudar o CONJUNTO de áreas
+  // (criar/apagar) ou filtro/animal invalida o cache das áreas afetadas e
+  // volta a consultá-las. Corrida: geração global descarta resposta obsoleta.
   useEffect(() => {
     let vivo = true
     const animal = filtro === 'especifica' ? animalAplicado.trim() || null : null
     const ordenar = filtro === 'mais' ? 'mais' : filtro === 'menos' ? 'menos' : null
+    const parametros = `${animal ?? ''}|${ordenar ?? ''}`
     const alvos = areaAtivaId ? areas.filter((area) => area.id === areaAtivaId) : areas
+    const escopo = alvos.map((area) => area.id).join(',')
+    const anteriorParametros = parametrosConsultaRef.current
+    const anteriorEscopo = escopoConsultaRef.current
+    parametrosConsultaRef.current = parametros
+    escopoConsultaRef.current = escopo
+    const motivo: 'filtro' | 'areas' | 'gesto' =
+      anteriorParametros !== null && anteriorParametros !== parametros
+        ? 'filtro'
+        : anteriorEscopo === null || anteriorEscopo !== escopo
+          ? 'areas'
+          : 'gesto'
+    const chaveDe = (area: AreaDesenhada) =>
+      `${area.id}|${JSON.stringify(area.polygon)}|${parametros}`
+    const cache = resultadosPorAreaRef.current
+    const geracao = consultaGeracaoRef.current + 1
+    consultaGeracaoRef.current = geracao
+    const inicio = performance.now()
+    const gesto = gestoFimRef.current
+    const deltaGestoMs = motivo === 'gesto' && gesto ? Math.round(inicio - gesto.em) : null
+
     if (!alvos.length) {
+      const chave = `__global__|${parametros}`
+      const cacheado = cache.get('__global__')
+      if (cacheado?.assinatura === chave) {
+        setResultado(cacheado.resultado)
+        return () => {
+          vivo = false
+        }
+      }
+      logDebug(
+        'consulta',
+        () => ({ evento: 'inicio', motivo, areaIds: [], deltaGestoMs, t: Math.round(inicio) }),
+        'inicio',
+      )
       consultarArea({ poligono: null, animal, ordenar }).then((dados) => {
-        if (vivo) {
+        if (!vivo || geracao !== consultaGeracaoRef.current) {
+          return
+        }
+        if (dados) {
+          cache.set('__global__', { assinatura: chave, resultado: dados })
           setResultado(dados)
         }
+        logDebug(
+          'consulta',
+          () => ({
+            evento: 'fim',
+            areaId: null,
+            dtms: Math.round(performance.now() - inicio),
+            pontos: dados?.pontos.features.length ?? 0,
+            especies: dados?.especies.length ?? 0,
+          }),
+          'fim',
+        )
       })
       return () => {
         vivo = false
       }
     }
-    Promise.all(
-      alvos.map((area) => consultarArea({ poligono: area.polygon, animal, ordenar })),
-    ).then((respostas) => {
-      if (vivo) {
-        setResultado(mesclarConsultas(respostas))
+
+    const pendentes = alvos.filter((area) => cache.get(area.id)?.assinatura !== chaveDe(area))
+    if (!pendentes.length) {
+      setResultado(mesclarConsultas(alvos.map((area) => cache.get(area.id)?.resultado ?? null)))
+      return () => {
+        vivo = false
       }
+    }
+    logDebug(
+      'consulta',
+      () => ({
+        evento: 'inicio',
+        motivo,
+        areaIds: pendentes.map((area) => area.id),
+        deltaGestoMs,
+        t: Math.round(inicio),
+      }),
+      'inicio',
+    )
+    Promise.all(
+      pendentes.map((area) => {
+        const inicioArea = performance.now()
+        return consultarArea({ poligono: area.polygon, animal, ordenar }).then((dados) => {
+          if (!vivo || geracao !== consultaGeracaoRef.current) {
+            return
+          }
+          if (dados) {
+            cache.set(area.id, { assinatura: chaveDe(area), resultado: dados })
+          }
+          logDebug(
+            'consulta',
+            () => ({
+              evento: 'fim',
+              areaId: area.id,
+              dtms: Math.round(performance.now() - inicioArea),
+              pontos: dados?.pontos.features.length ?? 0,
+              especies: dados?.especies.length ?? 0,
+            }),
+            `fim:${area.id}`,
+          )
+        })
+      }),
+    ).then(() => {
+      if (!vivo || geracao !== consultaGeracaoRef.current) {
+        return
+      }
+      setResultado(mesclarConsultas(alvos.map((area) => cache.get(area.id)?.resultado ?? null)))
     })
     return () => {
       vivo = false
@@ -2018,7 +2154,7 @@ export function MapView({
           Clique em um ponto para medir
         </div>
       )}
-      {pontosVisiveis.map((ponto) => {
+      {pontosExibidos.map((ponto) => {
         const posicao = posicoesPontos[String(ponto.properties.id)]
         if (!posicao) {
           return null
