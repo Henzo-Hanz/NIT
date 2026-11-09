@@ -19,6 +19,7 @@ import { FiltroAnimaisPanel, type FiltroEspecie } from '@/components/FiltroAnima
 import { PainelAreas, type AreaDesenhada, type ModeloElipse } from '@/components/PainelAreas'
 import { areaKm2, anelDaElipse, convexHull, distanciaKm, formatarKm, formatarKm2 } from '@/utils/geo'
 import { logDebug } from '@/lib/debug'
+import { CENTRO_LITORAL_PI, ZOOM_INICIAL } from '@/lib/constantes-mapa'
 import {
   buscarGeometrias,
   buscarEspecies,
@@ -57,9 +58,6 @@ const EXTRAS_DA_ELIPSE: ['e', 'w', 'n', 's'] = ['e', 'w', 'n', 's']
 
 // 1 casa decimal — vetor de valores de tela nos logs do gesto (nit:debug).
 const arred1 = (valor: number) => Math.round(valor * 10) / 10
-
-export const CENTRO_LITORAL_PI: [number, number] = [-41.75, -2.9]
-export const ZOOM_INICIAL = 6
 
 // FeatureCollection da fonte 'area-desenhada': todas as áreas com as
 // propriedades id/nome/ativa preservadas. Serviço à gravação definitiva
