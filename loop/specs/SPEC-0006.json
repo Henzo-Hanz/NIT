@@ -1,0 +1,90 @@
+{
+  "id": "SPEC-0006",
+  "prompt_original": "ok, agora vamos incrementar a spec 0005, todos os polígonos tem as propriedades de binds padrão: ctrl + c pra copiar e colar com ctrl + v, ctrl + x, z e y, pequena task pra vc não é? (decidido depois: virou SPEC-0006, incremento de front, backend inalterado)",
+  "objetivo": "Adicionar atalhos padrão de edição sobre as áreas desenhadas no mapa — copiar (Ctrl+C), colar (Ctrl+V), recortar (Ctrl+X) e desfazer/refazer (Ctrl+Z / Ctrl+Y) — com clipboard interno da sessão e histórico de operações de área, sem alterar backend nem a consulta por área.",
+  "estado_referencia": "branch que hospeda o PR #13 (SPEC-0005) sobre main — o incremento será empilhado nessa mesma branch/PR, a pedido do humano; áreas desenhadas com seleção, edição (mover/alças), formas (livre/retângulo/elipse) e medição já implementadas",
+  "escopo": {
+    "back": [],
+    "front": [
+      "Histórico undo/redo (limite 50 estados) das operações de área em MapView (criar por desenho, mover/redimensionar, apagar, colar), restaurando `areas` e deixando a consulta por área re-disparar pelo efeito existente",
+      "Clipboard interno (useRef) com Ctrl+C (copia a área ativa) e Ctrl+X (copia + apaga reusando `apagarArea`), sem usar a API de clipboard do SO",
+      "Ctrl+V cria nova AreaDesenhada (id via `proximoIdRef`, nome 'Área {id}', mesmo polígono/modelo deslocado em +0.01° de lon/lat) e já a deixa selecionada",
+      "Handler único de keydown em MapView: aceita ctrlKey||metaKey, ignora foco em input/textarea/contenteditable/select e modal/bolha abertos, chama preventDefault só quando trata, sem regredir os Escapes existentes (medir e bolha)",
+      "Testes front novos: CA_1_atalhos_copiar_colar, CA_2_atalhos_recortar, CA_3_atalhos_undo_redo, CA_4_atalhos_guarda_foco (MapFake como nos testes de área; teclado via fireEvent/userEvent)",
+      "Teste de desempenho front perf_atalhos (lote de colar/undo) para satisfazer o gate 2, que reprova a camada sem arquivo perf_*"
+    ]
+  },
+  "fora_de_escopo": [
+    "Clipboard do sistema operacional / copiar entre abas ou janelas",
+    "Persistência de áreas, histórico ou clipboard (reload zera tudo)",
+    "Undo/redo de filtros, texto de busca, resultado da consulta, pan/zoom ou medição",
+    "Atalhos além de Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Z e Ctrl+Y (ex.: Ctrl+D, Ctrl+A, atalhos de ferramenta)",
+    "Edição de vértices nova ou alteração das alças existentes",
+    "Touch/mobile: os atalhos pressupõem teclado físico",
+    "Fila/múltiplos itens no clipboard"
+  ],
+  "criterios_aceitacao": [
+    {
+      "id": "CA-1",
+      "camada": "front",
+      "descricao": "Dado pelo menos uma área desenhada com uma selecionada no PainelAreas, quando o usuário pressiona Ctrl+C e depois Ctrl+V, então uma nova área é criada com id e nome novos, mesmo polígono (e modelo de elipse, se houver) deslocado em +0.01° de longitude e latitude, já selecionada, e a consulta por área re-dispara; Ctrl+V sem cópia anterior não altera áreas nem dispara consulta [borda]."
+    },
+    {
+      "id": "CA-2",
+      "camada": "front",
+      "descricao": "Dado uma área ativa, quando o usuário pressiona Ctrl+X, então a área é copiada para o clipboard interno e removida da lista com o mesmo efeito do botão apagar existente (que também desmarca a seleção) e a consulta re-dispara; sem área ativa, Ctrl+X não altera nada [borda]."
+    },
+    {
+      "id": "CA-3",
+      "camada": "front",
+      "descricao": "Dado o histórico de operações de área, quando o usuário pressiona Ctrl+Z, então o estado anterior de `areas` é restaurado (criar, mover/redimensionar, apagar e colar são reversíveis; apagar restaura id, nome e polígono) e Ctrl+Y reaplica; acima de 50 estados o mais antigo é descartado; undo/redo não afetam filtros, busca, consulta nem pan/zoom [borda]."
+    },
+    {
+      "id": "CA-4",
+      "camada": "front",
+      "descricao": "Dado foco em input/textarea/contenteditable ou o modal de espécie/bolha de área aberto, então Ctrl+C/V/X/Z/Y não são interceptados e seguem o comportamento nativo (Ctrl+Z no campo de busca desfaz o texto); fora desses casos os atalhos funcionam com ctrlKey ou metaKey (macOS) e os Escapes existentes de medir/bolha continuam funcionando [borda]."
+    }
+  ],
+  "contrato_api_rascunho": [],
+  "ja_existe_na_codebase": [
+    "frontend MapView.tsx: `areas`/`setAreas` (useState) + `areasRef`, `areaAtivaId`/`setAreaAtivaId`, `registrarArea` (id via `proximoIdRef`, nome 'Área N'), `concluirEdicao` (mover/alças grava o polígono), `apagarArea` (desmarca a seleção), `selecionarArea`; não há histórico de undo/redo nem clipboard",
+    "MapView.tsx já registra `document.addEventListener('keydown')` em dois efeitos (Escape encerra medição; Escape fecha a bolha de área) — os novos atalhos convivem com esses handlers",
+    "PainelAreas.tsx: lista com `data-selecionada`, botão `apagar-area-<id>` e rolagem de no máximo 3 itens visíveis (CA_7_areas_max_tres é sobre scroll — NÃO existe limite rígido de quantidade de áreas)",
+    "A consulta por área re-dispara sozinha por efeito dependente de `areas`/`areaAtivaId`/`filtro`/`animalAplicado` (MapView ~1414-1478): colar/apagar/undo não precisa chamada manual",
+    "Testes front: MapFake/MarkerFake definidos por arquivo com `vi.mock('maplibre-gl')` e `configurarFetch`; não há helper central de teclado; testes de área em CA_5_*.test.tsx e CA_7_areas_*.test.tsx",
+    "Laya não consultado nesta spec (incremento pequeno; achados por leitura direta do código)"
+  ],
+  "laya_consultado": false,
+  "premissas": [
+    "Clipboard interno em memória (useRef) da sessão: não usa a API de clipboard do SO nem sobrevive a reload",
+    "Ctrl+C e Ctrl+X operam somente sobre a área ativa (`areaAtivaId`); sem área ativa são no-op (não usam o fallback visual de 'última área')",
+    "Colar desloca a cópia em +0.01° de longitude e latitude (~1,1 km) para não sobrepor o original; o nome segue o padrão existente 'Área {novoId}'",
+    "Histórico undo/redo limitado a 50 estados e apenas de operações de área (criar por desenho/elipse/retângulo, mover/redimensionar, apagar, colar)",
+    "Atalhos só são interceptados quando o foco não está em campo de texto e não há modal/bolha aberta; `metaKey` (Cmd) conta como Ctrl",
+    "Nenhuma mudança de backend: consulta e contratos de API existentes são reusados",
+    "Não há limite de quantidade de áreas (só rolagem visual no painel), então colar não precisa de regra de teto",
+    "O gate 1 (front) roda todos os frontend/**/CA_<N>_* existentes, não só os desta spec; os arquivos novos CA_1..CA_4 somam aos grupos já usados por specs anteriores"
+  ],
+  "perguntas_abertas": [],
+  "dependencias": {
+    "front_depende_de_back": false
+  },
+  "perguntas_iteracao": [
+    {
+      "id": "PI-1",
+      "camada": "front",
+      "pergunta": "Os atalhos reutilizam as operações existentes de área (selecionar/apagar) sem duplicar lógica de estado?",
+      "esperado": true
+    },
+    {
+      "id": "PI-2",
+      "camada": "front",
+      "pergunta": "O histórico cobre apenas operações de área e não interferiu na consulta por área nem no pan/zoom?",
+      "esperado": true
+    }
+  ],
+  "status": "aprovada",
+  "aprovada_por": "hanz_dev",
+  "aprovada_em": "2026-11-10 18h17 (São Paulo)",
+  "hash_aprovacao": "6b9861100cdb52977bfc2b2923bdd7d784a3790bbf9b5f995404d369a9f711a9"
+}
