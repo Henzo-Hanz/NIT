@@ -166,7 +166,12 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
     const dadosAoVivo = fonte.setData.mock.calls.at(-1)?.[0]
     expect(dadosAoVivo.type).toBe('FeatureCollection')
     expect(dadosAoVivo.features).toHaveLength(1)
-    expect(dadosAoVivo.features[0].properties).toEqual({ id: '1', nome: 'Área 1', ativa: false })
+    expect(dadosAoVivo.features[0].properties).toEqual({
+      id: '1',
+      nome: 'Área 1',
+      ativa: false,
+      emEdicao: true,
+    })
     expect(dadosAoVivo.features[0].geometry.coordinates[0]).toEqual([
       [12, 19],
       [30, 10],
