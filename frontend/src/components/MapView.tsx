@@ -55,6 +55,28 @@ type EdicaoArea = {
 // Ordem das alças do modelo de elipse: uma por face do bbox (E, W, N, S).
 const EXTRAS_DA_ELIPSE: ['e', 'w', 'n', 's'] = ['e', 'w', 'n', 's']
 
+// Histórico de áreas limitado a 50 snapshots (objetos são imutáveis, então a
+// cópia rasa do array basta).
+const LIMITE_HISTORICO_AREAS = 50
+
+// Ações dos atalhos de teclado: lidas a cada render por um único listener em
+// `document` (ref evita closure velha).
+type AcoesAtalhos = {
+  copiar: () => boolean
+  recortar: () => boolean
+  colar: () => boolean
+  desfazer: () => boolean
+  refazer: () => boolean
+  emGesto: () => boolean
+  modalAberto: boolean
+  bolhaAreaAberta: boolean
+}
+
+// Mesmo array (referências dos itens preservadas) -> não há o que historizar.
+function mesmasAreas(a: AreaDesenhada[], b: AreaDesenhada[]) {
+  return a.length === b.length && a.every((area, indice) => area === b[indice])
+}
+
 // FeatureCollection da fonte 'area-desenhada': todas as áreas com as
 // propriedades id/nome/ativa preservadas. Serviço à gravação definitiva
 //(mouseup) e ao desenho AO VIVO durante a edição (mover ou alça). Durante o
@@ -373,6 +395,11 @@ export function MapView({
   const modeloInicialRef = useRef<ModeloElipse | null>(null)
   const modeloEdicaoRef = useRef<ModeloElipse | null>(null)
   const areasRef = useRef<AreaDesenhada[]>([])
+  // Histórico undo/redo + clipboard interno da sessão (sem API do SO).
+  const historicoAreasRef = useRef<AreaDesenhada[][]>([])
+  const refazerAreasRef = useRef<AreaDesenhada[][]>([])
+  const clipboardAreaRef = useRef<AreaDesenhada | null>(null)
+  const acoesAtalhosRef = useRef<AcoesAtalhos | null>(null)
   const pontoAtivoRef = useRef<PontoDaArea | null>(null)
   const bolhaAreaRef = useRef(false)
   const especiesRef = useRef<EspecieResumo[] | null>(null)
@@ -771,6 +798,34 @@ export function MapView({
     }
   }, [areaAtivaId])
 
+  // Ponto único de mutação das áreas: empurra o estado atual no undo, limpa o
+  // redo e troca `areas`. Sem mudança real (mesmas referências), não historiza.
+  const aplicarAreas = useCallback((proximo: AreaDesenhada[]) => {
+    const atual = areasRef.current
+    if (mesmasAreas(atual, proximo)) {
+      return false
+    }
+    const historico = historicoAreasRef.current
+    historico.push(atual)
+    if (historico.length > LIMITE_HISTORICO_AREAS) {
+      historico.shift()
+    }
+    refazerAreasRef.current = []
+    areasRef.current = proximo
+    setAreas(proximo)
+    return true
+  }, [])
+
+  // Restauração de snapshot (undo/redo): não historiza; se a área ativa sumiu,
+  // desmarca a seleção.
+  const aplicarSnapshot = useCallback((snapshot: AreaDesenhada[]) => {
+    areasRef.current = snapshot
+    setAreas(snapshot)
+    setAreaAtivaId((atual) =>
+      atual && snapshot.some((area) => area.id === atual) ? atual : null,
+    )
+  }, [])
+
   const finalizarEdicao = useCallback(() => {
     const ativa = edicaoRef.current
     if (!ativa) {
@@ -796,7 +851,27 @@ export function MapView({
       descartarEmEdicao()
       return
     }
-    setAreas((atuais) =>
+    // Deriva o novo array do estado VIVO (não de updater funcional): o
+    // `aplicarAreas` precisa do array corrente para o snapshot do undo.
+    const atuais = areasRef.current
+    const alvo = atuais.find((area) => area.id === ativa.id)
+    if (!alvo) {
+      descartarEmEdicao()
+      return
+    }
+    // Gesto que terminou sem mudança geométrica não entra no histórico.
+    const anelAtual = alvo.polygon.coordinates[0] ?? []
+    const mesmaForma =
+      anelAtual.length === novos.length &&
+      anelAtual.every(
+        (ponto, indice) => ponto[0] === novos[indice][0] && ponto[1] === novos[indice][1],
+      ) &&
+      JSON.stringify(alvo.modelo ?? null) === JSON.stringify(modeloFinal ?? null)
+    if (mesmaForma) {
+      descartarEmEdicao()
+      return
+    }
+    aplicarAreas(
       atuais.map((area) =>
         area.id === ativa.id
           ? {
@@ -808,7 +883,7 @@ export function MapView({
           : area,
       ),
     )
-  }, [descartarEmEdicao])
+  }, [descartarEmEdicao, aplicarAreas])
 
   const registrarArea = (anel: number[][], modelo?: ModeloElipse) => {
     if (anel.length < 4) {
@@ -823,7 +898,7 @@ export function MapView({
       areaKm2: areaKm2(anel),
       ...(modelo ? { modelo } : {}),
     }
-    setAreas((atuais) => [...atuais, nova])
+    aplicarAreas([...areasRef.current, nova])
     setMedicao(null)
   }
 
@@ -1708,9 +1783,147 @@ export function MapView({
   }
 
   const apagarArea = (id: string) => {
-    setAreas((atuais) => atuais.filter((area) => area.id !== id))
+    aplicarAreas(areasRef.current.filter((area) => area.id !== id))
     setAreaAtivaId((atual) => (atual === id ? null : atual))
   }
+
+  // Atalhos de edição: clipboard interno (useRef), sem API do SO. Cada ação
+  // devolve true só quando executou — o handler chama preventDefault apenas aí.
+  const copiarAreaAtiva = () => {
+    const ativa = areaAtivaId
+      ? areasRef.current.find((area) => area.id === areaAtivaId)
+      : undefined
+    if (!ativa) {
+      return false
+    }
+    clipboardAreaRef.current = ativa
+    return true
+  }
+
+  const recortarAreaAtiva = () => {
+    if (!areaAtivaId || !copiarAreaAtiva()) {
+      return false
+    }
+    apagarArea(areaAtivaId)
+    return true
+  }
+
+  const colarArea = () => {
+    const origem = clipboardAreaRef.current
+    if (!origem) {
+      return false
+    }
+    const id = String(proximoIdRef.current)
+    proximoIdRef.current += 1
+    // Desloca a cópia (~1,1 km) inclusive o fechamento do anel.
+    const deslocado = (ponto: number[]): number[] => [ponto[0] + 0.01, ponto[1] + 0.01]
+    const coordinates = origem.polygon.coordinates.map((anel) => anel.map(deslocado))
+    const anel = coordinates[0] ?? []
+    const modelo: ModeloElipse | undefined = origem.modelo
+      ? {
+          ...origem.modelo,
+          centro: [origem.modelo.centro[0] + 0.01, origem.modelo.centro[1] + 0.01],
+        }
+      : undefined
+    const nova: AreaDesenhada = {
+      id,
+      nome: `Área ${id}`,
+      polygon: { type: 'Polygon', coordinates },
+      areaKm2: areaKm2(anel),
+      ...(modelo ? { modelo } : {}),
+    }
+    aplicarAreas([...areasRef.current, nova])
+    setAreaAtivaId(id)
+    setMedicao(null)
+    return true
+  }
+
+  const desfazerAreas = () => {
+    const anterior = historicoAreasRef.current.pop()
+    if (!anterior) {
+      return false
+    }
+    refazerAreasRef.current.push(areasRef.current)
+    aplicarSnapshot(anterior)
+    return true
+  }
+
+  const refazerAreas = () => {
+    const proximo = refazerAreasRef.current.pop()
+    if (!proximo) {
+      return false
+    }
+    const historico = historicoAreasRef.current
+    historico.push(areasRef.current)
+    if (historico.length > LIMITE_HISTORICO_AREAS) {
+      historico.shift()
+    }
+    aplicarSnapshot(proximo)
+    return true
+  }
+
+  // Refs para o listener único: sempre enxerga o render atual.
+  acoesAtalhosRef.current = {
+    copiar: copiarAreaAtiva,
+    recortar: recortarAreaAtiva,
+    colar: colarArea,
+    desfazer: desfazerAreas,
+    refazer: refazerAreas,
+    emGesto: () => Boolean(edicaoRef.current) || desenhandoRef.current,
+    modalAberto,
+    bolhaAreaAberta,
+  }
+
+  // Handler único de Ctrl/Cmd+C, +X, +V, +Z e +Y (Shift+Z também refaz).
+  // Ignora foco em campo de texto, modal/bolha abertos e gesto de desenho/
+  // edição em curso (o undo/redo não pode disparar no meio do gesto).
+  useEffect(() => {
+    const aoTeclarAtalho = (evento: KeyboardEvent) => {
+      const acoes = acoesAtalhosRef.current
+      if (!acoes) {
+        return
+      }
+      const alvo = evento.target as HTMLElement | null
+      const tag = alvo?.tagName?.toLowerCase()
+      const editavel =
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        Boolean(alvo?.isContentEditable) ||
+        alvo?.getAttribute?.('contenteditable') === 'true'
+      if (editavel || acoes.modalAberto || acoes.bolhaAreaAberta || acoes.emGesto()) {
+        return
+      }
+      if (!(evento.ctrlKey || evento.metaKey)) {
+        return
+      }
+      let tratou = false
+      switch (evento.key.toLowerCase()) {
+        case 'c':
+          tratou = acoes.copiar()
+          break
+        case 'x':
+          tratou = acoes.recortar()
+          break
+        case 'v':
+          tratou = acoes.colar()
+          break
+        case 'z':
+          tratou = evento.shiftKey ? acoes.refazer() : acoes.desfazer()
+          break
+        case 'y':
+          tratou = acoes.refazer()
+          break
+        default:
+          break
+      }
+      if (tratou) {
+        evento.preventDefault()
+      }
+    }
+    document.addEventListener('keydown', aoTeclarAtalho)
+    return () => document.removeEventListener('keydown', aoTeclarAtalho)
+  }, [])
 
   const nomesDasEspecies = new Map(
     (resultado?.especies ?? []).map((item) => [item.slug, item.nome_popular]),
