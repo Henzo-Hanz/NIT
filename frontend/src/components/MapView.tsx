@@ -61,8 +61,10 @@ const arred1 = (valor: number) => Math.round(valor * 10) / 10
 
 // FeatureCollection da fonte 'area-desenhada': todas as áreas com as
 // propriedades id/nome/ativa preservadas. Serviço à gravação definitiva
-//(mouseup) e ao desenho AO VIVO durante a edição (mover ou alça).
-function dadosDasAreas(areas: AreaDesenhada[], ativaId: string | null) {
+//(mouseup) e ao desenho AO VIVO durante a edição (mover ou alça). Durante o
+// gesto a área editada leva `emEdicao: true` — o canvas a OCULTA (fill e
+// contorno com opacidade 0) e o quadro do gesto vive no DOM (SVG ghost).
+function dadosDasAreas(areas: AreaDesenhada[], ativaId: string | null, emEdicaoId?: string | null) {
   return {
     type: 'FeatureCollection',
     features: areas.map((area) => ({
@@ -71,6 +73,7 @@ function dadosDasAreas(areas: AreaDesenhada[], ativaId: string | null) {
         id: area.id,
         nome: area.nome,
         ativa: area.id === ativaId,
+        emEdicao: area.id === emEdicaoId,
       },
       geometry: area.polygon,
     })),
@@ -374,6 +377,9 @@ export function MapView({
   const anelOriginalRef = useRef<number[][]>([])
   const poligonoEdicaoRef = useRef<number[][]>([])
   const alcasSvgRef = useRef<SVGSVGElement | null>(null)
+  // Quadro do gesto: polígono SVG do DOM, atualizado por setAttribute no
+  // mesmo tick do setData (sem estado React por frame).
+  const poligonoGestoRef = useRef<SVGPolygonElement | null>(null)
   // Modelo de elipse da área em edição: snapshot inicial (para fator/clamp)
   // e vivo (atualizado pelo gesto); o espelho em state alimenta o render.
   const modeloInicialRef = useRef<ModeloElipse | null>(null)
@@ -675,6 +681,7 @@ export function MapView({
               : area,
           ),
           areaAtivaId,
+          ativa.id,
         ),
       )
       return true
@@ -745,6 +752,28 @@ export function MapView({
     return setados
   }, [pontosDaElipse])
 
+  // Quadro do gesto no MESMO tick do setData: o contorno + vértices do anel
+  // vivo vivem num SVG do DOM (poligono-gesto) e são atualizados por
+  // setAttribute a cada mousemove — a projeção é a mesma dos vértices/alças.
+  // Nada de estado React por frame: o canvas só reassume no release.
+  const atualizarPoligonoGesto = useCallback((anel: number[][]): boolean => {
+    const poligono = poligonoGestoRef.current
+    const mapa = mapRef.current
+    if (!poligono || !mapa) {
+      return false
+    }
+    poligono.setAttribute(
+      'points',
+      anel
+        .map((vertice) => {
+          const projetado = mapa.project(vertice as [number, number]) as { x: number; y: number }
+          return `${projetado.x},${projetado.y}`
+        })
+        .join(' '),
+    )
+    return true
+  }, [])
+
   // Pixels → graus por eixo: distância entre a tela (0,0) e a tela (px,0) /
   // (0,px) — piso dos raios/elipse (~3px) e clamp do retângulo (~4px/eixo).
   const grausPorPixels = useCallback(
@@ -755,6 +784,18 @@ export function MapView({
     },
     [coordenadaDaTela],
   )
+
+  // Release SEM gravação (anel colapsado/insuficiente): a fonte fica com
+  // emEdicao: true do gesto vivo — o setData final SEM emEdicao devolve o
+  // canvas ao estado gravado (o quadro SVG some no render seguinte).
+  const descartarEmEdicao = useCallback(() => {
+    const fonte = mapRef.current?.getSource?.('area-desenhada') as
+      | { setData?: (dados: unknown) => void }
+      | undefined
+    if (fonte?.setData) {
+      fonte.setData(dadosDasAreas(areasRef.current, areaAtivaId))
+    }
+  }, [areaAtivaId])
 
   const finalizarEdicao = useCallback(() => {
     const ativa = edicaoRef.current
@@ -780,11 +821,13 @@ export function MapView({
     mapRef.current?.dragPan?.enable?.()
     const novos = poligonoEdicaoRef.current
     if (novos.length < 4) {
+      descartarEmEdicao()
       return
     }
     const km2 = areaKm2(novos)
     // Sem colapso: só assume a nova forma quando a área permanece positiva.
     if (km2 <= 0) {
+      descartarEmEdicao()
       return
     }
     setAreas((atuais) =>
@@ -799,7 +842,7 @@ export function MapView({
           : area,
       ),
     )
-  }, [])
+  }, [descartarEmEdicao])
 
   const registrarArea = (anel: number[][], modelo?: ModeloElipse) => {
     if (anel.length < 4) {
@@ -1278,9 +1321,12 @@ export function MapView({
       const setDataChamado = atualizarAreaAoVivo(mapRef.current, ativa, poligonoEdicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
       const setados = reposicionarAlcas()
+      // Quadro do gesto no MESMO tick: contorno + vértices no SVG do DOM.
+      const ghost = atualizarPoligonoGesto(poligonoEdicaoRef.current)
       // nit:debug — um log por evento do gesto: dtms, cursor de tela, lng/lat,
-      // alvo editado (último vértice OU centro/rx/ry), setData e o vetor de
-      // alças setado imperativamente (comparável com tag 'render.seq').
+      // alvo editado (último vértice OU centro/rx/ry), setData, o vetor de
+      // alças setado imperativamente (comparável com tag 'render.seq') e o
+      // ghost do quadro (setAttribute do polígono SVG).
       logDebug('alca', () => {
         const modelo = modeloEdicaoRef.current
         const anel = poligonoEdicaoRef.current
@@ -1301,6 +1347,7 @@ export function MapView({
             : { ultimoVertice: anel[anel.length - 1] }),
           setDataChamado,
           alcas: { n: setados.length, setados },
+          ghost,
         }
       }, 'mover')
     }
@@ -1313,7 +1360,7 @@ export function MapView({
       window.removeEventListener('mousemove', aoMover)
       window.removeEventListener('mouseup', aoSoltar)
     }
-  }, [edicao, coordenadaDaTela, grausPorPixels, finalizarEdicao, atualizarAreaAoVivo, reposicionarAlcas])
+  }, [edicao, coordenadaDaTela, grausPorPixels, finalizarEdicao, atualizarAreaAoVivo, reposicionarAlcas, atualizarPoligonoGesto])
 
   // Se o ponto do pin some do escopo (área apagada, troca de filtro, release
   // de gesto que o tirou da área — a consulta nova não o traz), fechar pin
@@ -1369,18 +1416,22 @@ export function MapView({
       return
     }
     map.addSource('area-desenhada', { type: 'geojson', data: dados })
+    // Durante o gesto a área editada leva `emEdicao: true` — fill/contorno do
+    // canvas ficam com opacidade 0 e o quadro vive no DOM (SVG ghost); sem o
+    // atributo (fora do gesto), segue o caso ativa/inativa de sempre.
     map.addLayer({
       id: 'camada-area',
       type: 'fill',
       source: 'area-desenhada',
       paint: {
         'fill-color': '#0ea5a4',
-        'fill-opacity': ['case', ['get', 'ativa'], 0.5, 0.15],
+        'fill-opacity': ['case', ['get', 'emEdicao'], 0, ['case', ['get', 'ativa'], 0.5, 0.15]],
         'fill-outline-color': ['case', ['get', 'ativa'], '#d97706', '#0f766e'],
       },
     } as never)
     // Contorno data-driven: borda mais grossa/brilhante na área selecionada
-    // (âmbar tema, legível sobre o raster em claro e escuro).
+    // (âmbar tema, legível sobre o raster em claro e escuro); oculto junto do
+    // fill quando a área está em edição.
     map.addLayer({
       id: 'camada-area-contorno',
       type: 'line',
@@ -1388,6 +1439,7 @@ export function MapView({
       paint: {
         'line-color': ['case', ['get', 'ativa'], '#d97706', '#0f766e'],
         'line-width': ['case', ['get', 'ativa'], 3, 1.5],
+        'line-opacity': ['case', ['get', 'emEdicao'], 0, 1],
       },
     } as never)
   }, [areas, areaAtivaId, carregado])
@@ -2015,6 +2067,34 @@ export function MapView({
               strokeDasharray="6 4"
             />
           )}
+        </svg>
+      )}
+      {/* Quadro do gesto (contorno + vértices) 100% no DOM: fill/contorno do
+          canvas ficam ocultos (emEdicao) e este SVG acompanha o mousemove por
+          setAttribute no mesmo tick — sem ghosting de compositor. */}
+      {edicao && poligonoEdicao && (
+        <svg
+          data-testid="area-gesto"
+          className="pointer-events-none absolute inset-0 z-10 h-full w-full"
+          aria-hidden="true"
+        >
+          <polygon
+            ref={poligonoGestoRef}
+            data-testid="poligono-gesto"
+            points={poligonoEdicao
+              .map((vertice) => {
+                const projetado = mapRef.current?.project(vertice as [number, number]) as
+                  | { x: number; y: number }
+                  | undefined
+                return projetado ? `${projetado.x},${projetado.y}` : null
+              })
+              .filter((ponto): ponto is string => ponto !== null)
+              .join(' ')}
+            fill="#0ea5a4"
+            fillOpacity={0.5}
+            stroke="#d97706"
+            strokeWidth={3}
+          />
         </svg>
       )}
       {areaEmDestaque && modo === 'arrastar' && (areaAtivaId === areaEmDestaque.id || !areaAtivaId) && (
