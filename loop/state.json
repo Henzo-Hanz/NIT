@@ -12,6 +12,15 @@
         "camada": "front",
         "status": "aprovado",
         "tentativa": 11
+      },
+      "coerencia": {
+        "camada": "front",
+        "status": "aprovado",
+        "tentativa": 11,
+        "pendencias": [
+          "iteracao_PI-4"
+        ],
+        "base": "62abc9f"
       }
     }
   },
