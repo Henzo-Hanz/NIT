@@ -18,7 +18,6 @@ import {
 import { FiltroAnimaisPanel, type FiltroEspecie } from '@/components/FiltroAnimaisPanel'
 import { PainelAreas, type AreaDesenhada, type ModeloElipse } from '@/components/PainelAreas'
 import { areaKm2, anelDaElipse, convexHull, distanciaKm, formatarKm, formatarKm2 } from '@/utils/geo'
-import { logDebug } from '@/lib/debug'
 import { CENTRO_LITORAL_PI, ZOOM_INICIAL } from '@/lib/constantes-mapa'
 import {
   buscarGeometrias,
@@ -55,9 +54,6 @@ type EdicaoArea = {
 
 // Ordem das alças do modelo de elipse: uma por face do bbox (E, W, N, S).
 const EXTRAS_DA_ELIPSE: ['e', 'w', 'n', 's'] = ['e', 'w', 'n', 's']
-
-// 1 casa decimal — vetor de valores de tela nos logs do gesto (nit:debug).
-const arred1 = (valor: number) => Math.round(valor * 10) / 10
 
 // FeatureCollection da fonte 'area-desenhada': todas as áreas com as
 // propriedades id/nome/ativa preservadas. Serviço à gravação definitiva
@@ -360,20 +356,12 @@ export function MapView({
     new Map(),
   )
   const consultaGeracaoRef = useRef(0)
-  const parametrosConsultaRef = useRef<string | null>(null)
-  const escopoConsultaRef = useRef<string | null>(null)
-  // nit:debug — instante do fim do gesto p/ medir o delta até a consulta.
-  const gestoFimRef = useRef<{ em: number; tipo: string; areaId: string } | null>(null)
   const pontosExibeRef = useRef<PontoExibido[]>([])
   const pedidoBuscaRef = useRef(0)
   const piscaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dicaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const edicaoRef = useRef<EdicaoArea>(null)
   const inicioEdicaoRef = useRef<{ tela: { x: number; y: number } } | null>(null)
-  // nit:debug — timestamp do evento 'alca' anterior (dtms por frame).
-  const ultimoEventoAlcaRef = useRef({ t: 0 })
-  // nit:debug — número sequencial dos re-renders durante o gesto (tag 'render.seq').
-  const sequenciaRenderRef = useRef(0)
   const anelOriginalRef = useRef<number[][]>([])
   const poligonoEdicaoRef = useRef<number[][]>([])
   const alcasSvgRef = useRef<SVGSVGElement | null>(null)
@@ -645,14 +633,6 @@ export function MapView({
       inicioEdicaoRef.current = tela ? { tela } : null
       setEdicao(edicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
-      logDebug('alca', () => ({
-        evento: 'iniciar',
-        tipo,
-        areaId: id,
-        modelo: modeloInicialRef.current,
-        extra,
-        telaInicio: tela,
-      }), 'iniciar')
       mapRef.current?.dragPan?.disable?.()
     },
     [],
@@ -713,15 +693,15 @@ export function MapView({
   // sem isso, o commit do React (assíncrono) os deixa ~1 frame atrás do fill.
   // Ordem dos círculos = mesma do render (.slice(0, -1) do anel editado); o
   // re-render React reescreve os mesmos valores depois (harmônico).
-  const reposicionarAlcas = useCallback((): { cx: number; cy: number }[] => {
+  const reposicionarAlcas = useCallback((): void => {
     const svg = alcasSvgRef.current
     const mapa = mapRef.current
     if (!svg || !mapa) {
-      return []
+      return
     }
     const ativa = edicaoRef.current
     if (!ativa) {
-      return []
+      return
     }
     let pontos: { x: number; y: number }[] = []
     if (modeloEdicaoRef.current) {
@@ -729,14 +709,13 @@ export function MapView({
     } else {
       const anel = poligonoEdicaoRef.current
       if (!anel.length) {
-        return []
+        return
       }
       pontos = anel
         .slice(0, -1)
         .map((vertice) => mapa.project(vertice as [number, number]) as { x: number; y: number })
     }
     const circulos = svg.querySelectorAll('circle')
-    const setados: { cx: number; cy: number }[] = []
     pontos.forEach((ponto, indice) => {
       const circulo = circulos[indice] as SVGCircleElement | undefined
       if (!circulo) {
@@ -744,12 +723,7 @@ export function MapView({
       }
       circulo.setAttribute('cx', String(ponto.x))
       circulo.setAttribute('cy', String(ponto.y))
-      setados.push({ cx: arred1(ponto.x), cy: arred1(ponto.y) })
     })
-    // nit:debug — valores IMPERATIVOS (mesmo tick do setData) p/ comparar
-    // com o re-render React (tag 'render.seq').
-    logDebug('alca', () => ({ imperativo: true, setados }), 'imp')
-    return setados
   }, [pontosDaElipse])
 
   // Quadro do gesto no MESMO tick do setData: o contorno + vértices do anel
@@ -802,14 +776,6 @@ export function MapView({
     if (!ativa) {
       return
     }
-    // nit:debug — fim do gesto (o dono compara com o inicio da consulta).
-    const fimEm = performance.now()
-    gestoFimRef.current = { em: fimEm, tipo: ativa.tipo, areaId: ativa.id }
-    logDebug(
-      'gesto',
-      () => ({ evento: 'fim', tipo: ativa.tipo, areaId: ativa.id, t: Math.round(fimEm) }),
-      'fim',
-    )
     edicaoRef.current = null
     inicioEdicaoRef.current = null
     const modeloFinal = modeloEdicaoRef.current
@@ -1194,10 +1160,6 @@ export function MapView({
         return
       }
       const tela = telaDeJanela(evento)
-      // nit:debug — dtms desde o evento anterior (atraso entre frames do gesto).
-      const agora = performance.now()
-      const dtms = ultimoEventoAlcaRef.current.t ? agora - ultimoEventoAlcaRef.current.t : null
-      ultimoEventoAlcaRef.current = { t: agora }
       if (ativa.tipo === 'mover') {
         const inicio = inicioEdicaoRef.current
         if (!inicio) {
@@ -1318,38 +1280,11 @@ export function MapView({
         }
       }
       // Ao vivo: o desenho da área acompanha o gesto direto na fonte.
-      const setDataChamado = atualizarAreaAoVivo(mapRef.current, ativa, poligonoEdicaoRef.current)
+      atualizarAreaAoVivo(mapRef.current, ativa, poligonoEdicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
-      const setados = reposicionarAlcas()
+      reposicionarAlcas()
       // Quadro do gesto no MESMO tick: contorno + vértices no SVG do DOM.
-      const ghost = atualizarPoligonoGesto(poligonoEdicaoRef.current)
-      // nit:debug — um log por evento do gesto: dtms, cursor de tela, lng/lat,
-      // alvo editado (último vértice OU centro/rx/ry), setData, o vetor de
-      // alças setado imperativamente (comparável com tag 'render.seq') e o
-      // ghost do quadro (setAttribute do polígono SVG).
-      logDebug('alca', () => {
-        const modelo = modeloEdicaoRef.current
-        const anel = poligonoEdicaoRef.current
-        const coordenada = coordenadaDaTela(tela)
-        return {
-          evento: 'mover',
-          dtms,
-          cursor: { x: arred1(tela.x), y: arred1(tela.y) },
-          coordenada: [arred1(coordenada[0]), arred1(coordenada[1])],
-          ...(modelo
-            ? {
-                modelo: {
-                  centro: modelo.centro,
-                  rx: arred1(modelo.rx),
-                  ry: arred1(modelo.ry),
-                },
-              }
-            : { ultimoVertice: anel[anel.length - 1] }),
-          setDataChamado,
-          alcas: { n: setados.length, setados },
-          ghost,
-        }
-      }, 'mover')
+      atualizarPoligonoGesto(poligonoEdicaoRef.current)
     }
     const aoSoltar = () => {
       finalizarEdicao()
@@ -1484,25 +1419,11 @@ export function MapView({
     const ordenar = filtro === 'mais' ? 'mais' : filtro === 'menos' ? 'menos' : null
     const parametros = `${animal ?? ''}|${ordenar ?? ''}`
     const alvos = areaAtivaId ? areas.filter((area) => area.id === areaAtivaId) : areas
-    const escopo = alvos.map((area) => area.id).join(',')
-    const anteriorParametros = parametrosConsultaRef.current
-    const anteriorEscopo = escopoConsultaRef.current
-    parametrosConsultaRef.current = parametros
-    escopoConsultaRef.current = escopo
-    const motivo: 'filtro' | 'areas' | 'gesto' =
-      anteriorParametros !== null && anteriorParametros !== parametros
-        ? 'filtro'
-        : anteriorEscopo === null || anteriorEscopo !== escopo
-          ? 'areas'
-          : 'gesto'
     const chaveDe = (area: AreaDesenhada) =>
       `${area.id}|${JSON.stringify(area.polygon)}|${parametros}`
     const cache = resultadosPorAreaRef.current
     const geracao = consultaGeracaoRef.current + 1
     consultaGeracaoRef.current = geracao
-    const inicio = performance.now()
-    const gesto = gestoFimRef.current
-    const deltaGestoMs = motivo === 'gesto' && gesto ? Math.round(inicio - gesto.em) : null
 
     if (!alvos.length) {
       const chave = `__global__|${parametros}`
@@ -1513,11 +1434,6 @@ export function MapView({
           vivo = false
         }
       }
-      logDebug(
-        'consulta',
-        () => ({ evento: 'inicio', motivo, areaIds: [], deltaGestoMs, t: Math.round(inicio) }),
-        'inicio',
-      )
       consultarArea({ poligono: null, animal, ordenar }).then((dados) => {
         if (!vivo || geracao !== consultaGeracaoRef.current) {
           return
@@ -1526,17 +1442,6 @@ export function MapView({
           cache.set('__global__', { assinatura: chave, resultado: dados })
           setResultado(dados)
         }
-        logDebug(
-          'consulta',
-          () => ({
-            evento: 'fim',
-            areaId: null,
-            dtms: Math.round(performance.now() - inicio),
-            pontos: dados?.pontos.features.length ?? 0,
-            especies: dados?.especies.length ?? 0,
-          }),
-          'fim',
-        )
       })
       return () => {
         vivo = false
@@ -1550,40 +1455,17 @@ export function MapView({
         vivo = false
       }
     }
-    logDebug(
-      'consulta',
-      () => ({
-        evento: 'inicio',
-        motivo,
-        areaIds: pendentes.map((area) => area.id),
-        deltaGestoMs,
-        t: Math.round(inicio),
-      }),
-      'inicio',
-    )
     Promise.all(
-      pendentes.map((area) => {
-        const inicioArea = performance.now()
-        return consultarArea({ poligono: area.polygon, animal, ordenar }).then((dados) => {
+      pendentes.map((area) =>
+        consultarArea({ poligono: area.polygon, animal, ordenar }).then((dados) => {
           if (!vivo || geracao !== consultaGeracaoRef.current) {
             return
           }
           if (dados) {
             cache.set(area.id, { assinatura: chaveDe(area), resultado: dados })
           }
-          logDebug(
-            'consulta',
-            () => ({
-              evento: 'fim',
-              areaId: area.id,
-              dtms: Math.round(performance.now() - inicioArea),
-              pontos: dados?.pontos.features.length ?? 0,
-              especies: dados?.especies.length ?? 0,
-            }),
-            `fim:${area.id}`,
-          )
-        })
-      }),
+        }),
+      ),
     ).then(() => {
       if (!vivo || geracao !== consultaGeracaoRef.current) {
         return
@@ -1978,28 +1860,6 @@ export function MapView({
         .filter((ponto): ponto is { x: number; y: number } => Boolean(ponto))
     }
   }
-
-  // nit:debug — posição das alças NO RE-RENDER React (pós-commit): comparável
-  // frame a frame com o conjunto imperativo (tag 'alca', chave 'imp') — é a
-  // evidência do atraso das alças (imperativo no tick vs render 1 frame atrás).
-  useEffect(() => {
-    if (!edicao || !alcasDaArea.length) {
-      return
-    }
-    logDebug('render.seq', () => ({
-      render: true,
-      seq: sequenciaRenderRef.current++,
-      alcas: alcasDaArea.map((alca) => ({ cx: arred1(alca.x), cy: arred1(alca.y) })),
-      modelo: modeloDestaque
-        ? {
-            centro: modeloDestaque.centro,
-            rx: arred1(modeloDestaque.rx),
-            ry: arred1(modeloDestaque.ry),
-          }
-        : null,
-    }), 'alcas')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [poligonoEmEdicao, modeloEdicao])
 
   return (
     <div data-testid="mapa" className="absolute inset-0">
