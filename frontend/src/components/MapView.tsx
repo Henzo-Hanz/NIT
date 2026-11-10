@@ -497,15 +497,22 @@ export function MapView({
       ]
     : pontosEscopo.filter(casaComFiltro)
 
-  // Fix 1 (SPEC-0005): durante o gesto de edição o anel VIVO recorta os pontos
-  // no cliente — o que saiu da área editada some no mesmo frame, sem esperar
-  // o server. Pontos de OUTRAS áreas permanecem (só o contorno editado mudou).
-  // PREMISSA: ao CRESCER, pontos novos só aparecem no release — o server é a
-  // fonte da verdade e não inventamos pontos.
+  // Fix 1 (SPEC-0005): durante o gesto de edição o anel recorta os pontos no
+  // cliente — o que saiu da área editada some no mesmo frame, sem esperar o
+  // server. Pontos de OUTRAS áreas permanecem (só o contorno editado mudou).
+  // SEMÂNTICA POR GESTO: no 'mover' o anel vivo é TRANSLADADO — recortar por
+  // ele desmontaria os botões do bordo de trás (piscam/sumem). O recorte usa
+  // o anel ORIGINAL (anelOriginalRef): o conjunto que estava dentro no início
+  // do gesto permanece e VIAJA junto (transform imperativo do delta). Nos
+  // demais gestos ('alça') o anel vivo recorta (encolher esconde na hora).
+  // PREMISSA: ao CRESCER/mover, pontos novos só aparecem no release — o
+  // server é a fonte da verdade e não inventamos pontos.
   const pontosDuranteEdicao = edicao && poligonoEdicao
     ? pontosVisiveis.filter((ponto) => {
         const coordenada = ponto.geometry.coordinates as [number, number]
-        if (pontoNoPoligono(coordenada, poligonoEdicao)) {
+        const anelRecorte =
+          edicao.tipo === 'mover' ? anelOriginalRef.current : poligonoEdicao
+        if (pontoNoPoligono(coordenada, anelRecorte)) {
           return true
         }
         return areas.some(
@@ -630,6 +637,20 @@ export function MapView({
     return [Number(lngLat?.lng), Number(lngLat?.lat)]
   }, [])
 
+  // Zera os estilos inline (transform/display) que o gesto aplica nos botões
+  // dos pontos. Chamado no início do gesto e no release para o render React
+  // (posições/visibilidade da consulta) reassumir.
+  const limparEstilosDosPontos = useCallback(() => {
+    const container = containerRef.current
+    if (!container) {
+      return
+    }
+    container.querySelectorAll<HTMLElement>('[data-ponto-id]').forEach((botao) => {
+      botao.style.transform = ''
+      botao.style.display = ''
+    })
+  }, [])
+
   const iniciarEdicao = useCallback(
     (
       tipo: 'mover' | 'alca',
@@ -643,6 +664,7 @@ export function MapView({
       if (!area || !anel?.length) {
         return
       }
+      limparEstilosDosPontos()
       edicaoRef.current = { tipo, id, indice, extra }
       anelOriginalRef.current = anel.map((ponto) => [...ponto])
       poligonoEdicaoRef.current = anel.map((ponto) => [...ponto])
@@ -664,7 +686,7 @@ export function MapView({
       }), 'iniciar')
       mapRef.current?.dragPan?.disable?.()
     },
-    [],
+    [limparEstilosDosPontos],
   )
 
   // Desenho AO VIVO durante a edição (mover ou alça): troca, na fonte
@@ -760,6 +782,66 @@ export function MapView({
     return setados
   }, [pontosDaElipse])
 
+  // Sincroniza os PONTOS com o gesto no MESMO tick do setData: os botões são
+  // posicionados por estado React (left/top), então durante o gesto eles
+  // ficariam ~1 frame atrás do polígono (ou parados no "mover"). Aqui:
+  // - "mover": o anel de recorte é o ORIGINAL — o conjunto que estava dentro
+  //   no início do gesto recebe o delta de tela via transform (translate3d) e
+  //   viaja junto com o polígono; NADA é ocultado pelo anel transladado (o
+  //   bordo de trás continua visível);
+  // - "alça": esconde/mostra pela pertinência ao anel VIVO (encolher esconde
+  //   no mesmo tick); pontos de OUTRAS áreas permanecem em qualquer gesto.
+  // O centro do botão é o `translate` do Tailwind v4 (propriedade `translate`,
+  // separada de `transform`), então o transform carrega SÓ o delta — incluir
+  // o -50% aqui duplicaria a centralização.
+  const sincronizarPontosNoGesto = useCallback(
+    (
+      tipo: 'mover' | 'alca',
+      areaId: string,
+      anelRecorte: number[][],
+      delta: { dx: number; dy: number },
+    ): { ocultos: number; visiveis: number } => {
+      const container = containerRef.current
+      if (!container) {
+        return { ocultos: 0, visiveis: 0 }
+      }
+      const porId = new Map(
+        pontosExibeRef.current.map((ponto) => [String(ponto.properties.id), ponto] as const),
+      )
+      let ocultos = 0
+      let visiveis = 0
+      container.querySelectorAll<HTMLElement>('[data-ponto-id]').forEach((botao) => {
+        const ponto = porId.get(botao.dataset.pontoId ?? '')
+        if (!ponto) {
+          return
+        }
+        const coordenada = ponto.geometry.coordinates as [number, number]
+        if (pontoNoPoligono(coordenada, anelRecorte)) {
+          botao.style.display = ''
+          if (tipo === 'mover') {
+            botao.style.transform = `translate3d(${delta.dx}px, ${delta.dy}px, 0)`
+          }
+          visiveis += 1
+          return
+        }
+        const emOutraArea = areasRef.current.some(
+          (area) =>
+            area.id !== areaId &&
+            pontoNoPoligono(coordenada, area.polygon.coordinates[0] ?? []),
+        )
+        if (emOutraArea) {
+          botao.style.display = ''
+          visiveis += 1
+          return
+        }
+        botao.style.display = 'none'
+        ocultos += 1
+      })
+      return { ocultos, visiveis }
+    },
+    [],
+  )
+
   // Pixels → graus por eixo: distância entre a tela (0,0) e a tela (px,0) /
   // (0,px) — piso dos raios/elipse (~3px) e clamp do retângulo (~4px/eixo).
   const grausPorPixels = useCallback(
@@ -776,6 +858,7 @@ export function MapView({
     if (!ativa) {
       return
     }
+    limparEstilosDosPontos()
     // nit:debug — fim do gesto (o dono compara com o inicio da consulta).
     const fimEm = performance.now()
     gestoFimRef.current = { em: fimEm, tipo: ativa.tipo, areaId: ativa.id }
@@ -814,7 +897,7 @@ export function MapView({
           : area,
       ),
     )
-  }, [])
+  }, [limparEstilosDosPontos])
 
   const registrarArea = (anel: number[][], modelo?: ModeloElipse) => {
     if (anel.length < 4) {
@@ -1170,11 +1253,14 @@ export function MapView({
       const agora = performance.now()
       const dtms = ultimoEventoAlcaRef.current.t ? agora - ultimoEventoAlcaRef.current.t : null
       ultimoEventoAlcaRef.current = { t: agora }
+      // Delta de TELA do gesto (usado para os pontos viajarem junto no "mover").
+      let deltaGesto = { dx: 0, dy: 0 }
       if (ativa.tipo === 'mover') {
         const inicio = inicioEdicaoRef.current
         if (!inicio) {
           return
         }
+        deltaGesto = { dx: tela.x - inicio.tela.x, dy: tela.y - inicio.tela.y }
         const coordAtual = coordenadaDaTela(tela)
         const coordInicial = coordenadaDaTela(inicio.tela)
         const dLon = coordAtual[0] - coordInicial[0]
@@ -1293,6 +1379,15 @@ export function MapView({
       const setDataChamado = atualizarAreaAoVivo(mapRef.current, ativa, poligonoEdicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
       const setados = reposicionarAlcas()
+      // Pontos no MESMO tick: viajam com o polígono (mover, recorte pelo anel
+      // ORIGINAL) e somem/aparecem pelo anel vivo (alça) — antes do commit do
+      // React.
+      const ajustePontos = sincronizarPontosNoGesto(
+        ativa.tipo,
+        ativa.id,
+        ativa.tipo === 'mover' ? anelOriginalRef.current : poligonoEdicaoRef.current,
+        deltaGesto,
+      )
       // nit:debug — um log por evento do gesto: dtms, cursor de tela, lng/lat,
       // alvo editado (último vértice OU centro/rx/ry), setData e o vetor de
       // alças setado imperativamente (comparável com tag 'render.seq').
@@ -1318,6 +1413,15 @@ export function MapView({
           alcas: { n: setados.length, setados },
         }
       }, 'mover')
+      // nit:debug — sincronização dos pontos (mesmo tick): o dono confirma no
+      // console que transform/ocultos acompanham o gesto.
+      logDebug('pontos', () => ({
+        t: Math.round(agora),
+        dtms: dtms === null ? null : Math.round(dtms),
+        mover: { dx: arred1(deltaGesto.dx), dy: arred1(deltaGesto.dy) },
+        ocultos: ajustePontos.ocultos,
+        visiveis: ajustePontos.visiveis,
+      }), 'mover')
     }
     const aoSoltar = () => {
       finalizarEdicao()
@@ -1328,7 +1432,7 @@ export function MapView({
       window.removeEventListener('mousemove', aoMover)
       window.removeEventListener('mouseup', aoSoltar)
     }
-  }, [edicao, coordenadaDaTela, grausPorPixels, finalizarEdicao, atualizarAreaAoVivo, reposicionarAlcas])
+  }, [edicao, coordenadaDaTela, grausPorPixels, finalizarEdicao, atualizarAreaAoVivo, reposicionarAlcas, sincronizarPontosNoGesto])
 
   // Se o ponto do pin some do escopo (área apagada, troca de filtro que
   // removeu o ponto), fechar pin remove tudo: pin + bolha.
@@ -1337,8 +1441,10 @@ export function MapView({
     if (!ativo) {
       return
     }
-    // Fix 1: o pin do ponto ativo fecha na hora se ele sair do anel VIVO do
-    // gesto (mesma regra de sumirPin/fade já existente).
+    // Fix 1: o pin do ponto ativo fecha na hora se ele sair do escopo do
+    // gesto (mesma regra de sumirPin/fade já existente). No 'mover' o escopo é
+    // o anel ORIGINAL (o conjunto viaja junto, nada é ocultado); nos demais
+    // gestos, o anel vivo. `pontosExibidos` já embute a regra por gesto.
     const visivel = pontosExibidos.some(
       (ponto) => String(ponto.properties.id) === String(ativo.properties.id),
     )
@@ -2176,6 +2282,7 @@ export function MapView({
             }-${ultimaPiscaRef.current}`}
             type="button"
             data-testid="ponto-area"
+            data-ponto-id={String(ponto.properties.id)}
             data-medida={marcada ? 'a' : undefined}
             data-destacado={destacado === null ? undefined : String(destacado)}
             data-pisca={pisca ? pisca.filtro : undefined}
