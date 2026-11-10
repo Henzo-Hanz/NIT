@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { MapView, CENTRO_LITORAL_PI, ZOOM_INICIAL } from './MapView'
+import { MapView } from './MapView'
+import { CENTRO_LITORAL_PI, ZOOM_INICIAL } from '../lib/constantes-mapa'
 
 const mapaCriado = vi.hoisted(() => ({ instancia: null as any }))
 

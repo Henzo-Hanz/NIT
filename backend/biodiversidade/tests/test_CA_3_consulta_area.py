@@ -16,21 +16,26 @@ class CA3ConsultaAreaTest(TestCase):
             content_type='application/json',
         )
 
-    def test_filtro_animal_maria_retorna_so_o_ponto_de_camocim(self):
+    def test_filtro_animal_maria_retorna_so_pontos_com_maria_farinha(self):
+        # Lapidação 12: além de Camocim, Tibau e Caiçara do Norte (RN) têm
+        # maria-farinha — o filtro é por nome da espécie, não por localidade.
         for termo in ('maria', 'MARIA'):
             with self.subTest(termo=termo):
                 resposta = self._post({'poligono': None, 'animal': termo})
                 self.assertEqual(resposta.status_code, 200)
                 dados = resposta.json()
                 features = dados['pontos']['features']
-                self.assertEqual(len(features), 1)
-                propriedades = features[0]['properties']
-                self.assertEqual(propriedades['nome'], 'Camocim')
+                self.assertEqual(len(features), 3)
                 self.assertEqual(
-                    propriedades['especie_slugs'],
-                    ['caranguejo-maria-farinha'],
+                    {feature['properties']['nome'] for feature in features},
+                    {'Camocim', 'Tibau', 'Caiçara do Norte'},
                 )
-                self.assertEqual(propriedades['total'], 1)
+                for feature in features:
+                    self.assertEqual(
+                        feature['properties']['especie_slugs'],
+                        ['caranguejo-maria-farinha'],
+                    )
+                    self.assertEqual(feature['properties']['total'], 1)
                 self.assertEqual(
                     [item['slug'] for item in dados['especies']],
                     ['caranguejo-maria-farinha'],
@@ -45,32 +50,32 @@ class CA3ConsultaAreaTest(TestCase):
             ['caranguejo-maria-farinha'],
         )
         self.assertEqual(
-            [feature['properties']['nome'] for feature in dados['pontos']['features']],
-            ['Camocim'],
+            {feature['properties']['nome'] for feature in dados['pontos']['features']},
+            {'Camocim', 'Tibau', 'Caiçara do Norte'},
         )
 
-    def test_ordenar_mais_coloca_badejo_primeiro(self):
-        # Lapidação 10 (SPEC-0005): trinta-réis empata em 4 (badejo, uca,
-        # trinta) com tie-break nome_popular. siri-azul sobe para 3
-        # (Luís Correia + Fortaleza + Natal) e garoupa 3.
+    def test_ordenar_mais_coloca_os_mais_frequentes_primeiro(self):
+        # Lapidação 12: com as localidades novas do CE/RN, uca e trinta-réis
+        # empatam em 6 (tie-break nome_popular), depois badejo/garoupa/
+        # siri-azul em 5.
         resposta = self._post({'poligono': None, 'ordenar': 'mais'})
         self.assertEqual(resposta.status_code, 200)
         especies = resposta.json()['especies']
-        self.assertEqual(especies[0]['slug'], 'badejo')
-        self.assertEqual(especies[0]['contagem'], 4)
+        self.assertEqual(especies[0]['slug'], 'caranguejo-uca')
+        self.assertEqual(especies[0]['contagem'], 6)
         self.assertEqual(
             [item['nome_popular'] for item in especies],
             [
-                'Badejo',
                 'Caranguejo-uçá',
                 'Trinta-réis',
+                'Badejo',
                 'Garoupa',
                 'Siri-azul',
                 'Atobá',
+                'Caranguejo maria-farinha',
                 'Robalo-peva',
                 'Aratu',
                 'Caranguejeiro-laranja-do-norte',
-                'Caranguejo maria-farinha',
                 'Guaiamum',
             ],
         )
@@ -78,27 +83,26 @@ class CA3ConsultaAreaTest(TestCase):
         self.assertEqual(contagens, sorted(contagens, reverse=True))
 
     def test_ordenar_menos_coloca_os_com_mais_pontos_no_fim(self):
-        # Empate em 4 (lapidações 8 e 10: badejo, uca e trinta-réis); no
-        # empate, ordena por nome_popular — badejo antes, trinta-réis por
-        # último entre os 4s.
+        # Empate em 6 no fim (lapidação 12: uca e trinta-réis); no empate,
+        # ordena por nome_popular — uca antes, trinta-réis por último.
         resposta = self._post({'poligono': None, 'ordenar': 'menos'})
         self.assertEqual(resposta.status_code, 200)
         especies = resposta.json()['especies']
-        self.assertEqual(especies[-3]['slug'], 'badejo')
+        self.assertEqual(especies[-2]['slug'], 'caranguejo-uca')
         self.assertEqual(especies[-1]['slug'], 'trinta-reis')
-        self.assertEqual(especies[-1]['contagem'], 4)
+        self.assertEqual(especies[-1]['contagem'], 6)
         self.assertEqual(
             [item['nome_popular'] for item in especies],
             [
-                'Aratu',
                 'Caranguejeiro-laranja-do-norte',
-                'Caranguejo maria-farinha',
                 'Guaiamum',
-                'Atobá',
+                'Aratu',
+                'Caranguejo maria-farinha',
                 'Robalo-peva',
+                'Atobá',
+                'Badejo',
                 'Garoupa',
                 'Siri-azul',
-                'Badejo',
                 'Caranguejo-uçá',
                 'Trinta-réis',
             ],

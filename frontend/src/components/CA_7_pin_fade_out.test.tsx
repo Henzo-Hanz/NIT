@@ -6,6 +6,7 @@ import { MapView } from './MapView'
 const estadoMapa = vi.hoisted(() => ({
   instancias: [] as any[],
   disparoImediato: true,
+  soGetElement: false,
 }))
 
 vi.mock('maplibre-gl', () => {
@@ -36,15 +37,24 @@ vi.mock('maplibre-gl', () => {
     }
   }
   class MarkerFake {
+    elementoInterno: any
     element: any
     setLngLat = vi.fn().mockReturnThis()
     remove = vi.fn()
+    // Lapidação 11: no runtime real (maplibre 6.15) o acesso ao elemento é via
+    // getElement() — o fake expõe getElement SEMPRE; `element` só no modo
+    // clássico exercita o último elo do fallback, e o modo `soGetElement`
+    // deixa o accessor como ÚNICO caminho (sem prop direta).
+    getElement = () => this.elementoInterno
     constructor(opcoes: { element?: HTMLElement }) {
-      this.element = opcoes?.element
+      this.elementoInterno = opcoes?.element
+      if (!estadoMapa.soGetElement) {
+        this.element = opcoes?.element
+      }
     }
     addTo = vi.fn(() => {
-      if (this.element) {
-        document.body.appendChild(this.element)
+      if (this.elementoInterno) {
+        document.body.appendChild(this.elementoInterno)
       }
       return this
     })
@@ -99,6 +109,7 @@ afterEach(() => {
   cleanup()
   document.body.innerHTML = ''
   estadoMapa.instancias.length = 0
+  estadoMapa.soGetElement = false
   vi.unstubAllGlobals()
   vi.clearAllMocks()
 })
@@ -162,5 +173,22 @@ describe('CA-7: fade-out do pin ao sair', () => {
     velho.dispatchEvent(new Event('animationend'))
     expect(screen.getAllByTestId('pin-area')).toHaveLength(1)
     expect(screen.getByTestId('pin-area').getAttribute('aria-label')).toBe('Camocim')
+  })
+
+  it('fake SÓ com getElement (runtime real): a classe pin-sumir chega no elemento do marker', async () => {
+    const usuario = userEvent.setup()
+    estadoMapa.soGetElement = true
+    configurarFetch()
+    render(<MapView />)
+    const ponto = (await screen.findAllByTestId('ponto-area'))[0]
+    await usuario.click(ponto)
+    expect(screen.getByTestId('pin-area')).toBeInTheDocument()
+
+    await usuario.click(screen.getByTestId('mapa-container'))
+    const pinSaindo = screen.getByTestId('pin-area')
+    expect(pinSaindo.classList).toContain('pin-sumir')
+
+    pinSaindo.dispatchEvent(new Event('animationend'))
+    expect(screen.queryByTestId('pin-area')).toBeNull()
   })
 })

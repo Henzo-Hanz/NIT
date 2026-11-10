@@ -223,7 +223,7 @@ describe('CA-6: busca no mapa com FTS (sem redirect)', () => {
     expect(screen.queryByTestId('pin-area')).toBeNull()
   })
 
-  it('clicar num animal do menu destaca os pontos dele sem pin', async () => {
+  it('clicar num animal do menu determina os pontos: só os dele ficam, em destaque', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
@@ -235,20 +235,45 @@ describe('CA-6: busca no mapa com FTS (sem redirect)', () => {
     })
     await usuario.click(screen.getByTestId('resultado-animal-guaiamum'))
 
-    const pontoCamocim = ouvinteDoPonto('Camocim')
+    // Lapidação 11: a espécie escolhida DETERMINA os pontos renderizados.
+    // conjuntoFiltro = {guaiamum}: Camocim permanece (amber); Parnaíba (uca) e
+    // o ponto de busca Noronha (badejo) ficam fora do conjunto e NÃO renderizam.
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(1)
+    })
+    const pontoCamocim = screen.getAllByTestId('ponto-area')[0]
+    expect(pontoCamocim.getAttribute('aria-label')).toBe('Camocim')
     expect(pontoCamocim).toHaveAttribute('data-destacado', 'true')
-    expect(pontoCamocim?.className).toContain('size-6')
-    expect(pontoCamocim?.className).toContain('bg-amber-500')
-
-    for (const nome of ['Parnaíba', 'Fernando de Noronha']) {
-      const ponto = ouvinteDoPonto(nome)
-      expect(ponto).toHaveAttribute('data-destacado', 'false')
-      // Lapidação 5: sem mudança de tamanho para quem não tem o match.
-      expect(ponto?.className).toContain('size-4')
-      expect(ponto?.className).toContain('opacity-40')
-      expect(ponto?.className).not.toContain('size-3')
-    }
+    expect(pontoCamocim.className).toContain('size-6')
+    expect(pontoCamocim.className).toContain('bg-amber-500')
     expect(screen.queryByTestId('pin-area')).toBeNull()
+  })
+
+  it('o overlay da busca respeita o filtro ativo: ponto de busca fora do conjunto não renderiza', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<MapView />)
+
+    await usuario.click(screen.getByTestId('filtro-mais'))
+    await usuario.click(screen.getByTestId('ferramenta-pesquisar'))
+    await usuario.type(screen.getByTestId('campo-busca'), 'badejo')
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('resultado-animal-badejo')).toBeInTheDocument()
+    })
+
+    // Premissa (lapidação 11): o overlay segue o conjunto do filtro. O filtro
+    // 'mais' sobre 2 espécies (menos de 3) usa todas — os pontos do escopo
+    // Parnaíba/Camocim ficam (esmaecidos, destaque da busca); Noronha (badejo,
+    // fora do conjunto) NÃO renderiza.
+    await vi.waitFor(() => {
+      expect(ouvinteDoPonto('Fernando de Noronha')).toBeUndefined()
+    })
+    for (const nome of ['Parnaíba', 'Camocim']) {
+      const ponto = ouvinteDoPonto(nome)
+      expect(ponto).toBeDefined()
+      expect(ponto).toHaveAttribute('data-destacado', 'false')
+      expect(ponto?.className).toContain('opacity-40')
+    }
   })
 
   it('fechar o submenu limpa o destaque e o escopo volta ao normal', async () => {

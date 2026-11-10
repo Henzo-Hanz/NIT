@@ -5,6 +5,9 @@ export type EspecieResumo = {
   slug: string
   nome_popular: string
   nome_cientifico: string | null
+  // Grupo zoológico vindo de `infos.grupo` no backend (Crustáceo, Ave, Peixe).
+  // Opcional no tipo porque respostas antigas/fixtures podem não trazer.
+  grupo?: string
   imagem: string
 }
 
@@ -49,9 +52,15 @@ export async function buscarPing(): Promise<SeloStatus> {
   }
 }
 
-export async function buscarEspecies(): Promise<EspecieResumo[] | null> {
+// Busca FTS do servidor: com termo, GET /api/especies/?q= (rank no backend);
+// sem termo, lista completa como sempre.
+export async function buscarEspecies(termo?: string): Promise<EspecieResumo[] | null> {
   try {
-    const resposta = await fetch('/api/especies/')
+    const consultado = termo?.trim()
+    const rota = consultado
+      ? `/api/especies/?q=${encodeURIComponent(consultado)}`
+      : '/api/especies/'
+    const resposta = await fetch(rota)
     if (!resposta.ok) {
       return null
     }

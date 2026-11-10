@@ -272,6 +272,49 @@ LOCALIDADES = [
     },
 ]
 
+# Lapidação 12 (SPEC-0005): o trecho entre Fortaleza (-38.55) e Natal (-35.19)
+# ficava vazio no mapa — só havia ponto em Fortaleza, Areia Branca e Natal.
+# Estas localidades preenchem a costa do Ceará e do Rio Grande do Norte
+# (coordenadas mock), sempre com dados demo reversíveis. Entram DEPOIS do
+# bloco do Parnaíba na lista de geometrias para os ids existentes não mudarem.
+LOCALIDADES_CE_RN = [
+    {
+        'nome': 'Icapuí',
+        'coordenadas': [-37.36, -4.71],
+        'especies': ['caranguejo-uca', 'trinta-reis'],
+    },
+    {
+        'nome': 'Canoa Quebrada',
+        'coordenadas': [-37.70, -4.53],
+        'especies': ['siri-azul', 'aratu'],
+    },
+    {
+        'nome': 'Tibau',
+        'coordenadas': [-37.25, -4.83],
+        'especies': ['caranguejo-maria-farinha', 'robalo-peva'],
+    },
+    {
+        'nome': 'Macau',
+        'coordenadas': [-36.63, -5.11],
+        'especies': ['siri-azul', 'atoba'],
+    },
+    {
+        'nome': 'Galinhos',
+        'coordenadas': [-36.28, -5.10],
+        'especies': ['caranguejo-uca', 'trinta-reis'],
+    },
+    {
+        'nome': 'Caiçara do Norte',
+        'coordenadas': [-35.98, -5.07],
+        'especies': ['caranguejo-maria-farinha', 'garoupa'],
+    },
+    {
+        'nome': 'Pipa',
+        'coordenadas': [-35.05, -6.23],
+        'especies': ['badejo', 'garoupa', 'atoba'],
+    },
+]
+
 # Lapidação 4 (SPEC-0005): o 'total: 223' aqui era número mockado e pintava
 # o pin do Parnaíba na carga. Removido: não há contagem real para embutir —
 # o mapa conta especie_slugs.length; a API só devolve 'total' quando existe
@@ -293,23 +336,34 @@ PONTO_PARNAIBA = {
 # (regra da lapidação 4) e sem mudar nome/coordenadas/propriedades do ponto.
 ESPECIES_PARNAIBA = ['caranguejo-uca', 'caranguejeiro-laranja-do-norte']
 
-GEOMETRIAS = [PONTO_PARNAIBA] + [
-    {
-        'nome': localidade['nome'],
-        'tipo': 'ponto',
-        'descricao': f"{len(localidade['especies'])} espécies encontradas",
-        'propriedades': {'total': len(localidade['especies'])},
-        'especie_slug': slug,
-        'geojson': {'type': 'Point', 'coordinates': localidade['coordenadas']},
-    }
-    for localidade in LOCALIDADES
-    for slug in localidade['especies']
-] + [
-    # No fim da lista para os ids existentes não mudarem (id 15 = ponto sem
-    # espécie; o grupo da view agrupa por (nome, coordenadas) e herda
-    # id/descrição do primeiro registro — a linha sem espécie).
-    {**PONTO_PARNAIBA, 'especie_slug': slug} for slug in ESPECIES_PARNAIBA
-]
+def _geometrias_das_localidades(localidades):
+    return [
+        {
+            'nome': localidade['nome'],
+            'tipo': 'ponto',
+            'descricao': f"{len(localidade['especies'])} espécies encontradas",
+            'propriedades': {'total': len(localidade['especies'])},
+            'especie_slug': slug,
+            'geojson': {'type': 'Point', 'coordinates': localidade['coordenadas']},
+        }
+        for localidade in localidades
+        for slug in localidade['especies']
+    ]
+
+
+GEOMETRIAS = (
+    [PONTO_PARNAIBA]
+    + _geometrias_das_localidades(LOCALIDADES)
+    + [
+        # No fim da lista para os ids existentes não mudarem (id 15 = ponto sem
+        # espécie; o grupo da view agrupa por (nome, coordenadas) e herda
+        # id/descrição do primeiro registro — a linha sem espécie).
+        {**PONTO_PARNAIBA, 'especie_slug': slug} for slug in ESPECIES_PARNAIBA
+    ]
+    # Lapidação 12: só depois do bloco do Parnaíba, para os ids acima ficarem
+    # exatamente como estavam antes da nova semeadura.
+    + _geometrias_das_localidades(LOCALIDADES_CE_RN)
+)
 
 
 class Command(BaseCommand):

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent as MouseEvento } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as MouseEvento,
+} from 'react'
 import { X } from 'lucide-react'
 import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -9,8 +16,9 @@ import {
   type ModoFerramenta,
 } from '@/components/FerramentasToolbar'
 import { FiltroAnimaisPanel, type FiltroEspecie } from '@/components/FiltroAnimaisPanel'
-import { PainelAreas, type AreaDesenhada } from '@/components/PainelAreas'
-import { areaKm2, convexHull, distanciaKm, formatarKm, formatarKm2 } from '@/utils/geo'
+import { PainelAreas, type AreaDesenhada, type ModeloElipse } from '@/components/PainelAreas'
+import { areaKm2, anelDaElipse, convexHull, distanciaKm, formatarKm, formatarKm2 } from '@/utils/geo'
+import { CENTRO_LITORAL_PI, ZOOM_INICIAL } from '@/lib/constantes-mapa'
 import {
   buscarGeometrias,
   buscarEspecies,
@@ -35,11 +43,60 @@ const CHAVE_DO_PONTO = (ponto: PontoExibido) =>
 type MarcaMedicao = { ponto: PontoDaArea }
 
 // Edição de área: mover o anel inteiro (drag no interior) ou reposicionar um
-// vértice pela alça correspondente.
-type EdicaoArea = { tipo: 'mover' | 'alca'; id: string; indice: number } | null
+// vértice pela alça correspondente. Elipse com modelo usa `extra` como
+// semântica da alça: cada face move SÓ o seu lado, com a face oposta fixa.
+type EdicaoArea = {
+  tipo: 'mover' | 'alca'
+  id: string
+  indice: number
+  extra: 'e' | 'w' | 'n' | 's' | null
+} | null
 
-export const CENTRO_LITORAL_PI: [number, number] = [-41.75, -2.9]
-export const ZOOM_INICIAL = 6
+// Ordem das alças do modelo de elipse: uma por face do bbox (E, W, N, S).
+const EXTRAS_DA_ELIPSE: ['e', 'w', 'n', 's'] = ['e', 'w', 'n', 's']
+
+// Histórico de áreas limitado a 50 snapshots (objetos são imutáveis, então a
+// cópia rasa do array basta).
+const LIMITE_HISTORICO_AREAS = 50
+
+// Ações dos atalhos de teclado: lidas a cada render por um único listener em
+// `document` (ref evita closure velha).
+type AcoesAtalhos = {
+  copiar: () => boolean
+  recortar: () => boolean
+  colar: () => boolean
+  desfazer: () => boolean
+  refazer: () => boolean
+  emGesto: () => boolean
+  modalAberto: boolean
+  bolhaAreaAberta: boolean
+}
+
+// Mesmo array (referências dos itens preservadas) -> não há o que historizar.
+function mesmasAreas(a: AreaDesenhada[], b: AreaDesenhada[]) {
+  return a.length === b.length && a.every((area, indice) => area === b[indice])
+}
+
+// FeatureCollection da fonte 'area-desenhada': todas as áreas com as
+// propriedades id/nome/ativa preservadas. Serviço à gravação definitiva
+//(mouseup) e ao desenho AO VIVO durante a edição (mover ou alça). Durante o
+// gesto a área editada leva `emEdicao: true` — o canvas a OCULTA (fill e
+// contorno com opacidade 0) e o quadro do gesto vive no DOM (SVG ghost).
+function dadosDasAreas(areas: AreaDesenhada[], ativaId: string | null, emEdicaoId?: string | null) {
+  return {
+    type: 'FeatureCollection',
+    features: areas.map((area) => ({
+      type: 'Feature',
+      properties: {
+        id: area.id,
+        nome: area.nome,
+        ativa: area.id === ativaId,
+        emEdicao: area.id === emEdicaoId,
+      },
+      geometry: area.polygon,
+    })),
+  }
+}
 
 const TILES_VOYAGER = [
   'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
@@ -159,9 +216,16 @@ function sumirPin(el: HTMLElement, remover: () => void) {
 }
 
 // Despedida do Marker do pin: anima a saída do elemento e solta o Marker só
-// no fim (o próprio conteúdo se resolve, sem re-render no React).
+// no fim (o próprio conteúdo se resolve, sem re-render no React). No runtime
+// real (maplibre-gl 6), o elemento é acessado por getElement() e a prop
+// interna é `_element` — `.element` fica como último recurso para os fakes.
 function despedirPin(pin: Marker) {
-  const elemento = (pin as unknown as { element?: HTMLElement }).element
+  const candidato = pin as unknown as {
+    getElement?: () => HTMLElement
+    _element?: HTMLElement
+    element?: HTMLElement
+  }
+  const elemento = candidato.getElement?.() ?? candidato._element ?? candidato.element
   if (!elemento) {
     pin.remove()
     return
@@ -172,6 +236,42 @@ function despedirPin(pin: Marker) {
       elemento.remove()
     }
   })
+}
+
+// Prefetch de ícones (lapidação 11): os SVGs dos pontos visíveis são baixados
+// por baixo do pano — o 1º clique no pin não fica esperando a cadeia de
+// fallback. Roda FORA da crítica: requestIdleCallback quando existe, com
+// fallback de setTimeout(50ms); no máximo 2 por rodada.
+function prefetchIcone(slug: string) {
+  new Image().src = `/api/especies/${slug}/icone/`
+}
+
+function agendarOcioso(acao: () => void) {
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => acao())
+  } else {
+    setTimeout(acao, 50)
+  }
+}
+
+type FilaPrefetch = { pendentes: string[]; ocioso: boolean }
+
+function rodadaPrefetch(baixados: Set<string>, fila: FilaPrefetch) {
+  fila.ocioso = false
+  let baixadosNesta = 0
+  while (baixadosNesta < 2 && fila.pendentes.length > 0) {
+    const slug = fila.pendentes.shift() as string
+    if (baixados.has(slug)) {
+      continue
+    }
+    baixados.add(slug)
+    prefetchIcone(slug)
+    baixadosNesta += 1
+  }
+  if (fila.pendentes.length > 0) {
+    fila.ocioso = true
+    agendarOcioso(() => rodadaPrefetch(baixados, fila))
+  }
 }
 
 function construirEstilo(apiKey: string | undefined) {
@@ -272,6 +372,12 @@ export function MapView({
   const proximoIdRef = useRef(1)
   const areaDestaqueRef = useRef<AreaDesenhada | null>(null)
   const resultadoRef = useRef<ConsultaArea | null>(null)
+  // Resultado POR ÁREA (cache): a consulta de um gesto re-busca só a área
+  // editada e mescla com as respostas já obtidas das demais.
+  const resultadosPorAreaRef = useRef<Map<string, { assinatura: string; resultado: ConsultaArea }>>(
+    new Map(),
+  )
+  const consultaGeracaoRef = useRef(0)
   const pontosExibeRef = useRef<PontoExibido[]>([])
   const pedidoBuscaRef = useRef(0)
   const piscaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -280,12 +386,20 @@ export function MapView({
   const inicioEdicaoRef = useRef<{ tela: { x: number; y: number } } | null>(null)
   const anelOriginalRef = useRef<number[][]>([])
   const poligonoEdicaoRef = useRef<number[][]>([])
-  // Fantasma do mover: contorno tracejado que acompanha o arraste ao vivo —
-  // pontos projetados mantidos em ref e aplicados DIRETO no elemento SVG
-  // (sem re-render por frame).
-  const fantasmaRef = useRef<SVGPolylineElement | null>(null)
-  const pontosFantasmaRef = useRef('')
+  const alcasSvgRef = useRef<SVGSVGElement | null>(null)
+  // Quadro do gesto: polígono SVG do DOM, atualizado por setAttribute no
+  // mesmo tick do setData (sem estado React por frame).
+  const poligonoGestoRef = useRef<SVGPolygonElement | null>(null)
+  // Modelo de elipse da área em edição: snapshot inicial (para fator/clamp)
+  // e vivo (atualizado pelo gesto); o espelho em state alimenta o render.
+  const modeloInicialRef = useRef<ModeloElipse | null>(null)
+  const modeloEdicaoRef = useRef<ModeloElipse | null>(null)
   const areasRef = useRef<AreaDesenhada[]>([])
+  // Histórico undo/redo + clipboard interno da sessão (sem API do SO).
+  const historicoAreasRef = useRef<AreaDesenhada[][]>([])
+  const refazerAreasRef = useRef<AreaDesenhada[][]>([])
+  const clipboardAreaRef = useRef<AreaDesenhada | null>(null)
+  const acoesAtalhosRef = useRef<AcoesAtalhos | null>(null)
   const pontoAtivoRef = useRef<PontoDaArea | null>(null)
   const bolhaAreaRef = useRef(false)
   const especiesRef = useRef<EspecieResumo[] | null>(null)
@@ -321,8 +435,11 @@ export function MapView({
   const [sobreArea, setSobreArea] = useState(false)
   const [edicao, setEdicao] = useState<EdicaoArea>(null)
   const [poligonoEdicao, setPoligonoEdicao] = useState<number[][] | null>(null)
+  const [modeloEdicao, setModeloEdicao] = useState<ModeloElipse | null>(null)
   const [pontoAtivo, setPontoAtivo] = useState<PontoDaArea | null>(null)
   const [posicoesPontos, setPosicoesPontos] = useState<Record<string, { x: number; y: number }>>({})
+  const baixadosPrefetchRef = useRef<Set<string>>(new Set())
+  const filaPrefetchRef = useRef<FilaPrefetch>({ pendentes: [], ocioso: false })
   const cartoKey = import.meta.env.VITE_CARTO_API_KEY as string | undefined
   const [estiloAtual, setEstiloAtual] = useState(() => construirEstilo(cartoKey))
   const [reiniciar, setReiniciar] = useState(0)
@@ -337,12 +454,74 @@ export function MapView({
   const chavesBusca = new Set(
     buscaAtiva ? (buscaResultado?.pontos.features ?? []).map(CHAVE_DO_PONTO) : [],
   )
+  // Lapidação 11: os filtros DETERMINAM os pontos renderizados. "Mais"/"menos"
+  // = os 3 primeiros de `resultado.especies` (o server envia `mais` desc. por
+  // contagem e `menos` asc. — mesma lista invertida, empate por nome); com
+  // menos de 3 espécies no resultado, o top é a lista inteira. Espécie clicada
+  // (painel ou busca) restringe ao que a contém. Específico por texto já fica
+  // no server (o resultado chega filtrado). PREMISSA: mais/menos junto de
+  // espécie clicada vira união dos slugs. Área primeiro: a consulta só devolve
+  // pontos internos às áreas e o filtro opera sobre esse resultado — nunca
+  // ressuscita ponto fora de área; o overlay da busca segue a mesma regra.
+  // Memoizado: a identidade estável permite o efeito que recria o pin quando
+  // o conjunto muda (pin/bolha refletem o subconjunto novo).
+  const slugsDoFiltro: string[] = useMemo(() => {
+    if (filtro === 'mais' || filtro === 'menos') {
+      return (resultado?.especies ?? []).slice(0, 3).map((especie) => especie.slug)
+    }
+    // Premissa aprovada (lapidação 11): com 'específica' + texto, o conjunto é
+    // o que `resultado.especies` traz (o server já devolveu tudo filtrado);
+    // sem texto NÃO há restrição — pin/bolha mostram o ponto inteiro.
+    if (filtro === 'especifica' && animalAplicado.trim()) {
+      return (resultado?.especies ?? []).map((especie) => especie.slug)
+    }
+    return []
+  }, [filtro, resultado, animalAplicado])
+  const conjuntoFiltro = useMemo(
+    () => new Set([...slugsDoFiltro, ...(especieSelecionada ? [especieSelecionada] : [])]),
+    [slugsDoFiltro, especieSelecionada],
+  )
+  // Espelho do conjunto para o caminho imperativo: o filtro determina TAMBÉM o
+  // CONTEÚDO do pin/bolha (premissa da lapidação 11 — não exclui os outros
+  // animais dos pontos, corta a exibição deles), e o clique/lá no momento do
+  // click precisa do conjunto VIVO, não da closure do render.
+  const conjuntoFiltroRef = useRef<Set<string>>(conjuntoFiltro)
+  conjuntoFiltroRef.current = conjuntoFiltro
+  // Subconjunto do ponto dentro do conjunto do filtro, na ordem original de
+  // `especie_slugs`. Sem conjunto (todas / sem texto) → o ponto inteiro.
+  const slugsDoFiltroNoPonto = (ponto: PontoDaArea): string[] => {
+    const conjunto = conjuntoFiltroRef.current
+    if (conjunto.size === 0) {
+      return ponto.properties.especie_slugs
+    }
+    return ponto.properties.especie_slugs.filter((slug) => conjunto.has(slug))
+  }
+  const casaComFiltro = (ponto: PontoDaArea) =>
+    conjuntoFiltro.size === 0 ||
+    ponto.properties.especie_slugs.some((slug) => conjuntoFiltro.has(slug))
+  // Área antes de qualquer filtro: um ponto fora de TODAS as áreas desenhadas
+  // já está fora do escopo, inclusive quando veio do overlay da busca (a
+  // consulta por área não o traria; a busca traria, e ele não deve aparecer).
+  const dentroDeAlgumaArea = (ponto: PontoExibido) =>
+    areas.length === 0 ||
+    areas.some((area) =>
+      pontoNoPoligono(ponto.geometry.coordinates as [number, number], area.polygon.coordinates[0] ?? []),
+    )
   const pontosVisiveis: PontoExibido[] = buscaAtiva
     ? [
-        ...(buscaResultado?.pontos.features ?? []),
-        ...pontosEscopo.filter((ponto) => !chavesBusca.has(CHAVE_DO_PONTO(ponto))),
+        ...(buscaResultado?.pontos.features ?? []).filter(
+          (ponto) => dentroDeAlgumaArea(ponto) && casaComFiltro(ponto),
+        ),
+        ...pontosEscopo.filter(
+          (ponto) => !chavesBusca.has(CHAVE_DO_PONTO(ponto)) && casaComFiltro(ponto),
+        ),
       ]
-    : pontosEscopo
+    : pontosEscopo.filter(casaComFiltro)
+
+  // Os pontos de espécie são GEO-FIXOS: NUNCA se movem nem se ocultam durante
+  // o gesto de edição (imóveis e visíveis como fora dele); o conjunto só muda
+  // no release, pela consulta (o server é a fonte da verdade).
+  const pontosExibidos = pontosVisiveis
 
   useEffect(() => {
     resultadoRef.current = resultado
@@ -353,7 +532,32 @@ export function MapView({
   }, [areaEmDestaque])
 
   useEffect(() => {
-    pontosExibeRef.current = pontosVisiveis
+    pontosExibeRef.current = pontosExibidos
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pontosExibidos])
+
+  // Prefetch dos ícones (lapidação 12): `rodadaPrefetch` existia mas NUNCA era
+  // chamada — por isso o 1º clique no ponto abria o pin com o fundo branco até
+  // o SVG chegar da rede. Agora todo conjunto visível enfileira os slugs que
+  // ainda não foram baixados e uma rodada ociosa (2 por vez) começa sozinha.
+  useEffect(() => {
+    const fila = filaPrefetchRef.current
+    const novos = new Set<string>()
+    for (const ponto of pontosVisiveis) {
+      for (const slug of ponto.properties.especie_slugs) {
+        if (!baixadosPrefetchRef.current.has(slug) && !fila.pendentes.includes(slug)) {
+          novos.add(slug)
+        }
+      }
+    }
+    if (!novos.size) {
+      return
+    }
+    fila.pendentes = [...novos, ...fila.pendentes]
+    if (!fila.ocioso) {
+      rodadaPrefetch(baixadosPrefetchRef.current, fila)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pontosVisiveis])
 
   useEffect(() => {
@@ -403,7 +607,7 @@ export function MapView({
     setPosArea({ x: projetado.x, y: projetado.y })
   }, [])
 
-  const telaDoEvento = (evento: MouseEvento<HTMLDivElement>): { x: number; y: number } => {
+  const telaDoEvento = (evento: { clientX: number; clientY: number }): { x: number; y: number } => {
     const rect = containerRef.current?.getBoundingClientRect()
     return {
       x: evento.clientX - (rect?.left ?? 0),
@@ -411,7 +615,7 @@ export function MapView({
     }
   }
 
-  const telaDeJanela = (evento: MouseEvent): { x: number; y: number } => {
+  const telaDeJanela = (evento: { clientX: number; clientY: number }): { x: number; y: number } => {
     const rect = containerRef.current?.getBoundingClientRect()
     return {
       x: evento.clientX - (rect?.left ?? 0),
@@ -433,32 +637,194 @@ export function MapView({
   }, [])
 
   const iniciarEdicao = useCallback(
-    (tipo: 'mover' | 'alca', id: string, indice: number, tela: { x: number; y: number } | null) => {
+    (
+      tipo: 'mover' | 'alca',
+      id: string,
+      indice: number,
+      tela: { x: number; y: number } | null,
+      extra: 'e' | 'w' | 'n' | 's' | null = null,
+    ) => {
       const area = areasRef.current.find((item) => item.id === id)
       const anel = area?.polygon.coordinates[0]
       if (!area || !anel?.length) {
         return
       }
-      edicaoRef.current = { tipo, id, indice }
+      edicaoRef.current = { tipo, id, indice, extra }
       anelOriginalRef.current = anel.map((ponto) => [...ponto])
       poligonoEdicaoRef.current = anel.map((ponto) => [...ponto])
+      modeloInicialRef.current = area.modelo
+        ? { ...area.modelo, centro: [...area.modelo.centro] as [number, number] }
+        : null
+      modeloEdicaoRef.current = modeloInicialRef.current
+      setModeloEdicao(modeloInicialRef.current)
       inicioEdicaoRef.current = tela ? { tela } : null
-      // Fantasma parte da forma ORIGINAL da área no início do gesto.
-      const mapaInicial = mapRef.current
-      if (tipo === 'mover') {
-        pontosFantasmaRef.current = anel
-          .map((vertice) => {
-            const projetado = mapaInicial?.project(vertice as [number, number])
-            return projetado ? `${projetado.x},${projetado.y}` : `${vertice[0]},${vertice[1]}`
-          })
-          .join(' ')
-      }
       setEdicao(edicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
       mapRef.current?.dragPan?.disable?.()
     },
     [],
   )
+
+  // Desenho AO VIVO durante a edição (mover ou alça): troca, na fonte
+  // 'area-desenhada', o anel da área editada (id/nome/ativa preservados),
+  // sem esperar o mouseup — o fill/contorno acompanham o gesto por frame.
+  const atualizarAreaAoVivo = useCallback(
+    (mapa: MapLibreMap | null, ativa: EdicaoArea, anel: number[][]): boolean => {
+      if (!mapa || !ativa) {
+        return false
+      }
+      const fonte = mapa.getSource?.('area-desenhada') as
+        | { setData?: (dados: unknown) => void }
+        | undefined
+      const editada = areasRef.current.find((area) => area.id === ativa.id)
+      if (!fonte?.setData || !editada) {
+        return false
+      }
+      fonte.setData(
+        dadosDasAreas(
+          areasRef.current.map((area) =>
+            area.id === ativa.id
+              ? { ...area, polygon: { type: 'Polygon', coordinates: [anel] } }
+              : area,
+          ),
+          areaAtivaId,
+          ativa.id,
+        ),
+      )
+      return true
+    },
+    [areaAtivaId],
+  )
+
+  // Posições (tela) das 4 alças do modelo — uma por face do bbox — MESMA
+  // ordem do render e do reposicionamento imperativo.
+  const pontosDaElipse = useCallback((modelo: ModeloElipse): { x: number; y: number }[] => {
+    const mapa = mapRef.current
+    if (!mapa) {
+      return []
+    }
+    const [cx, cy] = modelo.centro
+    const left = cx - modelo.rx
+    const right = cx + modelo.rx
+    const bottom = cy - modelo.ry
+    const top = cy + modelo.ry
+    return [
+      mapa.project([right, cy]),
+      mapa.project([left, cy]),
+      mapa.project([cx, top]),
+      mapa.project([cx, bottom]),
+    ] as { x: number; y: number }[]
+  }, [])
+
+  // Reposiciona os círculos das alças IMPERATIVAMENTE no mesmo tick do setData:
+  // sem isso, o commit do React (assíncrono) os deixa ~1 frame atrás do fill.
+  // Ordem dos círculos = mesma do render (.slice(0, -1) do anel editado); o
+  // re-render React reescreve os mesmos valores depois (harmônico).
+  const reposicionarAlcas = useCallback((): void => {
+    const svg = alcasSvgRef.current
+    const mapa = mapRef.current
+    if (!svg || !mapa) {
+      return
+    }
+    const ativa = edicaoRef.current
+    if (!ativa) {
+      return
+    }
+    let pontos: { x: number; y: number }[] = []
+    if (modeloEdicaoRef.current) {
+      pontos = pontosDaElipse(modeloEdicaoRef.current)
+    } else {
+      const anel = poligonoEdicaoRef.current
+      if (!anel.length) {
+        return
+      }
+      pontos = anel
+        .slice(0, -1)
+        .map((vertice) => mapa.project(vertice as [number, number]) as { x: number; y: number })
+    }
+    const circulos = svg.querySelectorAll('circle')
+    pontos.forEach((ponto, indice) => {
+      const circulo = circulos[indice] as SVGCircleElement | undefined
+      if (!circulo) {
+        return
+      }
+      circulo.setAttribute('cx', String(ponto.x))
+      circulo.setAttribute('cy', String(ponto.y))
+    })
+  }, [pontosDaElipse])
+
+  // Quadro do gesto no MESMO tick do setData: o contorno + vértices do anel
+  // vivo vivem num SVG do DOM (poligono-gesto) e são atualizados por
+  // setAttribute a cada mousemove — a projeção é a mesma dos vértices/alças.
+  // Nada de estado React por frame: o canvas só reassume no release.
+  const atualizarPoligonoGesto = useCallback((anel: number[][]): boolean => {
+    const poligono = poligonoGestoRef.current
+    const mapa = mapRef.current
+    if (!poligono || !mapa) {
+      return false
+    }
+    poligono.setAttribute(
+      'points',
+      anel
+        .map((vertice) => {
+          const projetado = mapa.project(vertice as [number, number]) as { x: number; y: number }
+          return `${projetado.x},${projetado.y}`
+        })
+        .join(' '),
+    )
+    return true
+  }, [])
+
+  // Pixels → graus por eixo: distância entre a tela (0,0) e a tela (px,0) /
+  // (0,px) — piso dos raios/elipse (~3px) e clamp do retângulo (~4px/eixo).
+  const grausPorPixels = useCallback(
+    (pixels: number, eixo: 'x' | 'y' = 'x') => {
+      const origem = coordenadaDaTela({ x: 0, y: 0 })
+      const offset = coordenadaDaTela(eixo === 'x' ? { x: pixels, y: 0 } : { x: 0, y: pixels })
+      return Math.abs(offset[eixo === 'x' ? 0 : 1] - origem[eixo === 'x' ? 0 : 1])
+    },
+    [coordenadaDaTela],
+  )
+
+  // Release SEM gravação (anel colapsado/insuficiente): a fonte fica com
+  // emEdicao: true do gesto vivo — o setData final SEM emEdicao devolve o
+  // canvas ao estado gravado (o quadro SVG some no render seguinte).
+  const descartarEmEdicao = useCallback(() => {
+    const fonte = mapRef.current?.getSource?.('area-desenhada') as
+      | { setData?: (dados: unknown) => void }
+      | undefined
+    if (fonte?.setData) {
+      fonte.setData(dadosDasAreas(areasRef.current, areaAtivaId))
+    }
+  }, [areaAtivaId])
+
+  // Ponto único de mutação das áreas: empurra o estado atual no undo, limpa o
+  // redo e troca `areas`. Sem mudança real (mesmas referências), não historiza.
+  const aplicarAreas = useCallback((proximo: AreaDesenhada[]) => {
+    const atual = areasRef.current
+    if (mesmasAreas(atual, proximo)) {
+      return false
+    }
+    const historico = historicoAreasRef.current
+    historico.push(atual)
+    if (historico.length > LIMITE_HISTORICO_AREAS) {
+      historico.shift()
+    }
+    refazerAreasRef.current = []
+    areasRef.current = proximo
+    setAreas(proximo)
+    return true
+  }, [])
+
+  // Restauração de snapshot (undo/redo): não historiza; se a área ativa sumiu,
+  // desmarca a seleção.
+  const aplicarSnapshot = useCallback((snapshot: AreaDesenhada[]) => {
+    areasRef.current = snapshot
+    setAreas(snapshot)
+    setAreaAtivaId((atual) =>
+      atual && snapshot.some((area) => area.id === atual) ? atual : null,
+    )
+  }, [])
 
   const finalizarEdicao = useCallback(() => {
     const ativa = edicaoRef.current
@@ -467,28 +833,59 @@ export function MapView({
     }
     edicaoRef.current = null
     inicioEdicaoRef.current = null
+    const modeloFinal = modeloEdicaoRef.current
+    modeloInicialRef.current = null
+    modeloEdicaoRef.current = null
     setEdicao(null)
+    setModeloEdicao(null)
     setPoligonoEdicao(null)
     mapRef.current?.dragPan?.enable?.()
     const novos = poligonoEdicaoRef.current
     if (novos.length < 4) {
+      descartarEmEdicao()
       return
     }
     const km2 = areaKm2(novos)
     // Sem colapso: só assume a nova forma quando a área permanece positiva.
     if (km2 <= 0) {
+      descartarEmEdicao()
       return
     }
-    setAreas((atuais) =>
+    // Deriva o novo array do estado VIVO (não de updater funcional): o
+    // `aplicarAreas` precisa do array corrente para o snapshot do undo.
+    const atuais = areasRef.current
+    const alvo = atuais.find((area) => area.id === ativa.id)
+    if (!alvo) {
+      descartarEmEdicao()
+      return
+    }
+    // Gesto que terminou sem mudança geométrica não entra no histórico.
+    const anelAtual = alvo.polygon.coordinates[0] ?? []
+    const mesmaForma =
+      anelAtual.length === novos.length &&
+      anelAtual.every(
+        (ponto, indice) => ponto[0] === novos[indice][0] && ponto[1] === novos[indice][1],
+      ) &&
+      JSON.stringify(alvo.modelo ?? null) === JSON.stringify(modeloFinal ?? null)
+    if (mesmaForma) {
+      descartarEmEdicao()
+      return
+    }
+    aplicarAreas(
       atuais.map((area) =>
         area.id === ativa.id
-          ? { ...area, polygon: { type: 'Polygon', coordinates: [novos] }, areaKm2: km2 }
+          ? {
+              ...area,
+              polygon: { type: 'Polygon', coordinates: [novos] },
+              areaKm2: km2,
+              ...(modeloFinal ? { modelo: modeloFinal } : {}),
+            }
           : area,
       ),
     )
-  }, [])
+  }, [descartarEmEdicao, aplicarAreas])
 
-  const registrarArea = (anel: number[][]) => {
+  const registrarArea = (anel: number[][], modelo?: ModeloElipse) => {
     if (anel.length < 4) {
       return
     }
@@ -499,8 +896,9 @@ export function MapView({
       nome: `Área ${id}`,
       polygon: { type: 'Polygon', coordinates: [anel] },
       areaKm2: areaKm2(anel),
+      ...(modelo ? { modelo } : {}),
     }
-    setAreas((atuais) => [...atuais, nova])
+    aplicarAreas([...areasRef.current, nova])
     setMedicao(null)
   }
 
@@ -600,14 +998,27 @@ export function MapView({
     if (raio < 3) {
       return
     }
-    const vertices = Array.from({ length: 32 }, (_, indice) => {
-      const angulo = (indice / 32) * Math.PI * 2
-      return coordenadaDaTela({
-        x: inicio.tela.x + raio * Math.cos(angulo),
-        y: inicio.tela.y + raio * Math.sin(angulo),
-      })
+    // Elipse DESDE o desenho (lapidação 11): rx = |dx| e ry = |dy| de tela,
+    // INDEPENDENTES desde o gesto e em qualquer direção (abs), com piso
+    // ~3px por raio. Centro = origem do arrasto; raios em graus repondo um
+    // offset de tela do próprio delta (PREMISSA: distorção da latitude
+    // aceitável para a demo). Anel gerado pela util compartilhada.
+    const centro = coordenadaDaTela(inicio.tela)
+    const minimo = grausPorPixels(3)
+    const rx = Math.max(
+      minimo,
+      Math.abs(coordenadaDaTela({ x: inicio.tela.x + dx, y: inicio.tela.y })[0] - centro[0]),
+    )
+    const ry = Math.max(
+      minimo,
+      Math.abs(coordenadaDaTela({ x: inicio.tela.x, y: inicio.tela.y + dy })[1] - centro[1]),
+    )
+    registrarArea(anelDaElipse(centro, rx, ry, 32), {
+      tipo: 'elipse',
+      centro,
+      rx,
+      ry,
     })
-    registrarArea([...vertices, vertices[0]])
   }
 
   useEffect(() => {
@@ -729,10 +1140,15 @@ export function MapView({
     if (!map || !fontePronta) {
       return
     }
+    // Lapidação 12: respondida a consulta, os pontos do mapa são os BOTÕES
+    // filtrados (pontosVisiveis). A camada base do seed só desenha enquanto
+    // não há resultado — mantê-la visível pintava todos os pontos sempre e
+    // anulava qualquer filtro (mais/menos presente, espécie, área).
     for (const [idCamada, tipo] of Object.entries(TIPO_POR_CAMADA)) {
-      map.setLayoutProperty(idCamada, 'visibility', camadasAtivas[tipo] ? 'visible' : 'none')
+      const visivel = tipo === 'ponto' ? camadasAtivas.ponto && !resultado : camadasAtivas[tipo]
+      map.setLayoutProperty(idCamada, 'visibility', visivel ? 'visible' : 'none')
     }
-  }, [fontePronta, camadasAtivas])
+  }, [fontePronta, camadasAtivas, resultado])
 
   useEffect(() => {
     modoRef.current = modo
@@ -828,31 +1244,122 @@ export function MapView({
         const coordInicial = coordenadaDaTela(inicio.tela)
         const dLon = coordAtual[0] - coordInicial[0]
         const dLat = coordAtual[1] - coordInicial[1]
-        poligonoEdicaoRef.current = anelOriginalRef.current.map((vertice) => [
-          vertice[0] + dLon,
-          vertice[1] + dLat,
-        ])
-        // Fantasma ao vivo: pontos projetados na hora, direto no SVG.
-        const pontosFantasma = poligonoEdicaoRef.current
-          .map((vertice) => {
-            const projetado = mapRef.current?.project(vertice as [number, number])
-            return projetado ? `${projetado.x},${projetado.y}` : `${vertice[0]},${vertice[1]}`
-          })
-          .join(' ')
-        pontosFantasmaRef.current = pontosFantasma
-        fantasmaRef.current?.setAttribute('points', pontosFantasma)
-      } else {
-        const vertice = coordenadaDaTela(tela)
-        const anel = anelOriginalRef.current.map((ponto, indice) =>
-          indice === ativa.indice ? vertice : ponto,
-        )
-        // O anel é fechado: a alça 0 também define o vértice final.
-        if (ativa.indice === 0 && anel.length > 0) {
-          anel[anel.length - 1] = [...vertice]
+        const modelo = modeloInicialRef.current
+        if (modelo) {
+          // Elipse: translada o CENTRO do modelo e regenera o anel pela util.
+          const novo: ModeloElipse = {
+            ...modelo,
+            centro: [modelo.centro[0] + dLon, modelo.centro[1] + dLat],
+          }
+          modeloEdicaoRef.current = novo
+          setModeloEdicao(novo)
+          poligonoEdicaoRef.current = anelDaElipse(novo.centro, novo.rx, novo.ry)
+        } else {
+          poligonoEdicaoRef.current = anelOriginalRef.current.map((vertice) => [
+            vertice[0] + dLon,
+            vertice[1] + dLat,
+          ])
         }
-        poligonoEdicaoRef.current = anel
+      } else if (ativa.extra && modeloInicialRef.current) {
+        // Alça de FACE da elipse: move só a face puxada e mantém a OPOSTA
+        // fixa (nada de crescimento simétrico). Cruzar a face oposta trava no
+        // piso ~3px, sem inverter/espelhar.
+        const modelo = modeloInicialRef.current
+        const cursor = coordenadaDaTela(tela)
+        const minimo = grausPorPixels(3)
+        const [cx, cy] = modelo.centro
+        const left = cx - modelo.rx
+        const right = cx + modelo.rx
+        const bottom = cy - modelo.ry
+        const top = cy + modelo.ry
+        let novo: ModeloElipse
+        if (ativa.extra === 'e') {
+          const novoRight = Math.max(cursor[0], left + minimo)
+          novo = {
+            tipo: 'elipse',
+            centro: [(left + novoRight) / 2, cy],
+            rx: (novoRight - left) / 2,
+            ry: modelo.ry,
+          }
+        } else if (ativa.extra === 'w') {
+          const novoLeft = Math.min(cursor[0], right - minimo)
+          novo = {
+            tipo: 'elipse',
+            centro: [(novoLeft + right) / 2, cy],
+            rx: (right - novoLeft) / 2,
+            ry: modelo.ry,
+          }
+        } else if (ativa.extra === 'n') {
+          const novoTop = Math.max(cursor[1], bottom + minimo)
+          novo = {
+            tipo: 'elipse',
+            centro: [cx, (bottom + novoTop) / 2],
+            rx: modelo.rx,
+            ry: (novoTop - bottom) / 2,
+          }
+        } else {
+          const novoBottom = Math.min(cursor[1], top - minimo)
+          novo = {
+            tipo: 'elipse',
+            centro: [cx, (top + novoBottom) / 2],
+            rx: modelo.rx,
+            ry: (top - novoBottom) / 2,
+          }
+        }
+        modeloEdicaoRef.current = novo
+        setModeloEdicao(novo)
+        poligonoEdicaoRef.current = anelDaElipse(novo.centro, novo.rx, novo.ry)
+      } else {
+        const original = anelOriginalRef.current
+        const vertice = coordenadaDaTela(tela)
+        // PREMISSA (lapidação 11): anel de 4 vértices fechado (5 pontos) é um
+        // RETÂNGULO — puxar QUALQUER canto o redimensiona em qualquer direção,
+        // com o canto OPOSTO ancorado e o rect recomputado pelo cursor (clamp
+        // mínimo ~4px por eixo, sem virar/interseção própria — abs trava).
+        // Polígonos livres (5+ vértices) e triângulos MANTÊM o movimento de
+        // vértice atual.
+        if (original.length === 5) {
+          const indiceCanto = ((ativa.indice % 4) + 4) % 4
+          const oposto = original[(indiceCanto + 2) % 4]
+          const dx = vertice[0] - oposto[0]
+          const dy = vertice[1] - oposto[1]
+          const minX = grausPorPixels(4, 'x')
+          const minY = grausPorPixels(4, 'y')
+          const canto: [number, number] = [
+            Math.abs(dx) < minX ? oposto[0] + Math.sign(dx || 1) * minX : vertice[0],
+            Math.abs(dy) < minY ? oposto[1] + Math.sign(dy || 1) * minY : vertice[1],
+          ]
+          const anel: number[][] = []
+          for (let passo = 0; passo < 4; passo += 1) {
+            const posicao = (indiceCanto + passo) % 4
+            anel[posicao] =
+              passo === 0
+                ? canto
+                : passo === 2
+                  ? [...oposto]
+                  : passo === 1
+                    ? [canto[0], oposto[1]]
+                    : [oposto[0], canto[1]]
+          }
+          anel.push([...anel[0]])
+          poligonoEdicaoRef.current = anel
+        } else {
+          const anel = anelOriginalRef.current.map((ponto, indice) =>
+            indice === ativa.indice ? vertice : ponto,
+          )
+          // O anel é fechado: a alça 0 também define o vértice final.
+          if (ativa.indice === 0 && anel.length > 0) {
+            anel[anel.length - 1] = [...vertice]
+          }
+          poligonoEdicaoRef.current = anel
+        }
       }
+      // Ao vivo: o desenho da área acompanha o gesto direto na fonte.
+      atualizarAreaAoVivo(mapRef.current, ativa, poligonoEdicaoRef.current)
       setPoligonoEdicao(poligonoEdicaoRef.current)
+      reposicionarAlcas()
+      // Quadro do gesto no MESMO tick: contorno + vértices no SVG do DOM.
+      atualizarPoligonoGesto(poligonoEdicaoRef.current)
     }
     const aoSoltar = () => {
       finalizarEdicao()
@@ -863,16 +1370,18 @@ export function MapView({
       window.removeEventListener('mousemove', aoMover)
       window.removeEventListener('mouseup', aoSoltar)
     }
-  }, [edicao, coordenadaDaTela, finalizarEdicao])
+  }, [edicao, coordenadaDaTela, grausPorPixels, finalizarEdicao, atualizarAreaAoVivo, reposicionarAlcas, atualizarPoligonoGesto])
 
-  // Se o ponto do pin some do escopo (área apagada, troca de filtro que
-  // removeu o ponto), fechar pin remove tudo: pin + bolha.
+  // Se o ponto do pin some do escopo (área apagada, troca de filtro, release
+  // de gesto que o tirou da área — a consulta nova não o traz), fechar pin
+  // remove tudo: pin + bolha. Durante o GESTO o pin NÃO é avaliado: os pontos
+  // são geo-fixos e o conjunto só muda no release.
   useEffect(() => {
     const ativo = pontoAtivoRef.current
     if (!ativo) {
       return
     }
-    const visivel = pontosVisiveis.some(
+    const visivel = pontosExibidos.some(
       (ponto) => String(ponto.properties.id) === String(ativo.properties.id),
     )
     if (!visivel) {
@@ -905,18 +1414,7 @@ export function MapView({
     if (!map || !carregado) {
       return
     }
-    const dados = {
-      type: 'FeatureCollection',
-      features: areas.map((area) => ({
-        type: 'Feature',
-        properties: {
-          id: area.id,
-          nome: area.nome,
-          ativa: area.id === areaAtivaId,
-        },
-        geometry: area.polygon,
-      })),
-    }
+    const dados = dadosDasAreas(areas, areaAtivaId)
     const fonte = map.getSource?.('area-desenhada') as
       | { setData?: (dados: unknown) => void }
       | undefined
@@ -928,18 +1426,22 @@ export function MapView({
       return
     }
     map.addSource('area-desenhada', { type: 'geojson', data: dados })
+    // Durante o gesto a área editada leva `emEdicao: true` — fill/contorno do
+    // canvas ficam com opacidade 0 e o quadro vive no DOM (SVG ghost); sem o
+    // atributo (fora do gesto), segue o caso ativa/inativa de sempre.
     map.addLayer({
       id: 'camada-area',
       type: 'fill',
       source: 'area-desenhada',
       paint: {
         'fill-color': '#0ea5a4',
-        'fill-opacity': ['case', ['get', 'ativa'], 0.5, 0.15],
+        'fill-opacity': ['case', ['get', 'emEdicao'], 0, ['case', ['get', 'ativa'], 0.5, 0.15]],
         'fill-outline-color': ['case', ['get', 'ativa'], '#d97706', '#0f766e'],
       },
     } as never)
     // Contorno data-driven: borda mais grossa/brilhante na área selecionada
-    // (âmbar tema, legível sobre o raster em claro e escuro).
+    // (âmbar tema, legível sobre o raster em claro e escuro); oculto junto do
+    // fill quando a área está em edição.
     map.addLayer({
       id: 'camada-area-contorno',
       type: 'line',
@@ -947,6 +1449,7 @@ export function MapView({
       paint: {
         'line-color': ['case', ['get', 'ativa'], '#d97706', '#0f766e'],
         'line-width': ['case', ['get', 'ativa'], 3, 1.5],
+        'line-opacity': ['case', ['get', 'emEdicao'], 0, 1],
       },
     } as never)
   }, [areas, areaAtivaId, carregado])
@@ -980,14 +1483,38 @@ export function MapView({
     }
   }, [buscaTermo, buscaAberto])
 
+  // Fix 2 (SPEC-0005): consulta POR ÁREA com cache. O fim de um gesto muda só
+  // o polígono de UMA área (mesmos ids) -> re-busca apenas ela (1 POST) e
+  // mescla com as respostas cacheadas das demais. Mudar o CONJUNTO de áreas
+  // (criar/apagar) ou filtro/animal invalida o cache das áreas afetadas e
+  // volta a consultá-las. Corrida: geração global descarta resposta obsoleta.
   useEffect(() => {
     let vivo = true
     const animal = filtro === 'especifica' ? animalAplicado.trim() || null : null
     const ordenar = filtro === 'mais' ? 'mais' : filtro === 'menos' ? 'menos' : null
+    const parametros = `${animal ?? ''}|${ordenar ?? ''}`
     const alvos = areaAtivaId ? areas.filter((area) => area.id === areaAtivaId) : areas
+    const chaveDe = (area: AreaDesenhada) =>
+      `${area.id}|${JSON.stringify(area.polygon)}|${parametros}`
+    const cache = resultadosPorAreaRef.current
+    const geracao = consultaGeracaoRef.current + 1
+    consultaGeracaoRef.current = geracao
+
     if (!alvos.length) {
+      const chave = `__global__|${parametros}`
+      const cacheado = cache.get('__global__')
+      if (cacheado?.assinatura === chave) {
+        setResultado(cacheado.resultado)
+        return () => {
+          vivo = false
+        }
+      }
       consultarArea({ poligono: null, animal, ordenar }).then((dados) => {
-        if (vivo) {
+        if (!vivo || geracao !== consultaGeracaoRef.current) {
+          return
+        }
+        if (dados) {
+          cache.set('__global__', { assinatura: chave, resultado: dados })
           setResultado(dados)
         }
       })
@@ -995,12 +1522,30 @@ export function MapView({
         vivo = false
       }
     }
-    Promise.all(
-      alvos.map((area) => consultarArea({ poligono: area.polygon, animal, ordenar })),
-    ).then((respostas) => {
-      if (vivo) {
-        setResultado(mesclarConsultas(respostas))
+
+    const pendentes = alvos.filter((area) => cache.get(area.id)?.assinatura !== chaveDe(area))
+    if (!pendentes.length) {
+      setResultado(mesclarConsultas(alvos.map((area) => cache.get(area.id)?.resultado ?? null)))
+      return () => {
+        vivo = false
       }
+    }
+    Promise.all(
+      pendentes.map((area) =>
+        consultarArea({ poligono: area.polygon, animal, ordenar }).then((dados) => {
+          if (!vivo || geracao !== consultaGeracaoRef.current) {
+            return
+          }
+          if (dados) {
+            cache.set(area.id, { assinatura: chaveDe(area), resultado: dados })
+          }
+        }),
+      ),
+    ).then(() => {
+      if (!vivo || geracao !== consultaGeracaoRef.current) {
+        return
+      }
+      setResultado(mesclarConsultas(alvos.map((area) => cache.get(area.id)?.resultado ?? null)))
     })
     return () => {
       vivo = false
@@ -1118,7 +1663,10 @@ export function MapView({
     el.setAttribute('data-testid', 'pin-area')
     el.setAttribute('aria-label', ponto.properties.nome)
     el.className = 'relative cursor-pointer select-none'
-    el.innerHTML = htmlDoPin(ponto.properties.especie_slugs)
+    // Lapidação 11: o pin exibe o SUBCONJUNTO do ponto dentro do conjunto do
+    // filtro (sem filtro = todas as espécies do ponto). Lido no ref, o
+    // conjunto está vivo na hora do clique.
+    el.innerHTML = htmlDoPin(slugsDoFiltroNoPonto(ponto))
     conectarCadeiaDeIcones(el)
     el.addEventListener('mousedown', (evento) => evento.stopPropagation())
     el.addEventListener('click', () => {
@@ -1148,6 +1696,33 @@ export function MapView({
     },
     [abrirBolhaArea, criarPinArea],
   )
+
+  // Lapidação 11: quando o conjunto do filtro muda COM pin aberto (novo
+  // resultado, filtro trocado ou espécie clicada), o pin é recriado para
+  // exibir o subconjunto novo. Bolha aberta permanece aberta: o conteúdo
+  // dela já re-renderiza pelo mesmo conjunto.
+  const conjuntoVivoRef = useRef(conjuntoFiltro)
+  useEffect(() => {
+    if (conjuntoVivoRef.current === conjuntoFiltro) {
+      return
+    }
+    conjuntoVivoRef.current = conjuntoFiltro
+    const ponto = pontoAtivoRef.current
+    if (!ponto) {
+      return
+    }
+    // O ponto pode ter SAÍDO do conjunto com o filtro novo (o efeito do
+    // escopo não reavalia em mudanças só de conjunto): fecha pin+bolha.
+    if (conjuntoFiltroRef.current.size && slugsDoFiltroNoPonto(ponto).length === 0) {
+      removerPinAreaRef.current()
+      return
+    }
+    const bolhaEstavaAberta = bolhaAreaRef.current
+    criarPinArea(ponto)
+    if (bolhaEstavaAberta) {
+      setBolhaAreaAberta(true)
+    }
+  }, [conjuntoFiltro, criarPinArea])
 
   const marcarMedicao = (ponto: PontoDaArea) => {
     // Medições só nascem em pontos: A no primeiro, B no segundo, terceiro
@@ -1208,9 +1783,147 @@ export function MapView({
   }
 
   const apagarArea = (id: string) => {
-    setAreas((atuais) => atuais.filter((area) => area.id !== id))
+    aplicarAreas(areasRef.current.filter((area) => area.id !== id))
     setAreaAtivaId((atual) => (atual === id ? null : atual))
   }
+
+  // Atalhos de edição: clipboard interno (useRef), sem API do SO. Cada ação
+  // devolve true só quando executou — o handler chama preventDefault apenas aí.
+  const copiarAreaAtiva = () => {
+    const ativa = areaAtivaId
+      ? areasRef.current.find((area) => area.id === areaAtivaId)
+      : undefined
+    if (!ativa) {
+      return false
+    }
+    clipboardAreaRef.current = ativa
+    return true
+  }
+
+  const recortarAreaAtiva = () => {
+    if (!areaAtivaId || !copiarAreaAtiva()) {
+      return false
+    }
+    apagarArea(areaAtivaId)
+    return true
+  }
+
+  const colarArea = () => {
+    const origem = clipboardAreaRef.current
+    if (!origem) {
+      return false
+    }
+    const id = String(proximoIdRef.current)
+    proximoIdRef.current += 1
+    // Desloca a cópia (~1,1 km) inclusive o fechamento do anel.
+    const deslocado = (ponto: number[]): number[] => [ponto[0] + 0.01, ponto[1] + 0.01]
+    const coordinates = origem.polygon.coordinates.map((anel) => anel.map(deslocado))
+    const anel = coordinates[0] ?? []
+    const modelo: ModeloElipse | undefined = origem.modelo
+      ? {
+          ...origem.modelo,
+          centro: [origem.modelo.centro[0] + 0.01, origem.modelo.centro[1] + 0.01],
+        }
+      : undefined
+    const nova: AreaDesenhada = {
+      id,
+      nome: `Área ${id}`,
+      polygon: { type: 'Polygon', coordinates },
+      areaKm2: areaKm2(anel),
+      ...(modelo ? { modelo } : {}),
+    }
+    aplicarAreas([...areasRef.current, nova])
+    setAreaAtivaId(id)
+    setMedicao(null)
+    return true
+  }
+
+  const desfazerAreas = () => {
+    const anterior = historicoAreasRef.current.pop()
+    if (!anterior) {
+      return false
+    }
+    refazerAreasRef.current.push(areasRef.current)
+    aplicarSnapshot(anterior)
+    return true
+  }
+
+  const refazerAreas = () => {
+    const proximo = refazerAreasRef.current.pop()
+    if (!proximo) {
+      return false
+    }
+    const historico = historicoAreasRef.current
+    historico.push(areasRef.current)
+    if (historico.length > LIMITE_HISTORICO_AREAS) {
+      historico.shift()
+    }
+    aplicarSnapshot(proximo)
+    return true
+  }
+
+  // Refs para o listener único: sempre enxerga o render atual.
+  acoesAtalhosRef.current = {
+    copiar: copiarAreaAtiva,
+    recortar: recortarAreaAtiva,
+    colar: colarArea,
+    desfazer: desfazerAreas,
+    refazer: refazerAreas,
+    emGesto: () => Boolean(edicaoRef.current) || desenhandoRef.current,
+    modalAberto,
+    bolhaAreaAberta,
+  }
+
+  // Handler único de Ctrl/Cmd+C, +X, +V, +Z e +Y (Shift+Z também refaz).
+  // Ignora foco em campo de texto, modal/bolha abertos e gesto de desenho/
+  // edição em curso (o undo/redo não pode disparar no meio do gesto).
+  useEffect(() => {
+    const aoTeclarAtalho = (evento: KeyboardEvent) => {
+      const acoes = acoesAtalhosRef.current
+      if (!acoes) {
+        return
+      }
+      const alvo = evento.target as HTMLElement | null
+      const tag = alvo?.tagName?.toLowerCase()
+      const editavel =
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        Boolean(alvo?.isContentEditable) ||
+        alvo?.getAttribute?.('contenteditable') === 'true'
+      if (editavel || acoes.modalAberto || acoes.bolhaAreaAberta || acoes.emGesto()) {
+        return
+      }
+      if (!(evento.ctrlKey || evento.metaKey)) {
+        return
+      }
+      let tratou = false
+      switch (evento.key.toLowerCase()) {
+        case 'c':
+          tratou = acoes.copiar()
+          break
+        case 'x':
+          tratou = acoes.recortar()
+          break
+        case 'v':
+          tratou = acoes.colar()
+          break
+        case 'z':
+          tratou = evento.shiftKey ? acoes.refazer() : acoes.desfazer()
+          break
+        case 'y':
+          tratou = acoes.refazer()
+          break
+        default:
+          break
+      }
+      if (tratou) {
+        evento.preventDefault()
+      }
+    }
+    document.addEventListener('keydown', aoTeclarAtalho)
+    return () => document.removeEventListener('keydown', aoTeclarAtalho)
+  }, [])
 
   const nomesDasEspecies = new Map(
     (resultado?.especies ?? []).map((item) => [item.slug, item.nome_popular]),
@@ -1253,9 +1966,15 @@ export function MapView({
     formaDesenho === 'retangulo' && inicioPreview && atualPreview
       ? Math.abs(atualPreview.y - inicioPreview.y)
       : 0
-  const raioPreview =
+  // Elipse desde o desenho (lapidação 11): preview com rx=|dx| e ry=|dy|
+  // de tela, INDEPENDENTES (o gesto já mostra a elipse real, não um círculo).
+  const larguraElipsePreview =
     formaDesenho === 'circulo' && inicioPreview && atualPreview
-      ? Math.hypot(atualPreview.x - inicioPreview.x, atualPreview.y - inicioPreview.y)
+      ? Math.abs(atualPreview.x - inicioPreview.x)
+      : 0
+  const alturaElipsePreview =
+    formaDesenho === 'circulo' && inicioPreview && atualPreview
+      ? Math.abs(atualPreview.y - inicioPreview.y)
       : 0
 
   // Pisca dos pontos: a classe existe APENAS durante a animação (~600ms).
@@ -1336,6 +2055,24 @@ export function MapView({
   }
 
   const poligonoEmEdicao = poligonoEdicao ?? areaEmDestaque?.polygon.coordinates[0] ?? null
+  // Modelo já COMMITADO na área vence fora do gesto; durante o gesto, o vivo.
+  const modeloDestaque = modeloEdicao ?? areaEmDestaque?.modelo ?? null
+  let alcasDaArea: { x: number; y: number }[] = []
+  if (areaEmDestaque && modo === 'arrastar' && (areaAtivaId === areaEmDestaque.id || !areaAtivaId)) {
+    if (modeloDestaque) {
+      alcasDaArea = pontosDaElipse(modeloDestaque)
+    } else if (poligonoEmEdicao) {
+      alcasDaArea = (poligonoEmEdicao ?? [])
+        .slice(0, -1)
+        .map(
+          (vertice) =>
+            mapRef.current?.project(vertice as [number, number]) as
+              | { x: number; y: number }
+              | undefined,
+        )
+        .filter((ponto): ponto is { x: number; y: number } => Boolean(ponto))
+    }
+  }
 
   return (
     <div data-testid="mapa" className="absolute inset-0">
@@ -1388,13 +2125,15 @@ export function MapView({
               strokeDasharray="6 4"
             />
           )}
-          {formaDesenho === 'circulo' && raioPreview > 0 && inicioPreview && (
+          {formaDesenho === 'circulo' &&
+            (larguraElipsePreview > 0 || alturaElipsePreview > 0) &&
+            inicioPreview && (
             <ellipse
               data-testid="preview-circulo"
               cx={inicioPreview.x}
               cy={inicioPreview.y}
-              rx={raioPreview}
-              ry={raioPreview}
+              rx={larguraElipsePreview}
+              ry={alturaElipsePreview}
               fill="none"
               stroke="#0f766e"
               strokeWidth={2}
@@ -1403,22 +2142,50 @@ export function MapView({
           )}
         </svg>
       )}
+      {/* Quadro do gesto (contorno + vértices) 100% no DOM: fill/contorno do
+          canvas ficam ocultos (emEdicao) e este SVG acompanha o mousemove por
+          setAttribute no mesmo tick — sem ghosting de compositor. */}
+      {edicao && poligonoEdicao && (
+        <svg
+          data-testid="area-gesto"
+          className="pointer-events-none absolute inset-0 z-10 h-full w-full"
+          aria-hidden="true"
+        >
+          <polygon
+            ref={poligonoGestoRef}
+            data-testid="poligono-gesto"
+            points={poligonoEdicao
+              .map((vertice) => {
+                const projetado = mapRef.current?.project(vertice as [number, number]) as
+                  | { x: number; y: number }
+                  | undefined
+                return projetado ? `${projetado.x},${projetado.y}` : null
+              })
+              .filter((ponto): ponto is string => ponto !== null)
+              .join(' ')}
+            fill="#0ea5a4"
+            fillOpacity={0.5}
+            stroke="#d97706"
+            strokeWidth={3}
+          />
+        </svg>
+      )}
       {areaEmDestaque && modo === 'arrastar' && (areaAtivaId === areaEmDestaque.id || !areaAtivaId) && (
         <svg
+          ref={alcasSvgRef}
           data-testid="alcas-area"
           data-selecionada={areaAtivaId === areaEmDestaque.id ? 'true' : 'false'}
           className="pointer-events-none absolute inset-0 z-10 h-full w-full"
           aria-hidden="true"
         >
-          {(poligonoEmEdicao ?? areaEmDestaque.polygon.coordinates[0] ?? []).slice(0, -1).map((vertice, indice) => {
-            const projetado = mapRef.current?.project(vertice as [number, number]) ?? { x: 0, y: 0 }
+          {alcasDaArea.map((alca, indice) => {
             return (
               <circle
                 key={`${areaEmDestaque.id}-alca-${indice}`}
                 data-testid={`alca-${indice}`}
                 data-editando={edicao ? 'true' : 'false'}
-                cx={projetado.x}
-                cy={projetado.y}
+                cx={alca.x}
+                cy={alca.y}
                 r={5}
                 fill="#ffffff"
                 stroke="#0f766e"
@@ -1426,30 +2193,17 @@ export function MapView({
                 className="pointer-events-auto cursor-move"
                 onMouseDown={(evento) => {
                   evento.stopPropagation()
-                  iniciarEdicao('alca', areaEmDestaque.id, indice, null)
+                  iniciarEdicao(
+                    'alca',
+                    areaEmDestaque.id,
+                    indice,
+                    modeloDestaque ? telaDoEvento(evento) : null,
+                    modeloDestaque ? EXTRAS_DA_ELIPSE[indice] : null,
+                  )
                 }}
               />
             )
           })}
-        </svg>
-      )}
-      {/* Fantasma do mover: contorno tracejado translúcido com a forma/posição
-          ATUAL durante o arraste; some ao soltar (reconsulta segue igual). */}
-      {edicao?.tipo === 'mover' && (
-        <svg
-          data-testid="fantasma-area"
-          className="pointer-events-none absolute inset-0 z-10 h-full w-full"
-          aria-hidden="true"
-        >
-          <polyline
-            ref={fantasmaRef}
-            points={pontosFantasmaRef.current}
-            fill="rgba(217,119,6,0.15)"
-            stroke="#d97706"
-            strokeWidth={2}
-            strokeDasharray="6 4"
-            strokeLinejoin="round"
-          />
         </svg>
       )}
       {linhaMedicao && (
@@ -1536,7 +2290,7 @@ export function MapView({
           Clique em um ponto para medir
         </div>
       )}
-      {pontosVisiveis.map((ponto) => {
+      {pontosExibidos.map((ponto) => {
         const posicao = posicoesPontos[String(ponto.properties.id)]
         if (!posicao) {
           return null
@@ -1593,48 +2347,59 @@ export function MapView({
               data-testid="bolha-contagem"
               className="px-3 pb-1 pt-3 pr-8 text-sm font-medium leading-snug text-foreground"
             >
-              {pontoAtivo.properties.especie_slugs.length
-                ? (() => {
-                    const contagem =
-                      pontoAtivo.properties.total ?? pontoAtivo.properties.especie_slugs.length
-                    return `${contagem} ${contagem === 1 ? 'espécie encontrada' : 'espécies encontradas'}`
-                  })()
-                : pontoAtivo.properties.descricao}
+              {(() => {
+                // Lapidação 11: a contagem reflete o SUBCONJUNTO do filtro
+                // (sem filtro = total do ponto, comportamento atual).
+                const subconjunto = slugsDoFiltroNoPonto(pontoAtivo)
+                if (!subconjunto.length) {
+                  return pontoAtivo.properties.descricao
+                }
+                const contagem = conjuntoFiltro.size
+                  ? subconjunto.length
+                  : (pontoAtivo.properties.total ?? subconjunto.length)
+                return `${contagem} ${contagem === 1 ? 'espécie encontrada' : 'espécies encontradas'}`
+              })()}
             </p>
             <ul className="flex max-h-56 flex-col overflow-y-auto p-2 no-scrollbar">
-              {pontoAtivo.properties.especie_slugs.length
-                ? pontoAtivo.properties.especie_slugs.map((slug) => (
-                    <li key={slug}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        data-testid={`area-especie-${slug}`}
-                        className="w-full justify-start rounded-lg hover:bg-accent"
-                        onClick={() => {
-                          removerPinArea()
-                          onAbrirEspecie?.(slug)
-                        }}
-                      >
-                        {nomesDasEspecies.get(slug) ?? slug}
-                      </Button>
-                    </li>
-                  ))
-                : (especies ?? []).map((item) => (
-                    <li key={item.slug}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        data-testid={`especie-opcao-${item.slug}`}
-                        className="w-full justify-start rounded-lg hover:bg-accent"
-                        onClick={() => {
-                          removerPinArea()
-                          onAbrirEspecie?.(item.slug)
-                        }}
-                      >
-                        {item.nome_popular}
-                      </Button>
-                    </li>
-                  ))}
+              {(() => {
+                // Lapidação 11: só o subconjunto do filtro, na ordem original
+                // (sem filtro = todas as espécies do ponto). Ponto sem espécie
+                // (só existe sem conjunto) segue listando as gerais.
+                const subconjunto = slugsDoFiltroNoPonto(pontoAtivo)
+                return subconjunto.length
+                  ? subconjunto.map((slug) => (
+                      <li key={slug}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          data-testid={`area-especie-${slug}`}
+                          className="w-full justify-start rounded-lg hover:bg-accent"
+                          onClick={() => {
+                            removerPinArea()
+                            onAbrirEspecie?.(slug)
+                          }}
+                        >
+                          {nomesDasEspecies.get(slug) ?? slug}
+                        </Button>
+                      </li>
+                    ))
+                  : (especies ?? []).map((item) => (
+                      <li key={item.slug}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          data-testid={`especie-opcao-${item.slug}`}
+                          className="w-full justify-start rounded-lg hover:bg-accent"
+                          onClick={() => {
+                            removerPinArea()
+                            onAbrirEspecie?.(item.slug)
+                          }}
+                        >
+                          {item.nome_popular}
+                        </Button>
+                      </li>
+                    ))
+              })()}
             </ul>
           </div>
         </div>

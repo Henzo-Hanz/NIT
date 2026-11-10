@@ -25,6 +25,20 @@ export function areaKm2(anel: number[][]): number {
   return Math.abs(soma / 2)
 }
 
+export function anelDaElipse(
+  centro: [number, number],
+  rx: number,
+  ry: number,
+  n = 32,
+): number[][] {
+  const anel: number[][] = Array.from({ length: n }, (_, indice) => {
+    const angulo = (indice / n) * Math.PI * 2
+    return [centro[0] + rx * Math.cos(angulo), centro[1] + ry * Math.sin(angulo)]
+  })
+  anel.push([centro[0] + rx, centro[1]])
+  return anel
+}
+
 export function convexHull(pontos: number[][]): number[][] {
   if (!pontos || pontos.length < 3) {
     return []
