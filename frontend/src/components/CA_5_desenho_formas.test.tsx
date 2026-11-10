@@ -105,7 +105,7 @@ describe('CA-5: desenho de retângulo e círculo', () => {
     expect(screen.getByTestId('area-tamanho-1')).toHaveTextContent('km²')
   })
 
-  it('arrastar do centro define o raio do círculo com 32 vértices', async () => {
+  it('preview da elipse: rx e ry INDEPENDENTES do arrasto (lapidação 11)', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
@@ -122,8 +122,10 @@ describe('CA-5: desenho de retângulo e círculo', () => {
     expect(elipse).not.toBeNull()
     expect(elipse?.getAttribute('cx')).toBe('10')
     expect(elipse?.getAttribute('cy')).toBe('10')
+    // Gesto puro: rx = |dx|, ry = |dy| — o piso (~3px) só vale na CRIAÇÃO
+    // (mouseup); durante o arrasto horizontal o ry da tela é 0.
     expect(elipse?.getAttribute('rx')).toBe('10')
-    expect(elipse?.getAttribute('ry')).toBe('10')
+    expect(elipse?.getAttribute('ry')).toBe('0')
     expect(preview.querySelector('polyline')).toBeNull()
 
     fireEvent.mouseUp(container)

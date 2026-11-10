@@ -1,8 +1,38 @@
 {
-  "spec_id": "SPEC-0005",
-  "fase": "back",
-  "gate": null,
-  "tentativa": 11,
-  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/11",
-  "card_url": "https://trello.com/c/b4eAdZNe/9-spec-0005-desenho-de-pol%C3%ADgono-no-mapa-consulta-de-esp%C3%A9cies-por-%C3%A1rea-back-front"
+  "spec_id": "SPEC-0006",
+  "fase": "entregue",
+  "gate": {
+    "SPEC-0006": {
+      "back": {
+        "camada": "back",
+        "status": "n/a",
+        "motivo": "escopo.back vazio na SPEC-0006 (sem mudança de API)"
+      },
+      "functional": {
+        "camada": "front",
+        "status": "aprovado",
+        "tentativa": 1
+      },
+      "perf": {
+        "camada": "front",
+        "status": "aprovado",
+        "tentativa": 1
+      },
+      "coerencia": {
+        "camada": "front",
+        "status": "aprovado",
+        "tentativa": 1,
+        "base": "HEAD",
+        "pendencias": []
+      }
+    }
+  },
+  "tentativa": 1,
+  "branch": "SPEC-0005",
+  "branch_motivo": "empilhada na branch do PR #13 a pedido do humano",
+  "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/13",
+  "card_url": null,
+  "specs": {},
+  "card_status": "pendente_ambiente",
+  "card_motivo": "TRELLO_ALLOWED_BOARD_IDS aponta para board inexistente (404); boards reais fora da allowlist"
 }

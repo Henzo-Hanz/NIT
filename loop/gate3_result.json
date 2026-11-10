@@ -1,0 +1,24 @@
+{
+  "spec": "SPEC-0006",
+  "camada": "front",
+  "quando": "2026-11-10T21:40:34+00:00",
+  "arquivos": [
+    "frontend/src/components/MapView.tsx",
+    "frontend/src/components/CA_1_atalhos_copiar_colar.test.tsx",
+    "frontend/src/components/CA_2_atalhos_recortar.test.tsx",
+    "frontend/src/components/CA_3_atalhos_undo_redo.test.tsx",
+    "frontend/src/components/CA_4_atalhos_guarda_foco.test.tsx",
+    "frontend/src/components/perf_atalhos.test.tsx"
+  ],
+  "chars_estado": 1500,
+  "resultados": {
+    "iteracao_PI-1": {
+      "status": "ok",
+      "p_true": 0.7308
+    },
+    "iteracao_PI-2": {
+      "status": "ok",
+      "p_true": 0.855
+    }
+  }
+}

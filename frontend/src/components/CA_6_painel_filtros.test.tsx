@@ -272,7 +272,7 @@ describe('CA-6: painel de filtros no lugar do de camadas', () => {
     expect(screen.getByTestId('filtro-especie-guaiamum')).toHaveTextContent('1')
   })
 
-  it('destaca os pontos da espécie mantendo todos visíveis', async () => {
+  it('clicar na espécie FILTRA os pontos aos dela, mantendo o destaque amber', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
@@ -282,30 +282,234 @@ describe('CA-6: painel de filtros no lugar do de camadas', () => {
     await vi.waitFor(() => {
       expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
     })
-    for (const ponto of screen.getAllByTestId('ponto-area')) {
-      expect(ponto).not.toHaveAttribute('data-destacado')
-      expect(ponto.className).toContain('size-4')
-      expect(ponto.className).toContain('bg-teal-600')
-    }
 
+    // Lapidação 11: a espécie clicada agora DETERMINA os pontos renderizados —
+    // só quem contém o slug permanece na DOM.
+    await usuario.click(screen.getByTestId('filtro-especie-guaiamum'))
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(1)
+    })
+
+    const destacado = screen.getAllByTestId('ponto-area')[0]
+    expect(destacado.getAttribute('aria-label')).toBe('Jericoacoara')
+    expect(destacado).toHaveAttribute('data-destacado', 'true')
+    expect(destacado.className).toContain('size-6')
+    expect(destacado.className).toContain('bg-amber-500')
+    expect(destacado.className).toContain('ring-4')
+    expect(destacado.className).toContain('ring-amber-400')
+    expect(destacado.className).toContain('z-20')
+
+    // Deselecionar volta todos ao escopo (todas as espécies = sem restrição).
     await usuario.click(screen.getByTestId('filtro-especie-guaiamum'))
     await vi.waitFor(() => {
       expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
     })
+    for (const ponto of screen.getAllByTestId('ponto-area')) {
+      expect(ponto).not.toHaveAttribute('data-destacado')
+      expect(ponto.className).toContain('bg-teal-600')
+    }
+  })
+})
 
-    const pontos = screen.getAllByTestId('ponto-area')
-    const destacado = pontos.find((ponto) => ponto.getAttribute('aria-label') === 'Jericoacoara')
-    const apagado = pontos.find((ponto) => ponto.getAttribute('aria-label') === 'Camocim')
-    expect(destacado).toHaveAttribute('data-destacado', 'true')
-    expect(destacado?.className).toContain('size-6')
-    expect(destacado?.className).toContain('bg-amber-500')
-    expect(destacado?.className).toContain('ring-4')
-    expect(destacado?.className).toContain('ring-amber-400')
-    expect(destacado?.className).toContain('z-20')
-    // Lapidação 5: não-casado NÃO muda de tamanho — fica no size-4 do neutro, só esmaece.
-    expect(apagado).toHaveAttribute('data-destacado', 'false')
-    expect(apagado?.className).toContain('size-4')
-    expect(apagado?.className).toContain('opacity-40')
-    expect(apagado?.className).not.toContain('size-3')
+// FIXTURES da lapidação 11: consulta com pontos ALÉM do top-3/bottom-3 —
+// contagens distintas e 6 espécies (top-3 e bottom-3 sem sobreposição).
+const ESPECIES_AMPLIAS = [
+  { slug: 'siri-azul', nome_popular: 'Siri-azul', contagem: 6 },
+  { slug: 'aratu-vermelho', nome_popular: 'Aratu-vermelho', contagem: 5 },
+  { slug: 'pescada-amarela', nome_popular: 'Pescada-amarela', contagem: 3 },
+  { slug: 'caranguejo-uca', nome_popular: 'Caranguejo-uçá', contagem: 2 },
+  { slug: 'caranguejo-maria-farinha', nome_popular: 'Caranguejo maria-farinha', contagem: 1 },
+  { slug: 'guaiamum', nome_popular: 'Guaiamum', contagem: 1 },
+]
+
+const PONTOS_AMPLIOS = [
+  {
+    type: 'Feature',
+    properties: {
+      id: 1,
+      nome: 'Jericoacoara',
+      descricao: '1 espécie encontrada',
+      especie_slugs: ['siri-azul'],
+      total: 1,
+    },
+    geometry: { type: 'Point', coordinates: [-40.513, -2.797] },
+  },
+  {
+    type: 'Feature',
+    properties: {
+      id: 2,
+      nome: 'Camocim',
+      descricao: '1 espécie encontrada',
+      especie_slugs: ['caranguejo-maria-farinha'],
+      total: 1,
+    },
+    geometry: { type: 'Point', coordinates: [-40.84, -2.9] },
+  },
+  {
+    type: 'Feature',
+    properties: {
+      id: 3,
+      nome: 'Parnaíba',
+      descricao: '1 espécie encontrada',
+      especie_slugs: ['pescada-amarela'],
+      total: 1,
+    },
+    geometry: { type: 'Point', coordinates: [-41.77, -2.9] },
+  },
+  {
+    type: 'Feature',
+    properties: {
+      id: 4,
+      nome: 'Luís Correia',
+      descricao: '1 espécie encontrada',
+      especie_slugs: ['guaiamum'],
+      total: 1,
+    },
+    geometry: { type: 'Point', coordinates: [-41.71, -2.88] },
+  },
+]
+
+function configurarFetchAmplio() {
+  const fetchFake = vi.fn(async (entrada: RequestInfo | URL, init?: RequestInit) => {
+    if (String(entrada) === '/api/consulta/area/') {
+      const corpo = init?.body ? JSON.parse(String(init.body)) : {}
+      return { ok: true, json: async () => responderConsultaAmplia(corpo) }
+    }
+    return { ok: false, json: async () => ({}) }
+  })
+  vi.stubGlobal('fetch', fetchFake)
+  return fetchFake
+}
+
+// Duo: resultado com MENOS de 3 espécies — o filtro então usa todas.
+const ESPECIES_DUO = [
+  { slug: 'caranguejo-uca', nome_popular: 'Caranguejo-uçá', contagem: 2 },
+  { slug: 'guaiamum', nome_popular: 'Guaiamum', contagem: 1 },
+]
+
+const PONTOS_DUO = [
+  {
+    type: 'Feature',
+    properties: {
+      id: 1,
+      nome: 'Jericoacoara',
+      descricao: '1 espécie encontrada',
+      especie_slugs: ['caranguejo-uca'],
+      total: 1,
+    },
+    geometry: { type: 'Point', coordinates: [-40.513, -2.797] },
+  },
+  {
+    type: 'Feature',
+    properties: {
+      id: 2,
+      nome: 'Camocim',
+      descricao: '1 espécie encontrada',
+      especie_slugs: ['guaiamum'],
+      total: 1,
+    },
+    geometry: { type: 'Point', coordinates: [-40.84, -2.9] },
+  },
+]
+
+function configurarFetchDuo() {
+  const fetchFake = vi.fn(async (entrada: RequestInfo | URL, init?: RequestInit) => {
+    if (String(entrada) === '/api/consulta/area/') {
+      const corpo = init?.body ? JSON.parse(String(init.body)) : {}
+      const especies = [...ESPECIES_DUO].sort((a, b) =>
+        corpo.ordenar === 'mais'
+          ? b.contagem - a.contagem
+          : a.contagem - b.contagem || a.nome_popular.localeCompare(b.nome_popular),
+      )
+      return { ok: true, json: async () => ({ especies, pontos: { type: 'FeatureCollection', features: PONTOS_DUO } }) }
+    }
+    return { ok: false, json: async () => ({}) }
+  })
+  vi.stubGlobal('fetch', fetchFake)
+  return fetchFake
+}
+
+function responderConsultaAmplia(corpo: any) {
+  let especies = [...ESPECIES_AMPLIAS]
+  let pontos = [...PONTOS_AMPLIOS]
+  if (corpo.animal) {
+    const termo = String(corpo.animal).toLowerCase()
+    especies = especies.filter((item) => item.nome_popular.toLowerCase().includes(termo))
+    pontos = pontos.filter((ponto) =>
+      ponto.properties.especie_slugs.some((slug) =>
+        especies.some((especie) => especie.slug === slug),
+      ),
+    )
+  }
+  if (corpo.ordenar === 'mais') {
+    especies = [...especies].sort((a, b) => b.contagem - a.contagem)
+  }
+  if (corpo.ordenar === 'menos') {
+    especies = [...especies].sort(
+      (a, b) => a.contagem - b.contagem || a.nome_popular.localeCompare(b.nome_popular),
+    )
+  }
+  return { especies, pontos: { type: 'FeatureCollection', features: pontos } }
+}
+
+describe('CA-6 lapidação 11: o filtro determina o conjunto de pontos renderizados', () => {
+  it("'Mais presente' reduz os pontos aos das 3 espécies de maior contagem", async () => {
+    const usuario = userEvent.setup()
+    configurarFetchAmplio()
+    render(<MapView />)
+    // Todas primeiro: os 4 pontos do escopo estão presentes.
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(4)
+    })
+
+    await usuario.click(screen.getByTestId('filtro-mais'))
+    // Top-3 por contagem: siri-azul (6), aratu-vermelho (5), pescada-amarela (3).
+    // Ponto de siri (Jericoacoara) e de pescada (Parnaíba) PERMANECEM; os de
+    // maria-farinha (Camocim) e guaiamum (Luís Correia) SOMEM.
+    await vi.waitFor(() => {
+      const nomes = screen
+        .getAllByTestId('ponto-area')
+        .map((ponto) => ponto.getAttribute('aria-label'))
+      expect(nomes.sort()).toEqual(['Jericoacoara', 'Parnaíba'])
+    })
+  })
+
+  it("'Menos presente' reduz os pontos aos das 3 espécies de menor contagem (lista asc. invertida pelo server)", async () => {
+    const usuario = userEvent.setup()
+    configurarFetchAmplio()
+    render(<MapView />)
+
+    await usuario.click(screen.getByTestId('filtro-menos'))
+    // Bottom-3 do server asc: maria-farinha (1), guaiamum (1), uca (2).
+    // Permanecem Camocim e Luís Correia; siri (Jericoacoara) e pescada
+    // (Parnaíba) SOMEM — estão fora do bottom-3.
+    await vi.waitFor(() => {
+      const nomes = screen
+        .getAllByTestId('ponto-area')
+        .map((ponto) => ponto.getAttribute('aria-label'))
+      expect(nomes.sort()).toEqual(['Camocim', 'Luís Correia'])
+    })
+  })
+
+  it('com MENOS de 3 espécies no resultado, o filtro usa todas', async () => {
+    const usuario = userEvent.setup()
+    configurarFetchDuo()
+    render(<MapView />)
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
+    })
+
+    await usuario.click(screen.getByTestId('filtro-mais'))
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
+    })
+
+    await usuario.click(screen.getByTestId('filtro-menos'))
+    await vi.waitFor(() => {
+      expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
+    })
+    for (const ponto of screen.getAllByTestId('ponto-area')) {
+      expect(ponto.className).toContain('bg-teal-600')
+    }
   })
 })
