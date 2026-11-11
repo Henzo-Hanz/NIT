@@ -31,8 +31,7 @@
   "branch": "SPEC-0005",
   "branch_motivo": "empilhada na branch do PR #13 a pedido do humano",
   "pr_url": "https://github.com/Henzo-Hanz/NIT/pull/13",
-  "card_url": null,
+  "card_url": "https://trello.com/c/PXHKnzQ0/10-spec-0006-atalhos-de-edi%C3%A7%C3%A3o-nas-%C3%A1reas-desenhadas-ctrlc-v-x-z-y",
   "specs": {},
-  "card_status": "pendente_ambiente",
-  "card_motivo": "TRELLO_ALLOWED_BOARD_IDS aponta para board inexistente (404); boards reais fora da allowlist"
+  "card_status": "criado"
 }
