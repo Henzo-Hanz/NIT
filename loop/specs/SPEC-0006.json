@@ -1,17 +1,21 @@
 {
   "id": "SPEC-0006",
   "prompt_original": "ok, agora vamos incrementar a spec 0005, todos os polígonos tem as propriedades de binds padrão: ctrl + c pra copiar e colar com ctrl + v, ctrl + x, z e y, pequena task pra vc não é? (decidido depois: virou SPEC-0006, incremento de front, backend inalterado)",
-  "objetivo": "Adicionar atalhos padrão de edição sobre as áreas desenhadas no mapa — copiar (Ctrl+C), colar (Ctrl+V), recortar (Ctrl+X) e desfazer/refazer (Ctrl+Z / Ctrl+Y) — com clipboard interno da sessão e histórico de operações de área, sem alterar backend nem a consulta por área.",
+  "objetivo": "Adicionar atalhos padrão de edição sobre as áreas desenhadas no mapa — copiar (Ctrl+C), colar (Ctrl+V, na posição do ponteiro), recortar (Ctrl+X) e desfazer/refazer (Ctrl+Z / Ctrl+Y) — além de selecionar por clique no mapa, limpar affordances ao desmarcar, mover círculo/elipse livremente como o retângulo e girar a forma por uma alça de rotação com ângulo persistido no modelo; sem alterar backend nem a consulta por área.",
   "estado_referencia": "branch que hospeda o PR #13 (SPEC-0005) sobre main — o incremento será empilhado nessa mesma branch/PR, a pedido do humano; áreas desenhadas com seleção, edição (mover/alças), formas (livre/retângulo/elipse) e medição já implementadas",
   "escopo": {
     "back": [],
     "front": [
       "Histórico undo/redo (limite 50 estados) das operações de área em MapView (criar por desenho, mover/redimensionar, apagar, colar), restaurando `areas` e deixando a consulta por área re-disparar pelo efeito existente",
       "Clipboard interno (useRef) com Ctrl+C (copia a área ativa) e Ctrl+X (copia + apaga reusando `apagarArea`), sem usar a API de clipboard do SO",
-      "Ctrl+V cria nova AreaDesenhada (id via `proximoIdRef`, nome 'Área {id}', mesmo polígono/modelo deslocado em +0.01° de lon/lat) e já a deixa selecionada",
+      "Ctrl+V cria nova AreaDesenhada (id via `proximoIdRef`, nome 'Área {id}', mesmo polígono/modelo transladado para ficar centrado na coordenada do ponteiro) e já a deixa selecionada",
+      "Clique no interior de uma área no modo arrastar seleciona a área (sem alternar), mantendo o arraste para mover e o clique fora para desmarcar; ao desmarcar, alças e affordances de edição somem (sem fallback para a última área)",
       "Handler único de keydown em MapView: aceita ctrlKey||metaKey, ignora foco em input/textarea/contenteditable/select e modal/bolha abertos, chama preventDefault só quando trata, sem regredir os Escapes existentes (medir e bolha)",
-      "Testes front novos: CA_1_atalhos_copiar_colar, CA_2_atalhos_recortar, CA_3_atalhos_undo_redo, CA_4_atalhos_guarda_foco (MapFake como nos testes de área; teclado via fireEvent/userEvent)",
-      "Teste de desempenho front perf_atalhos (lote de colar/undo) para satisfazer o gate 2, que reprova a camada sem arquivo perf_*"
+      "Testes front novos: CA_1_atalhos_copiar_colar, CA_2_atalhos_recortar, CA_3_atalhos_undo_redo, CA_4_atalhos_guarda_foco, CA_5_selecao_area_clique, CA_6_colar_no_mouse (MapFake como nos testes de área; teclado via fireEvent/userEvent; mousemove para fixar a posição do ponteiro)",
+      "Teste de desempenho front perf_atalhos (lote de colar/undo) para satisfazer o gate 2, que reprova a camada sem arquivo perf_*",
+      "Alça de rotação (ponto com reta até o centro da forma) girando a área em torno do centro; para círculo/elipse a orientação é persistida em `ModeloElipse.angulo` e o histórico undo/redo cobre a rotação",
+      "Mover livre de círculo/elipse: rótulos flutuantes com `pointer-events-none` e alças de redimensionamento restritas à borda, para que arrastar em qualquer ponto do interior mova a forma como no retângulo",
+      "Testes front novos: CA_7_desselecionar_sem_alcas, CA_8_mover_elipse_livre, CA_9_rotacao_elipse; atualizar CA_5_selecao_fantasma (hoje espera `alcas-area` visível com `data-selecionada=\"false\"` após desmarcar)"
     ]
   },
   "fora_de_escopo": [
@@ -19,7 +23,7 @@
     "Persistência de áreas, histórico ou clipboard (reload zera tudo)",
     "Undo/redo de filtros, texto de busca, resultado da consulta, pan/zoom ou medição",
     "Atalhos além de Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Z e Ctrl+Y (ex.: Ctrl+D, Ctrl+A, atalhos de ferramenta)",
-    "Edição de vértices nova ou alteração das alças existentes",
+    "Edição individual de vértices de polígonos livres; apenas as alças existentes (cantos/faces) e a nova alça de rotação são alteradas",
     "Touch/mobile: os atalhos pressupõem teclado físico",
     "Fila/múltiplos itens no clipboard"
   ],
@@ -27,7 +31,7 @@
     {
       "id": "CA-1",
       "camada": "front",
-      "descricao": "Dado pelo menos uma área desenhada com uma selecionada no PainelAreas, quando o usuário pressiona Ctrl+C e depois Ctrl+V, então uma nova área é criada com id e nome novos, mesmo polígono (e modelo de elipse, se houver) deslocado em +0.01° de longitude e latitude, já selecionada, e a consulta por área re-dispara; Ctrl+V sem cópia anterior não altera áreas nem dispara consulta [borda]."
+      "descricao": "Dado pelo menos uma área desenhada com uma selecionada (por clique no mapa ou no PainelAreas), quando o usuário pressiona Ctrl+C e depois Ctrl+V, então uma nova área é criada com id e nome novos, mesmo polígono (e modelo de elipse, se houver) posicionado conforme a posição do ponteiro (CA-6), já selecionada, e a consulta por área re-dispara; Ctrl+V sem cópia anterior não altera áreas nem dispara consulta [borda]."
     },
     {
       "id": "CA-2",
@@ -43,27 +47,66 @@
       "id": "CA-4",
       "camada": "front",
       "descricao": "Dado foco em input/textarea/contenteditable ou o modal de espécie/bolha de área aberto, então Ctrl+C/V/X/Z/Y não são interceptados e seguem o comportamento nativo (Ctrl+Z no campo de busca desfaz o texto); fora desses casos os atalhos funcionam com ctrlKey ou metaKey (macOS) e os Escapes existentes de medir/bolha continuam funcionando [borda]."
+    },
+    {
+      "id": "CA-5",
+      "camada": "front",
+      "descricao": "Dado o modo arrastar, quando o usuário clica no interior de uma área desenhada, então essa área passa a ser a ativa (contorno/destaque e item do PainelAreas marcados) sem alternar para desmarcada, e um clique sem movimento não altera a geometria; clique fora de qualquer área desmarca; arrastar pelo interior continua movendo a área [borda]."
+    },
+    {
+      "id": "CA-6",
+      "camada": "front",
+      "descricao": "Dado uma área no clipboard interno, quando o usuário pressiona Ctrl+V com o ponteiro sobre o mapa, então a cópia é transladada (forma e tamanho preservados) para ficar centralizada na coordenada do ponteiro, sem sobrepor a origem; sem posição de ponteiro registrada, a cópia é centralizada no centro da viewport; o modelo de elipse acompanha o mesmo deslocamento [borda]."
+    },
+    {
+      "id": "CA-7",
+      "camada": "front",
+      "descricao": "Dado uma área ativa no modo arrastar, quando o usuário clica fora de todas as áreas ou troca de ferramenta, então a área é desmarcada e NENHUMA affordance de edição permanece renderizada (`alcas-area`/`alca-*` e a alça de rotação somem), sem fallback de alças para a última área; a geometria e a consulta não mudam e a área continua podendo ser re-selecionada por clique; o rótulo `area-tamanho` continua visível para a última área, mas com `pointer-events-none`, sem capturar mouse [borda]."
+    },
+    {
+      "id": "CA-8",
+      "camada": "front",
+      "descricao": "Dado um círculo/elipse no modo arrastar, quando o usuário pressiona e arrasta a partir de qualquer ponto do interior — inclusive sobre o rótulo `area-tamanho` acima do centro — então a forma inteira se move (anel e `modelo.centro` transladam juntos, alças acompanham), sem iniciar redimensionamento, sem pan do mapa e sem alterar a consulta durante o gesto; o resultado é o mesmo do retângulo e do polígono livre [borda]."
+    },
+    {
+      "id": "CA-9",
+      "camada": "front",
+      "descricao": "Dado uma área selecionada no modo arrastar, então é exibida uma alça de rotação (ponto ligado por uma reta ao centro da forma); arrastar essa alça gira a área em torno do centro em tempo real (contorno, alças e rótulo acompanham) e, ao soltar, a rotação é gravada em `areas` e entra no histórico undo/redo; para círculo/elipse a orientação é persistida em `ModeloElipse.angulo` (radianos) e `anelDaElipse` regenera o anel com esse ângulo; arrastar as alças de face de uma elipse rotacionada preserva o ângulo e ajusta rx/ry nos eixos rotacionados [borda]."
     }
   ],
   "contrato_api_rascunho": [],
   "ja_existe_na_codebase": [
-    "frontend MapView.tsx: `areas`/`setAreas` (useState) + `areasRef`, `areaAtivaId`/`setAreaAtivaId`, `registrarArea` (id via `proximoIdRef`, nome 'Área N'), `concluirEdicao` (mover/alças grava o polígono), `apagarArea` (desmarca a seleção), `selecionarArea`; não há histórico de undo/redo nem clipboard",
-    "MapView.tsx já registra `document.addEventListener('keydown')` em dois efeitos (Escape encerra medição; Escape fecha a bolha de área) — os novos atalhos convivem com esses handlers",
+    "frontend MapView.tsx: `areas`/`setAreas` (useState) + `areasRef`, `areaAtivaId`/`setAreaAtivaId`, `registrarArea`, `finalizarEdicao`, `apagarArea` (desmarca a seleção), `selecionarArea` (alterna); histórico undo/redo e clipboard já implementados na entrega anterior desta spec",
+    "MapView.tsx: clique no interior de área no modo arrastar inicia o mover (captura de mousedown) mas NÃO define `areaAtivaId`; a seleção só vinha do PainelAreas; `colarArea` translada a cópia em +0.01° fixo, ignorando a posição do ponteiro; `ultimaTelaRef` só é atualizada em mousedown/mousemove durante o desenho",
+    "MapView.tsx já registra `document.addEventListener('keydown')` em dois efeitos (Escape encerra medição; Escape fecha a bolha de área) — os atalhos convivem com esses handlers",
     "PainelAreas.tsx: lista com `data-selecionada`, botão `apagar-area-<id>` e rolagem de no máximo 3 itens visíveis (CA_7_areas_max_tres é sobre scroll — NÃO existe limite rígido de quantidade de áreas)",
     "A consulta por área re-dispara sozinha por efeito dependente de `areas`/`areaAtivaId`/`filtro`/`animalAplicado` (MapView ~1414-1478): colar/apagar/undo não precisa chamada manual",
     "Testes front: MapFake/MarkerFake definidos por arquivo com `vi.mock('maplibre-gl')` e `configurarFetch`; não há helper central de teclado; testes de área em CA_5_*.test.tsx e CA_7_areas_*.test.tsx",
-    "Laya não consultado nesta spec (incremento pequeno; achados por leitura direta do código)"
+    "Laya não consultado nesta spec (achados por leitura direta do código)",
+    "MapView.tsx:2143 e :2255 renderizam as alças com `areaAtivaId === areaEmDestaque.id || !areaAtivaId`; como `areaEmDestaque` cai para a última área (:420), desmarcar deixa `alcas-area`/`alca-*` visíveis com `data-selecionada=\"false\"` — e CA_5_selecao_fantasma.test.tsx:107-112 consolida esse comportamento",
+    "MapView.tsx:2343-2351: rótulo `area-tamanho` é `z-20` sem `pointer-events-none` sobre o centroide; overlays são irmãos do canvas, então o mousedown na metade superior da elipse não chega ao listener de captura (:1199-1234) e o mover não inicia",
+    "MapView.tsx:2255-2289: alças `r={5}` com `pointer-events-auto` cobrem quase todo o interior de elipses pequenas (raio mínimo ~3px, :1015-1022), competindo com o mover",
+    "MapView.tsx:644-671 `iniciarEdicao` busca a área em `areasRef` (não em `areaEmDestaque`) e copia `modelo`; o caminho de mover elipse (:1258-1267) translada `modelo.centro` corretamente — o defeito percebido vem dos overlays que bloqueiam o mousedown",
+    "ModeloElipse (PainelAreas.tsx:7-11) não tem ângulo; `anelDaElipse` (utils/geo.ts:28-37) gera elipse alinhada aos eixos; `pontosDaElipse` (MapView.tsx:706-722) posiciona as 4 alças nos eixos — não há suporte a rotação hoje",
+    "Working tree já contém implementação parcial de CA-5/CA-6 (seleção no mousedown, `ponteiroTelaRef`, colar no ponteiro) e os testes CA_5_selecao_area_clique/CA_6_colar_no_mouse, ainda não verificados (task de implementação foi cancelada)"
   ],
   "laya_consultado": false,
   "premissas": [
     "Clipboard interno em memória (useRef) da sessão: não usa a API de clipboard do SO nem sobrevive a reload",
     "Ctrl+C e Ctrl+X operam somente sobre a área ativa (`areaAtivaId`); sem área ativa são no-op (não usam o fallback visual de 'última área')",
-    "Colar desloca a cópia em +0.01° de longitude e latitude (~1,1 km) para não sobrepor o original; o nome segue o padrão existente 'Área {novoId}'",
+    "Colar posiciona a cópia com o centro do bounding box na coordenada do ponteiro (última posição de mouse sobre o mapa); sem posição registrada, usa o centro da viewport; a forma é preservada (translação pura); o nome segue o padrão existente 'Área {novoId}'",
     "Histórico undo/redo limitado a 50 estados e apenas de operações de área (criar por desenho/elipse/retângulo, mover/redimensionar, apagar, colar)",
     "Atalhos só são interceptados quando o foco não está em campo de texto e não há modal/bolha aberta; `metaKey` (Cmd) conta como Ctrl",
     "Nenhuma mudança de backend: consulta e contratos de API existentes são reusados",
     "Não há limite de quantidade de áreas (só rolagem visual no painel), então colar não precisa de regra de teto",
-    "O gate 1 (front) roda todos os frontend/**/CA_<N>_* existentes, não só os desta spec; os arquivos novos CA_1..CA_4 somam aos grupos já usados por specs anteriores"
+    "O gate 1 (front) roda todos os frontend/**/CA_<N>_* existentes, não só os desta spec; os arquivos novos CA_1..CA_6 somam aos grupos já usados por specs anteriores",
+    "Clicar no interior de uma área no modo arrastar a seleciona sem alternância; selecionar pela lista do PainelAreas continua alternando (comportamento existente preservado)",
+    "Rotação gira o anel em torno do centro do bounding box; para elipse/círculo a orientação vive em `ModeloElipse.angulo` (radianos, 0 = eixo lon) e `anelDaElipse` ganha o parâmetro opcional `angulo = 0`, retrocompatível com chamadas e testes existentes",
+    "A alça de rotação fica acima do centro da forma (offset fixo em px) com uma reta até o centro; só aparece com área ativa no modo arrastar",
+    "Rótulos flutuantes (começando por `area-tamanho`) usam `pointer-events-none`; apenas as alças (redimensionamento e rotação) capturam mouse",
+    "Alças de edição existem apenas com `areaAtivaId` definido; o fallback `areaEmDestaque` continua apenas para o rótulo de tamanho e projeção, nunca para affordances de edição",
+    "O teste existente CA_5_selecao_fantasma.test.tsx que hoje espera `alcas-area` com `data-selecionada=\"false\"` após desmarcar deve ser atualizado: as alças somem por completo",
+    "CA_5_editar_area.test.tsx (alças de face da elipse) e CA_5_elipse_desde_base.test.tsx (`anelDaElipse` sem ângulo) devem continuar verdes; ângulo default 0 preserva o contrato"
   ],
   "perguntas_abertas": [],
   "dependencias": {
@@ -81,10 +124,28 @@
       "camada": "front",
       "pergunta": "O histórico cobre apenas operações de área e não interferiu na consulta por área nem no pan/zoom?",
       "esperado": true
+    },
+    {
+      "id": "PI-3",
+      "camada": "front",
+      "pergunta": "Colar posiciona a cópia pela posição do ponteiro, preservando a forma e sem depender da área de origem?",
+      "esperado": true
+    },
+    {
+      "id": "PI-4",
+      "camada": "front",
+      "pergunta": "Desmarcar a área remove todas as affordances de edição (alças/rotação) sem alterar geometria nem consulta?",
+      "esperado": true
+    },
+    {
+      "id": "PI-5",
+      "camada": "front",
+      "pergunta": "Mover círculo/elipse funciona em qualquer ponto do interior e a rotação é persistida no modelo e coberta pelo histórico?",
+      "esperado": true
     }
   ],
   "status": "aprovada",
   "aprovada_por": "hanz_dev",
-  "aprovada_em": "2026-11-10 18h17 (São Paulo)",
-  "hash_aprovacao": "6b9861100cdb52977bfc2b2923bdd7d784a3790bbf9b5f995404d369a9f711a9"
+  "aprovada_em": "2026-11-13 11h26 (São Paulo)",
+  "hash_aprovacao": "18d83693c85fe4e636115f7688dfdc7cb3c6cdca58f331e57e0f91c8c939c003"
 }
