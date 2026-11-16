@@ -109,7 +109,8 @@ describe('CA-5: seleção de área e desenho ao vivo na edição', () => {
     // Clique fora de QUALQUER área ((60,60) está fora do triângulo) desmarca.
     fireEvent.click(container, { clientX: 60, clientY: 60 })
     expect(item).toHaveAttribute('data-selecionada', 'false')
-    expect(screen.getByTestId('alcas-area')).toHaveAttribute('data-selecionada', 'false')
+    // Sem fallback para a última área: as alças somem por completo.
+    expect(screen.queryByTestId('alcas-area')).toBeNull()
   })
 
   it('alternar ferramenta desmarca a área selecionada', async () => {

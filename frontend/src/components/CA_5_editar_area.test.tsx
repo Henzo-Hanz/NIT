@@ -94,8 +94,9 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
     })
-    await usuario.click(screen.getByTestId('selecionar-area-1'))
+    // CA-7: trocar de ferramenta desmarca; seleciona DEPOIS de entrar em arrastar.
     await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+    await usuario.click(screen.getByTestId('selecionar-area-1'))
 
     // Alças na área ativa (3 vértices de triângulo).
     expect(screen.getByTestId('alca-0')).toBeInTheDocument()
@@ -149,8 +150,9 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
     })
-    await usuario.click(screen.getByTestId('selecionar-area-1'))
+    // CA-7: trocar de ferramenta desmarca; seleciona DEPOIS de entrar em arrastar.
     await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+    await usuario.click(screen.getByTestId('selecionar-area-1'))
 
     // Alça 0 está em ((10,10)): arrastar até ((12,19)) — o triângulo permanece
     // positivo ((guaiamum... a área antiga não colapsa com esse movimento)).
@@ -166,10 +168,11 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
     const dadosAoVivo = fonte.setData.mock.calls.at(-1)?.[0]
     expect(dadosAoVivo.type).toBe('FeatureCollection')
     expect(dadosAoVivo.features).toHaveLength(1)
+    // A área segue ATIVA (selecionada após entrar em arrastar — CA-7).
     expect(dadosAoVivo.features[0].properties).toEqual({
       id: '1',
       nome: 'Área 1',
-      ativa: false,
+      ativa: true,
       emEdicao: true,
     })
     expect(dadosAoVivo.features[0].geometry.coordinates[0]).toEqual([
@@ -208,8 +211,9 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
     })
-    await usuario.click(screen.getByTestId('selecionar-area-1'))
+    // CA-7: trocar de ferramenta desmarca; seleciona DEPOIS de entrar em arrastar.
     await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+    await usuario.click(screen.getByTestId('selecionar-area-1'))
 
     // Gesto de alça pela janela: o último setData e os círculos imperativos
     // saem do MESMO dispatch de mousemove — sem waitFor, mesma deixa.
@@ -220,7 +224,7 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
 
     const anel = fonte.setData.mock.calls.at(-1)?.[0].features[0].geometry.coordinates[0] as number[][]
     const alcas = container.parentElement!.querySelectorAll(
-      '[data-testid="alcas-area"] circle[data-testid^="alca-"]',
+      '[data-testid="alcas-area"] circle[data-testid^="alca-"]:not([data-testid="alca-rotacao"])',
     )
     expect(alcas).toHaveLength(anel.length - 1)
     for (let indice = 0; indice < anel.length - 1; indice += 1) {
@@ -247,8 +251,9 @@ describe('CA-5: edição de áreas desenhadas arrastando', () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
     })
-    await usuario.click(screen.getByTestId('selecionar-area-1'))
+    // CA-7: trocar de ferramenta desmarca; seleciona DEPOIS de entrar em arrastar.
     await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+    await usuario.click(screen.getByTestId('selecionar-area-1'))
 
     // (60,60) está fora do triângulo ((10..30, 10..20)) — sem edição.
     fireEvent.mouseDown(container, { clientX: 60, clientY: 60 })
@@ -280,8 +285,9 @@ describe('CA-5: círculo/elipse com 4 alças de face (oposta ancorada)', () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
     })
-    await usuario.click(screen.getByTestId('selecionar-area-1'))
+    // CA-7: trocar de ferramenta desmarca; seleciona DEPOIS de entrar em arrastar.
     await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+    await usuario.click(screen.getByTestId('selecionar-area-1'))
     return container
   }
 
@@ -404,8 +410,9 @@ describe('CA-5: círculo/elipse com 4 alças de face (oposta ancorada)', () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
     })
-    await usuario.click(screen.getByTestId('selecionar-area-1'))
+    // CA-7: trocar de ferramenta desmarca; seleciona DEPOIS de entrar em arrastar.
     await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+    await usuario.click(screen.getByTestId('selecionar-area-1'))
 
     // 3 vértices + fechamento = 3 alças (último vértice não vira alça).
     expect(screen.getByTestId('alca-2')).toBeInTheDocument()

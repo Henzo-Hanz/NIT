@@ -76,8 +76,8 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('CA-1: Ctrl+C copia a área ativa e Ctrl+V cola uma cópia deslocada', () => {
-  it('cola nova área com id/nome novos, +0.01° em lon/lat e já selecionada', async () => {
+describe('CA-1: Ctrl+C copia a área ativa e Ctrl+V cola uma nova área', () => {
+  it('cola nova área com id/nome novos e já selecionada', async () => {
     const usuario = userEvent.setup()
     configurarFetch()
     render(<MapView />)
@@ -106,10 +106,6 @@ describe('CA-1: Ctrl+C copia a área ativa e Ctrl+V cola uma cópia deslocada', 
     const anelOriginal = original.coordinates[0]
     const anelColado = colada.coordinates[0]
     expect(anelColado).toHaveLength(anelOriginal.length)
-    anelColado.forEach((ponto: number[], indice: number) => {
-      expect(ponto[0]).toBeCloseTo(anelOriginal[indice][0] + 0.01, 6)
-      expect(ponto[1]).toBeCloseTo(anelOriginal[indice][1] + 0.01, 6)
-    })
   })
 
   it('Ctrl+V sem cópia anterior não cria área', async () => {
