@@ -21,6 +21,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // perf_* mede o próprio teto (20s) e estoura o default de 5s sob carga
+    // paralela; o timeout do harness acompanha o orçamento do teste.
+    testTimeout: 20000,
   },
   optimizeDeps: {
     exclude: ['maplibre-gl'],
