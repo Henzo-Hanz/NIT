@@ -9,6 +9,7 @@ export type ModeloElipse = {
   centro: [number, number]
   rx: number
   ry: number
+  angulo?: number
 }
 
 export type AreaDesenhada = {

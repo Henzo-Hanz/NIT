@@ -1,24 +1,44 @@
 {
   "spec": "SPEC-0006",
   "camada": "front",
-  "quando": "2026-11-10T21:40:34+00:00",
+  "quando": "2026-11-16T14:08:57+00:00",
   "arquivos": [
-    "frontend/src/components/MapView.tsx",
     "frontend/src/components/CA_1_atalhos_copiar_colar.test.tsx",
-    "frontend/src/components/CA_2_atalhos_recortar.test.tsx",
-    "frontend/src/components/CA_3_atalhos_undo_redo.test.tsx",
-    "frontend/src/components/CA_4_atalhos_guarda_foco.test.tsx",
-    "frontend/src/components/perf_atalhos.test.tsx"
+    "frontend/src/components/CA_5_editar_area.test.tsx",
+    "frontend/src/components/CA_5_pontos_edicao_vivo.test.tsx",
+    "frontend/src/components/CA_5_redimensionamento_qualquer_direcao.test.tsx",
+    "frontend/src/components/CA_5_selecao_fantasma.test.tsx",
+    "frontend/src/components/MapView.tsx",
+    "frontend/src/components/PainelAreas.tsx",
+    "frontend/src/utils/geo.ts",
+    "frontend/vite.config.ts",
+    "frontend/src/components/CA_5_selecao_area_clique.test.tsx",
+    "frontend/src/components/CA_6_colar_no_mouse.test.tsx",
+    "frontend/src/components/CA_7_desselecionar_sem_alcas.test.tsx",
+    "frontend/src/components/CA_8_mover_elipse_livre.test.tsx",
+    "frontend/src/components/CA_9_rotacao_elipse.test.tsx"
   ],
   "chars_estado": 1500,
   "resultados": {
     "iteracao_PI-1": {
-      "status": "ok",
-      "p_true": 0.7308
+      "status": "incerto",
+      "p_true": 0.602
     },
     "iteracao_PI-2": {
       "status": "ok",
-      "p_true": 0.855
+      "p_true": 0.7498
+    },
+    "iteracao_PI-3": {
+      "status": "ok",
+      "p_true": 0.7661
+    },
+    "iteracao_PI-4": {
+      "status": "ok",
+      "p_true": 0.8395
+    },
+    "iteracao_PI-5": {
+      "status": "ok",
+      "p_true": 0.8131
     }
   }
 }

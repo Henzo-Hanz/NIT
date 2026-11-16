@@ -30,12 +30,20 @@ export function anelDaElipse(
   rx: number,
   ry: number,
   n = 32,
+  angulo = 0,
 ): number[][] {
+  const cosAngulo = Math.cos(angulo)
+  const sinAngulo = Math.sin(angulo)
   const anel: number[][] = Array.from({ length: n }, (_, indice) => {
-    const angulo = (indice / n) * Math.PI * 2
-    return [centro[0] + rx * Math.cos(angulo), centro[1] + ry * Math.sin(angulo)]
+    const t = (indice / n) * Math.PI * 2
+    const x = rx * Math.cos(t)
+    const y = ry * Math.sin(t)
+    return [
+      centro[0] + x * cosAngulo - y * sinAngulo,
+      centro[1] + x * sinAngulo + y * cosAngulo,
+    ]
   })
-  anel.push([centro[0] + rx, centro[1]])
+  anel.push([centro[0] + rx * cosAngulo, centro[1] + rx * sinAngulo])
   return anel
 }
 

@@ -77,8 +77,9 @@ async function desenharESelecionar(telaInicial: { clientX: number; clientY: numb
   await vi.waitFor(() => {
     expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
   })
-  await usuario.click(screen.getByTestId('selecionar-area-1'))
+  // CA-7: trocar de ferramenta desmarca; seleciona DEPOIS de entrar em arrastar.
   await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+  await usuario.click(screen.getByTestId('selecionar-area-1'))
   return { usuario, container }
 }
 
@@ -180,8 +181,8 @@ describe('CA-5: retângulo redimensionável em qualquer direção (anel de 4)', 
     await vi.waitFor(() => {
       expect(screen.getByTestId('area-item-1')).toBeInTheDocument()
     })
-    await usuario.click(screen.getByTestId('selecionar-area-1'))
     await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+    await usuario.click(screen.getByTestId('selecionar-area-1'))
 
     const hull = convexHull([[10, 10], [25, 8], [30, 20], [20, 30], [5, 25]])
     expect(hull).toHaveLength(5)

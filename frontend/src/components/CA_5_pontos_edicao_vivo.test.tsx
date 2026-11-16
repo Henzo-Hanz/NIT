@@ -146,6 +146,8 @@ async function prepararAreaUm(filtrarPeloPoligono = false) {
     expect(screen.getAllByTestId('ponto-area')).toHaveLength(2)
   })
   await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+  // CA-7: trocar de ferramenta desmarca; seleciona a área para exibir as alças.
+  await usuario.click(screen.getByTestId('selecionar-area-1'))
   return { usuario, fetchFake, container: screen.getByTestId('mapa-container') }
 }
 
