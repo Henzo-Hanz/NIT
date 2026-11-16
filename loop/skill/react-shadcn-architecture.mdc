@@ -1,0 +1,78 @@
+---
+description: Arquitetura React com shadcn/ui, Tailwind CSS, alternância de tema claro/escuro, acessibilidade, estado e organização do projeto
+globs: **/*.{tsx,jsx}
+alwaysApply: false
+---
+
+# Regra de Arquitetura React com shadcn/ui e Tailwind CSS
+
+## Organização do Projeto
+
+- Organize por feature ou domínio de rota (`features/auth/`, `features/dashboard/`), não apenas por tipo de arquivo.
+- Use um layout em camadas: `components/ui/` (primitivos shadcn), `components/` (compostos compartilhados), `features/` (UI de domínio + hooks), `hooks/`, `lib/` (utils, helper cn), `pages/` ou `app/` (rotas).
+- Mantenha `components/ui/` limitado a primitivos gerados pelo shadcn; não adicione lógica de negócio ali.
+- Co-loque componentes, hooks e tipos específicos de feature dentro da pasta da feature.
+- Coloque providers globais em um único layout raiz ou `providers.tsx`; evite aninhar árvores de contexto redundantes.
+
+## Estrutura de Componentes
+
+- Use componentes funcionais e exports nomeados para componentes reutilizáveis; exports default apenas para pontos de entrada de rota/página se o framework exigir.
+- Separe componentes de apresentação de containers quando data-fetching ou estado complexo inflar o JSX.
+- Extraia lógica reutilizável em custom hooks (`useX`) em vez de duplicar effects ou handlers entre componentes.
+- Mantenha componentes focados: uma responsabilidade principal, interface de props explícita com TypeScript.
+- Prefira composição em vez de prop drilling: children, render props ou padrões de compound component.
+- Importe primitivos shadcn de `@/components/ui/*`; envolva-os em componentes de nível de feature ao adicionar comportamento de domínio.
+
+## Convenções de Estilo
+
+- Use classes utilitárias Tailwind como abordagem padrão de estilo; evite CSS customizado a menos que utilities não expressem o design.
+- Use o helper `cn()` de `@/lib/utils` para mesclar classes condicionais e de variante; não concatene strings de classes manualmente.
+- Siga padrões shadcn: use `cva()` para variantes de componentes em primitivos compartilhados; mantenha definições de variante co-localizadas com o componente.
+- Use tokens de design via extensões de tema Tailwind e variáveis CSS (ex.: `bg-background`, `text-foreground`); evite cores hex hardcoded em componentes.
+- Não sobrescreva internos de componentes shadcn com CSS global frágil; estenda via props, variantes ou `className` no elemento raiz.
+- Mantenha estilos responsivos e conscientes de tema em classes Tailwind (`sm:`, `md:`, `dark:`); evite stylesheets separadas por breakpoint.
+
+## Modo Escuro / Claro
+
+- Suporte **ambos os temas** via classe `dark` em `<html>`; tokens ficam em `:root` e `.dark` dentro de `frontend/src/index.css`.
+- **Não** hardcode `class="dark"` em `index.html`; o tema é aplicado em runtime por um `ThemeProvider`.
+- Centralize estado de tema em `providers/theme-provider.tsx` (ou `features/theme/`): valores `"light" | "dark"`, persista em `localStorage`, sincronize `document.documentElement.classList`.
+- No primeiro carregamento, resolva o tema de `localStorage` ou `prefers-color-scheme`; padrão `light` quando não houver preferência armazenada.
+- Exponha um botão `ThemeToggle` (ícones Sun/Moon de `lucide-react`) usando `Button` shadcn com `variant="ghost"` e `size="icon"`.
+- Coloque o toggle no chrome compartilhado: footer do `AppSidebar` para rotas autenticadas e header do `AuthLayout` para fluxos de login/registro.
+- O toggle deve ter nome acessível (`aria-label="Alternar tema claro/escuro"`) e refletir a **próxima** ação, não o tema atual.
+- Prefira tokens semânticos (`bg-background`, `text-foreground`, `border-border`) para layouts se adaptarem automaticamente; adicione pares `dark:` apenas quando uma utility de cor bruta for necessária (ex.: badges de status).
+- Ao estender primitivos shadcn em `components/ui/`, sempre defina classes de variante light **e** dark; teste ambos os modos antes de mergear.
+
+## Acessibilidade
+
+- Use HTML semântico primeiro (`button`, `nav`, `main`, `label`, `fieldset`); não substitua elementos interativos por `div` + `onClick`.
+- Prefira primitivos shadcn/Radix para UI interativa (Dialog, DropdownMenu, Select, Tabs); eles trazem suporte a teclado e atributos ARIA.
+- Todo controle de formulário deve ter um `<Label>` associado; use `htmlFor`/`id` ou envolva o controle dentro do label.
+- Forneça nomes acessíveis para botões só com ícone (`aria-label` ou texto visualmente oculto).
+- Gerencie foco corretamente: prenda foco em modais, devolva foco ao fechar, e não remova outlines de foco visíveis sem substituição.
+- Garanta contraste de cor e estados de foco visíveis conforme WCAG; nunca dependa só de cor para transmitir status.
+- Use regiões `aria-live` para mensagens de status dinâmicas, toasts e feedback assíncrono.
+
+## Gerenciamento de Estado
+
+- Prefira estado local (`useState`, `useReducer`) para preocupações só de UI escopadas a um componente.
+- Eleve estado apenas o necessário; evite stores globais para dados que uma subárvore precisa.
+- Use React Context para estado transversal e de baixa frequência (tema, sessão de auth, locale); separe contexts por preocupação para limitar re-renders.
+- Use TanStack Query (ou equivalente) para estado de servidor: fetch, cache, invalidação e estados de loading/erro.
+- Não espelhe dados de servidor em estado global de cliente; derive UI do cache de query ou route loaders.
+- Mantenha side effects em `useEffect` mínimos; prefira event handlers e callbacks de query/mutation para ações do usuário.
+- Para formulários, use `react-hook-form` com resolvers Zod ao usar componentes Form shadcn; evite churn de uncontrolled para controlled.
+
+## Data Fetching e Roteamento
+
+- Busque dados na rota ou no limite da feature; passe props tipadas ou hooks para filhos de apresentação.
+- Trate estados de loading, erro e vazio explicitamente em toda view dependente de dados.
+- Use convenções do Next.js App Router quando aplicável: server components para conteúdo estático/buscado, client components só quando interatividade exigir.
+- Marque client components com `"use client"` apenas na subárvore mais baixa que precisar.
+
+## Imports e Convenções
+
+- Use o alias de path `@/` consistentemente para components, hooks e utilitários de lib.
+- Ordene imports: pacotes externos, aliases internos, imports relativos; separe grupos com linha em branco.
+- Defina tipos compartilhados em `types/` ou arquivos `*.types.ts` co-localizados; não duplique shapes de props entre features.

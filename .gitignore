@@ -230,3 +230,6 @@ frontend/dist/
 
 # Cache de icones PhyloPic obtidos em runtime
 backend/biodiversidade/midia/icones/
+
+# Arquivos de configuração do FreeBuff
+.freebuff
