@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { FotoEspecie } from '@/components/FotoEspecie'
+import { CHEVRON_PAINEL } from '@/components/ui/chevron-painel'
 import { cn } from '@/lib/utils'
 import type { EspecieResumo } from '@/lib/api'
 
@@ -39,7 +40,7 @@ export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEs
   return (
     <section
       data-testid={testid}
-      className="relative flex flex-col rounded-2xl bg-neutral-900 p-4 shadow-sm sm:p-5"
+      className="relative flex flex-col rounded-2xl border bg-card p-4 shadow-sm dark:border-transparent dark:bg-neutral-900 sm:p-5"
       onMouseEnter={() => setPausado(true)}
       onMouseLeave={() => setPausado(false)}
       onFocus={() => setPausado(true)}
@@ -47,7 +48,7 @@ export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEs
     >
       <header className="mb-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="truncate text-sm font-bold uppercase tracking-[0.18em] text-neutral-100">
+          <h2 className="truncate text-sm font-bold uppercase tracking-[0.18em] text-foreground dark:text-neutral-100">
             {titulo}
           </h2>
           <span
@@ -62,7 +63,11 @@ export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEs
             type="button"
             aria-label={`Anteriores em ${titulo}`}
             onClick={() => setAtivo((atual) => (atual - 1 + total) % total)}
-            className="grid size-7 place-items-center rounded-full border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className={cn(
+              'grid size-7 place-items-center rounded-full border bg-card text-muted-foreground',
+              CHEVRON_PAINEL,
+              'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+            )}
           >
             <ChevronLeft className="size-4" aria-hidden="true" />
           </button>
@@ -70,7 +75,11 @@ export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEs
             type="button"
             aria-label={`Próximas em ${titulo}`}
             onClick={() => setAtivo((atual) => (atual + 1) % total)}
-            className="grid size-7 place-items-center rounded-full border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className={cn(
+              'grid size-7 place-items-center rounded-full border bg-card text-muted-foreground',
+              CHEVRON_PAINEL,
+              'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+            )}
           >
             <ChevronRight className="size-4" aria-hidden="true" />
           </button>

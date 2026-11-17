@@ -80,12 +80,43 @@ describe('CA-4: toolbar de ferramentas sob o header, recolhível e com modos', (
     expect(screen.getByTestId('ferramenta-arrastar')).toBeInTheDocument()
 
     await usuario.click(screen.getByTestId('ferramenta-recolher'))
-    expect(screen.queryByTestId('ferramenta-desenhar')).toBeNull()
+    // Saída animada: o conteúdo continua montado (invisível) durante os 300ms.
+    expect(screen.queryByTestId('ferramenta-desenhar')).not.toBeNull()
+    const conteudoColapsando =
+      screen.getByTestId('ferramentas-principal').parentElement ?? ferramentas
+    expect(conteudoColapsando.className).toContain('opacity-0')
+    expect(conteudoColapsando.className).toContain('max-w-0')
+    await vi.waitFor(() => {
+      expect(screen.queryByTestId('ferramenta-desenhar')).toBeNull()
+    })
     expect(screen.queryByTestId('ferramenta-arrastar')).toBeNull()
     expect(screen.getByTestId('ferramenta-recolher')).toBeInTheDocument()
 
     await usuario.click(screen.getByTestId('ferramenta-recolher'))
     expect(screen.getByTestId('ferramenta-desenhar')).toBeInTheDocument()
+    // Entrada animada: o conteúdo termina visível (max-width cheio, opacity-100).
+    const conteudoExpandindo =
+      screen.getByTestId('ferramentas-principal').parentElement ?? ferramentas
+    await vi.waitFor(() => {
+      expect(conteudoExpandindo?.className).toContain('opacity-100')
+      expect(conteudoExpandindo?.className).toContain('max-w-[calc(100vw-4rem)]')
+    })
+
+    // Chevron único com rotação animada: aberta → 90°, colapsada → rotação 0.
+    const chevronAberto = screen.getByTestId('ferramenta-recolher').querySelector('svg')
+    expect(chevronAberto?.className.baseVal).toContain('transition-transform')
+    expect(chevronAberto?.className.baseVal).toContain('rotate-90')
+
+    await usuario.click(screen.getByTestId('ferramenta-recolher'))
+    expect(screen.getByTestId('ferramenta-recolher')).toBeInTheDocument()
+    const chevronFechado = screen.getByTestId('ferramenta-recolher').querySelector('svg')
+    expect(chevronFechado?.className.baseVal).toContain('transition-transform')
+    expect(chevronFechado?.className.baseVal).not.toContain('rotate-90')
+
+    await usuario.click(screen.getByTestId('ferramenta-recolher'))
+    expect(screen.getByTestId('ferramenta-desenhar')).toBeInTheDocument()
+    const chevronReaberto = screen.getByTestId('ferramenta-recolher').querySelector('svg')
+    expect(chevronReaberto?.className.baseVal).toContain('rotate-90')
   })
 
   it('a lupa abre a caixa de busca dentro da própria toolbar e o voltar fecha', async () => {
@@ -249,6 +280,8 @@ describe('CA-4: toolbar de ferramentas sob o header, recolhível e com modos', (
 
     await usuario.click(screen.getByTestId('ferramenta-desenhar'))
     await usuario.click(screen.getByTestId('ferramenta-recolher'))
-    expect(screen.queryByTestId('ferramentas-desenho')).toBeNull()
+    await vi.waitFor(() => {
+      expect(screen.queryByTestId('ferramentas-desenho')).toBeNull()
+    })
   })
 })

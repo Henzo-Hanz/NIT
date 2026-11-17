@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent as MouseEvento } from 'react'
 import {
   ArrowLeft,
-  ChevronDown,
   ChevronUp,
   Circle,
   GripVertical,
@@ -57,6 +56,8 @@ export function FerramentasToolbar({
 }: FerramentasToolbarProps) {
   const [posicao, setPosicao] = useState<{ left: number; top: number } | null>(null)
   const [submenuAberto, setSubmenuAberto] = useState(false)
+  const [montado, setMontado] = useState(!colapsada)
+  const [visivel, setVisivel] = useState(!colapsada)
   const arrastoRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null)
   const campoBuscaRef = useRef<HTMLInputElement>(null)
 
@@ -65,6 +66,26 @@ export function FerramentasToolbar({
       campoBuscaRef.current?.focus()
     }
   }, [buscaAberto])
+
+  useEffect(() => {
+    if (colapsada) {
+      setVisivel(false)
+      const timer = setTimeout(() => setMontado(false), 300)
+      return () => clearTimeout(timer)
+    }
+    setMontado(true)
+    // rAF duplo: o primeiro quadro garante o paint do estado oculto, o segundo
+    // só então liga a transição — senão o navegador pula a animação de entrada.
+    let quadroExterno = 0
+    let quadroInterno = 0
+    quadroExterno = requestAnimationFrame(() => {
+      quadroInterno = requestAnimationFrame(() => setVisivel(true))
+    })
+    return () => {
+      cancelAnimationFrame(quadroExterno)
+      cancelAnimationFrame(quadroInterno)
+    }
+  }, [colapsada])
 
   useEffect(() => {
     const aoMover = (evento: MouseEvent) => {
@@ -131,8 +152,8 @@ export function FerramentasToolbar({
   }
 
   const classe = posicao
-    ? 'absolute z-20 flex items-center gap-1 rounded-xl border bg-background p-1 shadow-lg'
-    : 'absolute left-1/2 top-16 z-20 flex items-center gap-1 rounded-xl border bg-background p-1 shadow-lg -translate-x-1/2'
+    ? 'absolute z-20 flex items-center gap-1 rounded-xl border bg-background p-1 shadow-lg transition-all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]'
+    : 'absolute left-1/2 top-16 z-20 flex items-center gap-1 rounded-xl border bg-background p-1 shadow-lg -translate-x-1/2 transition-all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]'
 
   return (
     <div
@@ -151,16 +172,21 @@ export function FerramentasToolbar({
         className={CLASSE_HOVER}
         onClick={alternarColapso}
       >
-        {colapsada ? (
-          <ChevronDown className="size-4" aria-hidden="true" />
-        ) : (
-          <ChevronUp className="size-4" aria-hidden="true" />
-        )}
+        <ChevronUp
+          className={`size-4 transition-transform duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] ${
+            colapsada ? 'rotate-0' : 'rotate-90'
+          }`}
+          aria-hidden="true"
+        />
       </Button>
-      {!colapsada && (
+      {montado && (
         <div
-          className={`relative flex items-center transition-all duration-300 ease-out ${
+          className={`relative flex items-center overflow-hidden transition-all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] ${
             buscaAberto ? 'w-[24rem] max-w-[calc(100vw-4rem)]' : ''
+          } ${
+            colapsada || !visivel
+              ? 'max-w-0 opacity-0 pointer-events-none'
+              : 'max-w-[calc(100vw-4rem)] opacity-100'
           }`}
         >
           <div
@@ -337,18 +363,18 @@ export function FerramentasToolbar({
                 placeholder="Buscar espécie..."
                 aria-label="Buscar espécies ou locais"
                 onChange={(evento) => aoMudarBusca(evento.target.value)}
-                className="h-8 w-full rounded-full border bg-background pl-3 pr-8 text-xs outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-9 w-full rounded-xl border bg-background pl-3.5 pr-9 text-xs shadow-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring"
               />
               <Search
                 aria-hidden="true"
-                className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
               />
             </div>
           </div>
           {buscaAberto && (resultadosBusca?.especies.length ?? 0) > 0 && (
             <div
               data-testid="resultado-busca"
-              className="absolute left-0 top-full z-30 mt-1 w-full rounded-xl border bg-background p-1.5 shadow-lg"
+              className="absolute left-0 top-full z-30 mt-2 w-full rounded-xl border bg-background p-1.5 shadow-lg"
             >
               <ul className="flex max-h-[7.5rem] flex-col overflow-y-auto no-scrollbar">
                 {(resultadosBusca?.especies ?? []).map((item) => (

@@ -37,7 +37,7 @@ export function HeaderBar() {
           className="h-9 w-auto rounded-md"
         />
       </div>
-      <nav data-testid="nav-nit" aria-label="Navegação principal" className="hidden gap-1 md:flex">
+      <nav data-testid="nav-nit" aria-label="Navegação principal" className="hidden flex-nowrap items-center gap-1 md:flex">
         {ITENS_NAV.map((item) => {
           const testid = `nav-${item.rotulo.toLowerCase().replace(/\s+/g, '-')}`
           if (item.caminho) {
@@ -46,7 +46,7 @@ export function HeaderBar() {
                 key={item.rotulo}
                 to={item.caminho}
                 data-testid={testid}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
+                className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
               >
                 {item.rotulo}
               </Link>
@@ -73,6 +73,7 @@ export function HeaderBar() {
           data-testid="toggle-tema"
           aria-label="Alternar tema claro/escuro"
           onClick={() => setTema(alternarTema(tema))}
+          className="border bg-background text-foreground shadow-sm hover:bg-muted"
         >
           {tema === 'claro' ? '☾' : '☀'}
         </Button>

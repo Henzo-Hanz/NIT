@@ -123,6 +123,31 @@ describe('CA-5: seleção de área e desenho ao vivo na edição', () => {
     expect(screen.getByTestId('area-item-1')).toHaveAttribute('data-selecionada', 'false')
   })
 
+  it('o rótulo area-tamanho some DURANTE o gesto de edição e volta ao soltar', async () => {
+    const usuario = userEvent.setup()
+    await desenharTriangulo(usuario)
+    await usuario.click(screen.getByTestId('ferramenta-arrastar'))
+
+    expect(screen.getByTestId('area-tamanho')).toBeInTheDocument()
+
+    // (18,12) está dentro do triângulo: começa o mover.
+    const container = screen.getByTestId('mapa-container')
+    fireEvent.mouseDown(container, { clientX: 18, clientY: 12 })
+    expect(container).toHaveAttribute('data-editando', 'true')
+
+    // DURANTE o gesto o rótulo some (não fica parado na posição antiga).
+    expect(screen.queryByTestId('area-tamanho')).toBeNull()
+
+    fireEvent.mouseMove(window, { clientX: 23, clientY: 17 })
+    expect(screen.queryByTestId('area-tamanho')).toBeNull()
+
+    // Ao soltar, o rótulo reaparece (reprojetado no novo centroide).
+    fireEvent.mouseUp(window)
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('area-tamanho')).toBeInTheDocument()
+    })
+  })
+
   it('o desenho acompanha o mover AO VIVO via setData e grava o polígono só ao soltar', async () => {
     const usuario = userEvent.setup()
     const fetchFake = configurarFetch()

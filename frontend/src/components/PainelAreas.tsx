@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp, Trash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CHEVRON_PAINEL } from '@/components/ui/chevron-painel'
 import { formatarKm2 } from '@/utils/geo'
 import type { PolygonGeoJSON } from '@/lib/api'
 
@@ -47,7 +48,7 @@ export function PainelAreas({ areas, areaAtivaId, aoSelecionar, aoApagar }: Pain
           aria-label={aberto ? 'Recolher áreas' : 'Expandir áreas'}
           aria-expanded={aberto}
           title={aberto ? 'Recolher' : 'Expandir'}
-          className="transition-colors hover:bg-primary/60 hover:text-primary-foreground"
+          className={CHEVRON_PAINEL}
           onClick={() => setAberto((atual) => !atual)}
         >
           {aberto ? (

@@ -1221,6 +1221,7 @@ export function MapView({
     map.on('load', () => setCarregado(true))
     map.on('move', () => {
       atualizarPosicoes(map)
+      atualizarPosicaoArea(map)
       if (bolhaAreaRef.current && pontoAtivoRef.current) {
         const projetado = map.project(pontoAtivoRef.current.geometry.coordinates)
         setPosBolhaArea({ x: projetado.x, y: projetado.y })
@@ -1244,7 +1245,7 @@ export function MapView({
       setBolhaAreaAberta(false)
       setPosBolhaArea(null)
     }
-  }, [reiniciar, estiloAtual, atualizarPosicoes])
+  }, [reiniciar, estiloAtual, atualizarPosicoes, atualizarPosicaoArea])
 
   useEffect(() => {
     const map = mapRef.current
@@ -2580,7 +2581,7 @@ export function MapView({
         especieAplicada={nomeEspecieAplicada}
         aoPiscar={piscar}
       />
-      {areaEmDestaque && posArea && (
+      {areaEmDestaque && posArea && !edicao && (
         <div
           data-testid="area-tamanho"
           className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-full border bg-background px-2 py-0.5 text-xs font-medium shadow"
