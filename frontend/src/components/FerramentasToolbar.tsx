@@ -363,7 +363,7 @@ export function FerramentasToolbar({
                 placeholder="Buscar espécie..."
                 aria-label="Buscar espécies ou locais"
                 onChange={(evento) => aoMudarBusca(evento.target.value)}
-                className="h-7 w-full rounded-lg border bg-background pl-3 pr-8 text-xs shadow-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-7 w-full rounded-lg border bg-background pl-3 pr-8 text-xs shadow-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               />
               <Search
                 aria-hidden="true"

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { FotoEspecie } from '@/components/FotoEspecie'
-import { CHEVRON_PAINEL } from '@/components/ui/chevron-painel'
+import { corDaPaleta } from '@/components/ui/paleta-piaui'
 import { cn } from '@/lib/utils'
 import type { EspecieResumo } from '@/lib/api'
 
@@ -12,9 +12,17 @@ interface CarrosselEspecieProps {
   itens: EspecieResumo[]
   onAbrir: (slug: string) => void
   testid?: string
+  indice?: number
 }
 
-export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEspecieProps) {
+export function CarrosselEspecie({
+  titulo,
+  itens,
+  onAbrir,
+  testid,
+  indice = 0,
+}: CarrosselEspecieProps) {
+  const cor = corDaPaleta(indice)
   const [ativo, setAtivo] = useState(0)
   const [pausado, setPausado] = useState(false)
   const total = itens.length
@@ -40,7 +48,7 @@ export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEs
   return (
     <section
       data-testid={testid}
-      className="relative flex flex-col rounded-2xl border bg-card p-4 shadow-sm dark:border-transparent dark:bg-neutral-900 sm:p-5"
+      className={cn('relative flex flex-col rounded-2xl p-4 shadow-sm sm:p-5', cor.fundo)}
       onMouseEnter={() => setPausado(true)}
       onMouseLeave={() => setPausado(false)}
       onFocus={() => setPausado(true)}
@@ -48,12 +56,20 @@ export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEs
     >
       <header className="mb-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="truncate text-sm font-bold uppercase tracking-[0.18em] text-foreground dark:text-neutral-100">
+          <h2
+            className={cn(
+              'truncate text-sm font-bold uppercase tracking-[0.18em]',
+              cor.titulo,
+            )}
+          >
             {titulo}
           </h2>
           <span
             data-testid={testid ? `${testid}-contador` : 'carrossel-contador'}
-            className="mt-1.5 inline-block rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold tabular-nums text-accent-foreground"
+            className={cn(
+              'mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums',
+              cor.chip,
+            )}
           >
             {total}
           </span>
@@ -64,9 +80,8 @@ export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEs
             aria-label={`Anteriores em ${titulo}`}
             onClick={() => setAtivo((atual) => (atual - 1 + total) % total)}
             className={cn(
-              'grid size-7 place-items-center rounded-full border bg-card text-muted-foreground',
-              CHEVRON_PAINEL,
-              'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              'grid size-7 place-items-center rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              cor.setas,
             )}
           >
             <ChevronLeft className="size-4" aria-hidden="true" />
@@ -76,9 +91,8 @@ export function CarrosselEspecie({ titulo, itens, onAbrir, testid }: CarrosselEs
             aria-label={`Próximas em ${titulo}`}
             onClick={() => setAtivo((atual) => (atual + 1) % total)}
             className={cn(
-              'grid size-7 place-items-center rounded-full border bg-card text-muted-foreground',
-              CHEVRON_PAINEL,
-              'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              'grid size-7 place-items-center rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              cor.setas,
             )}
           >
             <ChevronRight className="size-4" aria-hidden="true" />

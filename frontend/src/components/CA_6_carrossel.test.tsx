@@ -33,6 +33,7 @@ const abrirDoisPaineis = () =>
       titulo={painel.titulo}
       itens={painel.itens}
       onAbrir={index === 0 ? () => {} : () => {}}
+      indice={index}
     />
   ))
 
@@ -52,11 +53,13 @@ describe('CA-6: painéis do carrossel de espécies', () => {
     expect(screen.getByTestId('carrossel-Peixe-contador')).toHaveTextContent(/^2$/)
 
     const contador = screen.getByTestId('carrossel-Crustáceo-contador')
-    expect(contador.className).toContain('bg-accent')
+    expect(contador.className).toContain('bg-white/15')
     expect(contador.className).not.toContain('- ')
 
-    const painel = screen.getByTestId('carrossel-Crustáceo')
-    expect(painel.className).toContain('bg-neutral-900')
+    // Paleta institucional cicla azul → amarelo → vermelho (→ verde → azul).
+    expect(screen.getByTestId('carrossel-Crustáceo').className).toContain('bg-[#1878BE]')
+    expect(screen.getByTestId('carrossel-Ave').className).toContain('bg-[#F5B31E]')
+    expect(screen.getByTestId('carrossel-Peixe').className).toContain('bg-[#DB3B25]')
 
     expect(screen.getByTestId('card-especie-caranguejo-uca')).toBeInTheDocument()
     expect(screen.getByTestId('card-especie-garca-branca')).toBeInTheDocument()
