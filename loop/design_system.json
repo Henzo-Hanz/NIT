@@ -104,7 +104,7 @@
   "componentes": {
     "pill_badge_solido": {
       "classe": "rounded-full bg-accent px-2 py-0.5 text-[11px] sm:text-xs font-semibold tabular-nums text-accent-foreground",
-      "uso": "numero puro (SEM prefixo/hifen) de contador: total de especie, itens de grupo. Versao hero: px-3 py-1 text-xs",
+      "uso": "numero puro (SEM prefixo/hifen) de contador sobre superficie neutra: badge do hero de pagina (px-3 py-1 text-xs), contadores de secao. O chip de contador DENTRO de carrossel usa cor.chip da paleta_institucional (translucido sobre a cor do painel)",
       "proibido": "texto tipo '- 6'; numero nunca exige sinal"
     },
     "card": {
@@ -125,7 +125,30 @@
     },
     "botao_icone_circular": {
       "classe": "grid size-7 place-items-center rounded-full border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-      "uso": "seta prev/next de carrossel; icone lucide size-4 dentro"
+      "uso": "botao circular neutro sobre superficie bg-card (icone lucide size-4 dentro). NOTA: as setas prev/next de carrossel NAO usam mais este padrao — usam cor.setas da paleta_institucional (translucidas sobre o fundo colorido)"
+    },
+    "botao_recolher_painel": {
+      "classe": "shadcn Button variant='ghost' (icon-xs no PainelAreas, icon-sm no FiltroAnimaisPanel) + CHEVRON_PAINEL",
+      "chevron_painel": "constante compartilhada em frontend/src/components/ui/chevron-painel.ts: 'transition-colors hover:bg-muted hover:text-foreground dark:hover:bg-primary/60 dark:hover:text-primary-foreground'",
+      "uso": "UNICO padrao de seta recolher/expandir de paineis (Filtros, Areas e futuros): sempre importar CHEVRON_PAINEL, nunca recriar hover; icone lucide chevron size-3/size-4, aria-expanded + aria-label + title obrigatorios"
+    },
+    "toolbar_ferramentas": {
+      "colapso": "botao ferramenta-recolher: chevron UNICO (ChevronUp) que rotaciona — colapsado rotate-0 (seta para cima), aberto rotate-90 (seta para a direita); transition-transform duration-300 cubic-bezier(0.22,1,0.36,1)",
+      "conteudo": "saida E entrada animadas no MESMO ritmo do chevron: wrapper 'overflow-hidden transition-all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]' com 'max-w-0 opacity-0 pointer-events-none' <-> 'max-w-[calc(100vw-4rem)] opacity-100'; desmonte so apos 300ms (setTimeout); entrada com rAF DUPLO (1 rAF so dispara antes do primeiro paint e pula a animacao)",
+      "container": "transition-all duration-300 mesma timing function para a largura acompanhar",
+      "uso": "padrao para qualquer barra recolhivel: colapso/expansao sempre sincronizados com o indicador, nunca desmonte seco"
+    },
+    "input_busca_toolbar": {
+      "classe": "h-7 w-full rounded-lg border bg-background pl-3 pr-8 text-xs shadow-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+      "uso": "campo de busca DENTRO da toolbar: h-7 alinha com os botoes size-7 da linha (h-9 transborda e colide com a borda); rounded-lg no mesmo raio dos botoes; ring-inset CONTIDO no campo (ring externo sangra sobre a borda da toolbar); icone decorativo size-3.5 absoluto right-3"
+    },
+    "nav_header": {
+      "classe": "nav 'hidden flex-nowrap items-center gap-1 md:flex'; links 'whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary-foreground/15'",
+      "uso": "menu principal do header: labels NUNCA quebram em 2 linhas (whitespace-nowrap) e ficam alinhados verticalmente (items-center)"
+    },
+    "toggle_tema": {
+      "classe": "shadcn Button variant='outline' size='sm' + 'border bg-background text-foreground shadow-sm hover:bg-muted'",
+      "uso": "botao claro/escuro do header: nunca solto sobre o fundo primary do header (fica soterrado); borda/sombra dao contraste nos dois temas"
     },
     "input_busca": {
       "classe": "h-11 w-full rounded-full border bg-card pl-4 pr-11 text-sm shadow-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring",
@@ -143,6 +166,7 @@
     "transicoes": {
       "cores": "transition-colors (hover de botao/texto)",
       "aura": "transition-all duration-300 (card de carrossel: mover/escalar/opacidade)",
+      "expandir_recolher": "transition-transform/all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] — chevron rotacionando e conteudo montado/desmontado em sincronia (ver toolbar_ferramentas); rAF duplo na entrada",
       "sombra": "transition-shadow (foco de input)",
       "imagem": "transition-transform duration-500 (zoom no hover da foto, group-hover:scale-105)"
     },
