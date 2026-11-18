@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { TooltipDescricao } from '@/components/ui/tooltip'
 import { SeloStatus } from '@/components/SeloStatus'
+import { alternarDescricoes, descricoesAtivas } from '@/lib/descricoes'
 import { alternarTema, iniciarTema, temaSalvo, type Tema } from '@/lib/tema'
 
 type ItemNav = { rotulo: string; caminho?: string }
@@ -15,10 +18,12 @@ const ITENS_NAV: ItemNav[] = [
 
 export function HeaderBar() {
   const [tema, setTema] = useState<Tema>('claro')
+  const [descricoes, setDescricoes] = useState(true)
 
   useEffect(() => {
     iniciarTema()
     setTema(temaSalvo())
+    setDescricoes(descricoesAtivas())
   }, [])
 
   return (
@@ -67,6 +72,41 @@ export function HeaderBar() {
       </nav>
       <div className="flex items-center gap-3">
         <SeloStatus />
+        <TooltipDescricao
+          sempreVisivel
+          descricao="Liga ou desliga as descrições das ferramentas e menus"
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="toggle-descricoes"
+            data-ativo={descricoes ? 'true' : 'false'}
+            aria-label={
+              descricoes
+                ? 'Desativar descrições das ferramentas e menus (ligadas)'
+                : 'Ativar descrições das ferramentas e menus (desligadas)'
+            }
+            aria-pressed={descricoes}
+            onClick={() => setDescricoes(alternarDescricoes())}
+            className={
+              descricoes
+                ? 'border bg-background text-foreground shadow-sm hover:bg-muted'
+                : 'border bg-muted text-muted-foreground shadow-sm hover:bg-muted/80'
+            }
+          >
+            {descricoes ? (
+              <>
+                <Eye className="size-4" aria-hidden="true" />
+                <span className="text-xs font-medium">Dicas</span>
+              </>
+            ) : (
+              <>
+                <EyeOff className="size-4" aria-hidden="true" />
+                <span className="text-xs font-medium line-through">Dicas</span>
+              </>
+            )}
+          </Button>
+        </TooltipDescricao>
         <Button
           variant="outline"
           size="sm"

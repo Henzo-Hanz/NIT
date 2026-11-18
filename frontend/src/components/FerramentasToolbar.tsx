@@ -10,6 +10,7 @@ import {
   Square,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { TooltipDescricao } from '@/components/ui/tooltip'
 import type { ResultadoBusca } from '@/lib/api'
 
 export type ModoFerramenta = 'arrastar' | 'desenhar' | 'medir'
@@ -162,23 +163,24 @@ export function FerramentasToolbar({
       style={posicao ?? undefined}
       onMouseDown={aoIniciarArrasto}
     >
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        data-testid="ferramenta-recolher"
-        aria-label={colapsada ? 'Expandir ferramentas' : 'Recolher ferramentas'}
-        title={colapsada ? 'Expandir' : 'Recolher'}
-        aria-expanded={!colapsada}
-        className={CLASSE_HOVER}
-        onClick={alternarColapso}
-      >
-        <ChevronUp
-          className={`size-4 transition-transform duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] ${
-            colapsada ? 'rotate-0' : 'rotate-90'
-          }`}
-          aria-hidden="true"
-        />
-      </Button>
+      <TooltipDescricao descricao="Recolhe ou expande a barra de ferramentas">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          data-testid="ferramenta-recolher"
+          aria-label={colapsada ? 'Expandir ferramentas' : 'Recolher ferramentas'}
+          aria-expanded={!colapsada}
+          className={CLASSE_HOVER}
+          onClick={alternarColapso}
+        >
+          <ChevronUp
+            className={`size-4 transition-transform duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] ${
+              colapsada ? 'rotate-0' : 'rotate-90'
+            }`}
+            aria-hidden="true"
+          />
+        </Button>
+      </TooltipDescricao>
       {montado && (
         <div
           className={`relative flex items-center overflow-hidden transition-all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] ${
@@ -204,71 +206,75 @@ export function FerramentasToolbar({
             >
               <GripVertical className="size-3.5" />
             </span>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              data-testid="ferramenta-desenhar"
-              data-ativo={modo === 'desenhar' ? 'true' : 'false'}
-              aria-label="Desenhar área"
-              aria-pressed={modo === 'desenhar'}
-              title="Desenhar"
-              className={modo === 'desenhar' ? CLASSE_ATIVA : CLASSE_HOVER}
-              onClick={abrirDesenho}
-            >
-              <Pencil className="size-4" aria-hidden="true" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              data-testid="ferramenta-arrastar"
-              data-ativo={modo === 'arrastar' ? 'true' : 'false'}
-              aria-label="Arrastar o mapa"
-              aria-pressed={modo === 'arrastar'}
-              title="Arrastar"
-              className={modo === 'arrastar' ? CLASSE_ATIVA : CLASSE_HOVER}
-              onClick={() => escolherModo('arrastar')}
-            >
-              <Hand className="size-4" aria-hidden="true" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              data-testid="ferramenta-medir"
-              data-ativo={modo === 'medir' ? 'true' : 'false'}
-              aria-label="Medir distância entre pontos"
-              aria-pressed={modo === 'medir'}
-              title="Medir"
-              className={modo === 'medir' ? CLASSE_ATIVA : CLASSE_HOVER}
-              onClick={() => escolherModo('medir')}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                className="size-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeDasharray="4 3"
-                strokeLinecap="round"
-                aria-hidden="true"
+            <TooltipDescricao descricao="Abre as opções de desenho de área no mapa para delimitar a pesquisa">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="ferramenta-desenhar"
+                data-ativo={modo === 'desenhar' ? 'true' : 'false'}
+                aria-label="Desenhar área"
+                aria-pressed={modo === 'desenhar'}
+                className={modo === 'desenhar' ? CLASSE_ATIVA : CLASSE_HOVER}
+                onClick={abrirDesenho}
               >
-                <path d="M4 20 20 4" />
-                <path d="M4 16v4h4" />
-                <path d="M20 8V4h-4" />
-              </svg>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              data-testid="ferramenta-pesquisar"
-              aria-label="Pesquisar"
-              title="Pesquisar"
-              aria-pressed={buscaAberto}
-              data-ativo={buscaAberto ? 'true' : 'false'}
-              className={buscaAberto ? CLASSE_ATIVA : CLASSE_HOVER}
-              onClick={abrirBusca}
-            >
-              <Search className="size-4" aria-hidden="true" />
-            </Button>
+                <Pencil className="size-4" aria-hidden="true" />
+              </Button>
+            </TooltipDescricao>
+            <TooltipDescricao descricao="Move o mapa livremente com o mouse">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="ferramenta-arrastar"
+                data-ativo={modo === 'arrastar' ? 'true' : 'false'}
+                aria-label="Arrastar o mapa"
+                aria-pressed={modo === 'arrastar'}
+                className={modo === 'arrastar' ? CLASSE_ATIVA : CLASSE_HOVER}
+                onClick={() => escolherModo('arrastar')}
+              >
+                <Hand className="size-4" aria-hidden="true" />
+              </Button>
+            </TooltipDescricao>
+            <TooltipDescricao descricao="Mede distâncias entre pontos clicados no mapa">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="ferramenta-medir"
+                data-ativo={modo === 'medir' ? 'true' : 'false'}
+                aria-label="Medir distância entre pontos"
+                aria-pressed={modo === 'medir'}
+                className={modo === 'medir' ? CLASSE_ATIVA : CLASSE_HOVER}
+                onClick={() => escolherModo('medir')}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="size-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeDasharray="4 3"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M4 20 20 4" />
+                  <path d="M4 16v4h4" />
+                  <path d="M20 8V4h-4" />
+                </svg>
+              </Button>
+            </TooltipDescricao>
+            <TooltipDescricao descricao="Abre a busca de espécies e locais no mapa">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="ferramenta-pesquisar"
+                aria-label="Pesquisar"
+                aria-pressed={buscaAberto}
+                data-ativo={buscaAberto ? 'true' : 'false'}
+                className={buscaAberto ? CLASSE_ATIVA : CLASSE_HOVER}
+                onClick={abrirBusca}
+              >
+                <Search className="size-4" aria-hidden="true" />
+              </Button>
+            </TooltipDescricao>
           </div>
           <div
             data-testid="ferramentas-desenho"
@@ -280,56 +286,60 @@ export function FerramentasToolbar({
                 : 'pointer-events-none -translate-y-6 opacity-0'
             }`}
           >
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              data-testid="desenho-voltar"
-              aria-label="Voltar para as ferramentas"
-              title="Voltar"
-              className={CLASSE_HOVER}
-              onClick={() => setSubmenuAberto(false)}
-            >
-              <ArrowLeft className="size-4" aria-hidden="true" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              data-testid="desenho-retangulo"
-              data-ativo={formaDesenho === 'retangulo' ? 'true' : 'false'}
-              aria-label="Desenhar retângulo"
-              aria-pressed={formaDesenho === 'retangulo'}
-              title="Retângulo"
-              className={formaDesenho === 'retangulo' ? CLASSE_ATIVA : CLASSE_HOVER}
-              onClick={() => escolherForma('retangulo')}
-            >
-              <Square className="size-4" aria-hidden="true" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              data-testid="desenho-circulo"
-              data-ativo={formaDesenho === 'circulo' ? 'true' : 'false'}
-              aria-label="Desenhar círculo"
-              aria-pressed={formaDesenho === 'circulo'}
-              title="Círculo"
-              className={formaDesenho === 'circulo' ? CLASSE_ATIVA : CLASSE_HOVER}
-              onClick={() => escolherForma('circulo')}
-            >
-              <Circle className="size-4" aria-hidden="true" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              data-testid="desenho-livre"
-              data-ativo={formaDesenho === 'livre' ? 'true' : 'false'}
-              aria-label="Desenhar livremente"
-              aria-pressed={formaDesenho === 'livre'}
-              title="Livre"
-              className={formaDesenho === 'livre' ? CLASSE_ATIVA : CLASSE_HOVER}
-              onClick={() => escolherForma('livre')}
-            >
-              <Pencil className="size-4" aria-hidden="true" />
-            </Button>
+            <TooltipDescricao descricao="Volta para as ferramentas">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="desenho-voltar"
+                aria-label="Voltar para as ferramentas"
+                className={CLASSE_HOVER}
+                onClick={() => setSubmenuAberto(false)}
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+              </Button>
+            </TooltipDescricao>
+            <TooltipDescricao descricao="Desenha de acordo com o mouse um retângulo de área no mapa para delimitar a pesquisa">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="desenho-retangulo"
+                data-ativo={formaDesenho === 'retangulo' ? 'true' : 'false'}
+                aria-label="Desenhar retângulo"
+                aria-pressed={formaDesenho === 'retangulo'}
+                className={formaDesenho === 'retangulo' ? CLASSE_ATIVA : CLASSE_HOVER}
+                onClick={() => escolherForma('retangulo')}
+              >
+                <Square className="size-4" aria-hidden="true" />
+              </Button>
+            </TooltipDescricao>
+            <TooltipDescricao descricao="Desenha de acordo com o mouse um círculo de área no mapa para delimitar a pesquisa">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="desenho-circulo"
+                data-ativo={formaDesenho === 'circulo' ? 'true' : 'false'}
+                aria-label="Desenhar círculo"
+                aria-pressed={formaDesenho === 'circulo'}
+                className={formaDesenho === 'circulo' ? CLASSE_ATIVA : CLASSE_HOVER}
+                onClick={() => escolherForma('circulo')}
+              >
+                <Circle className="size-4" aria-hidden="true" />
+              </Button>
+            </TooltipDescricao>
+            <TooltipDescricao descricao="Desenha livremente com o mouse uma área no mapa para delimitar a pesquisa">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="desenho-livre"
+                data-ativo={formaDesenho === 'livre' ? 'true' : 'false'}
+                aria-label="Desenhar livremente"
+                aria-pressed={formaDesenho === 'livre'}
+                className={formaDesenho === 'livre' ? CLASSE_ATIVA : CLASSE_HOVER}
+                onClick={() => escolherForma('livre')}
+              >
+                <Pencil className="size-4" aria-hidden="true" />
+              </Button>
+            </TooltipDescricao>
           </div>
           <div
             data-testid="caixa-busca"
@@ -341,17 +351,18 @@ export function FerramentasToolbar({
                 : 'pointer-events-none -translate-y-6 opacity-0'
             }`}
           >
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              data-testid="busca-voltar"
-              aria-label="Voltar para as ferramentas"
-              title="Voltar"
-              className={CLASSE_HOVER}
-              onClick={aoFecharBusca}
-            >
-              <ArrowLeft className="size-4" aria-hidden="true" />
-            </Button>
+            <TooltipDescricao descricao="Volta para as ferramentas">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="busca-voltar"
+                aria-label="Voltar para as ferramentas"
+                className={CLASSE_HOVER}
+                onClick={aoFecharBusca}
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+              </Button>
+            </TooltipDescricao>
             {/* Busca do mapa: campo em pílula com a lupa no fim (a lupa é
                 decorativa — o campo inteiro já é a área de digitação). */}
             <div className="relative min-w-0 flex-1">
