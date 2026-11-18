@@ -1,0 +1,144 @@
+{
+  "id": "SPEC-0007",
+  "prompt_original": "vamos por isso na spec 7, junto com a implementação de um menu no medidor de distância entre pontos , quero que o usuário possa escolher duas opções, a atual, a distância absoluta e a por rotas, vc consegue traçar as rotas de ruas e caminhos entre eles? se sim eu quero que utilize isso nessa ferramenta.",
+  "objetivo": "Mapa noturno seguindo o tema global e um submenu no medidor com duas opções: distância absoluta (atual) e por rota de ruas (via proxy OSRM no backend), com fallback automático para a absoluta.",
+  "escopo": {
+    "back": [
+      "Novo endpoint GET /api/rota/?de=lon,lat&ate=lon,lat que consulta o OSRM (perfil carro/driving) via urllib e devolve distancia_m e a geometria LineString",
+      "Validação das coordenadas (formato, faixa de latitude/longitude) antes de chamar o serviço externo",
+      "Tratamento de indisponibilidade/timeout do OSRM como 502"
+    ],
+    "front": [
+      "Basemap noturno (tiles raster CARTO dark_all) seguindo o tema global, trocando os tiles ao vivo sem recriar o mapa",
+      "Submenu da ferramenta Medir no mesmo padrão/animação do submenu de desenho, com opções 'Absoluta' e 'Rota' e botão voltar",
+      "Modo absoluto mantém o comportamento atual (Haversine, linha tracejada, badge)",
+      "Modo rota chama /api/rota/ com os dois pontos, desenha a polyline da rota e mostra a distância da rota no badge",
+      "Fallback automático para a distância absoluta com aviso discreto quando a rota falhar"
+    ]
+  },
+  "fora_de_escopo": [
+    "Perfis a pé e bicicleta (o servidor OSRM de demonstração só entrega perfil carro)",
+    "Duração/tempo estimado de viagem e condições de trânsito",
+    "Mais de dois pontos ou waypoints intermediários por rota",
+    "Cache ou banco de rotas no backend",
+    "Animação do traçado ponto a ponto da rota",
+    "Estilo vetorial do mapa ou troca de provedor de tiles"
+  ],
+  "criterios_aceitacao": [
+    {
+      "id": "CA-1",
+      "camada": "back",
+      "descricao": "Dado dois pontos válidos no formato 'lon,lat', quando GET /api/rota/?de=...&ate=... é chamado, então responde 200 com distancia_m maior que zero e geometria do tipo LineString com pelo menos 2 coordenadas."
+    },
+    {
+      "id": "CA-2",
+      "camada": "back",
+      "descricao": "Dado parâmetro ausente, mal formatado ou fora da faixa de latitude/longitude, quando GET /api/rota/ é chamado, então responde 400 com mensagem de erro e NÃO chama o serviço de rotas externo."
+    },
+    {
+      "id": "CA-3",
+      "camada": "back",
+      "descricao": "Dado que o serviço OSRM falha, estoura o tempo limite ou devolve erro, quando GET /api/rota/ é chamado com pontos válidos, então responde 502 com mensagem genérica, sem expor URL interna ou stacktrace."
+    },
+    {
+      "id": "CA-4",
+      "camada": "front",
+      "descricao": "Dado o tema escuro salvo, quando o mapa carrega, então o basemap usa os tiles noturnos (dark_all); ao alternar claro/escuro o mapa troca os tiles ao vivo preservando câmera, áreas desenhadas e pins, e o traçado da medição e o badge continuam legíveis nos dois temas."
+    },
+    {
+      "id": "CA-5",
+      "camada": "front",
+      "descricao": "Dado a toolbar principal, quando o usuário clica em 'Medir', então abre um submenu com as opções 'Absoluta' e 'Rota' e o botão voltar, reutilizando a animação do submenu de desenho, e a opção escolhida fica marcada com data-ativo e aria-pressed."
+    },
+    {
+      "id": "CA-6",
+      "camada": "front",
+      "descricao": "Dado o modo medir com a opção 'Absoluta', quando dois pontos são marcados, então o badge mostra a distância em linha reta (Haversine, formato pt-BR) e a linha tracejada liga os dois pontos, como hoje."
+    },
+    {
+      "id": "CA-7",
+      "camada": "front",
+      "descricao": "Dado o modo medir com a opção 'Rota', quando dois pontos são marcados, então o front chama /api/rota/ (coordenadas em lon,lat), desenha a rota como polyline sólida seguindo a geometria devolvida e mostra a distância da rota no badge."
+    },
+    {
+      "id": "CA-8",
+      "camada": "front",
+      "descricao": "Dado o modo medir com a opção 'Rota', quando a chamada de rota falha (400, 502 ou erro de rede), então a medição cai automaticamente para a distância absoluta e exibe um aviso discreto de que a rota está indisponível; ao pressionar ESC, trocar de modo ou marcar um novo par, rota, aviso e linha são limpos."
+    }
+  ],
+  "contrato_api_rascunho": [
+    {
+      "metodo": "GET",
+      "rota": "/api/rota/",
+      "request": {
+        "query": {
+          "de": "lon,lat (string)",
+          "ate": "lon,lat (string)"
+        }
+      },
+      "response": {
+        "distancia_m": "number (metros)",
+        "geometria": {
+          "type": "LineString",
+          "coordinates": "[[lon,lat], ...]"
+        }
+      },
+      "erros": [
+        {
+          "status": 400,
+          "motivo": "parâmetro ausente, mal formatado ou fora de faixa"
+        },
+        {
+          "status": 502,
+          "motivo": "serviço de rotas indisponível"
+        }
+      ]
+    }
+  ],
+  "ja_existe_na_codebase": [
+    "medicao_absoluta=sim (confiança 0.77): distância Haversine entre dois pontos clicados em frontend/src/components/MapView.tsx:460 e :2602, utils/geo.ts:88",
+    "rotas=incerto (Laya 0.84, mas contraria a evidência): busca por roteamento/OSRM/rota não achou código de rotas; os matches de 'rota' são rotação de área (MapView.tsx:49, :678)",
+    "submenu_duplica=nao (confiança 0.66, P(true)=0.34): padrão de submenu reutilizável em frontend/src/components/FerramentasToolbar.tsx:59, :128, :279",
+    "mapa_reage_ao_tema=incerto (Laya 0.68, contraria a evidência): tema aplica .dark no html em src/lib/tema.ts:13; construirEstilo só conhece voyager (MapView.tsx:301)",
+    "backend chama API externa com urllib no padrão _pegar_json (backend/biodiversidade/views.py:77), base para o proxy do OSRM"
+  ],
+  "laya_consultado": true,
+  "premissas": [
+    "Proxy no backend Django: o front não chama o OSRM diretamente (decisão do humano)",
+    "OSRM público de demonstração, perfil carro (driving), sem key; sem SLA e sujeito a rate limit",
+    "A resposta considera apenas rota e distância; duração/tempo é ignorada",
+    "Fallback automático para a distância absoluta com aviso discreto quando a rota falhar",
+    "O submenu do medidor abre no clique em 'Medir' e reutiliza as animações do submenu de desenho",
+    "A opção de medição não é persistida; o padrão é 'Absoluta'",
+    "A rota é recalculada a cada novo par de pontos (A e B)",
+    "O mapa noturno segue o tema global (decisão do humano)"
+  ],
+  "perguntas_abertas": [],
+  "dependencias": {
+    "front_depende_de_back": true
+  },
+  "perguntas_iteracao": [
+    {
+      "id": "PI-1",
+      "camada": "back",
+      "pergunta": "O endpoint /api/rota/ expõe apenas distância e geometria, sem tempo ou duração?",
+      "esperado": true
+    },
+    {
+      "id": "PI-2",
+      "camada": "back",
+      "pergunta": "O endpoint valida as coordenadas antes de chamar o serviço de rotas externo?",
+      "esperado": true
+    },
+    {
+      "id": "PI-3",
+      "camada": "front",
+      "pergunta": "O submenu do medidor é redundante com o botão Medir já existente?",
+      "esperado": false
+    }
+  ],
+  "status": "aprovada",
+  "aprovada_por": "hanz_dev",
+  "aprovada_em": "2026-11-18 10h57 (São Paulo)",
+  "hash_aprovacao": "2d693843c4ab041dc3fcb51d4bd1cfe8ad6b21323e358d8ea78b7c0aeb765ace"
+}
