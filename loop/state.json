@@ -1,1 +1,1 @@
-{"spec_id": "SPEC-0007", "fase": "back", "gate": null, "tentativa": 0, "branch": "SPEC-0007"}
+{"spec_id": "SPEC-0007", "fase": "front", "gate": {"back": {"functional": "aprovado", "perf": "aprovado", "coerencia": "aprovado"}, "functional": {"camada": "front", "status": "aprovado", "tentativa": 1}, "perf": {"camada": "front", "status": "aprovado", "tentativa": 1, "resultado": "GATE 2: aprovado (5.7s dentro do teto 600s)"}}, "tentativa": 1, "branch": "SPEC-0007"}
