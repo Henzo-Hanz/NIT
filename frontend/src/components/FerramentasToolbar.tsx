@@ -6,6 +6,7 @@ import {
   GripVertical,
   Hand,
   Pencil,
+  Route,
   Search,
   Square,
 } from 'lucide-react'
@@ -15,12 +16,15 @@ import type { ResultadoBusca } from '@/lib/api'
 
 export type ModoFerramenta = 'arrastar' | 'desenhar' | 'medir'
 export type FormaDesenho = 'livre' | 'retangulo' | 'circulo'
+export type ModoMedida = 'absoluta' | 'rota'
 
 interface FerramentasToolbarProps {
   modo: ModoFerramenta
   aoEscolherModo: (modo: ModoFerramenta) => void
   formaDesenho: FormaDesenho
   aoEscolherForma: (forma: FormaDesenho) => void
+  modoMedida: ModoMedida
+  aoEscolherMedida: (modo: ModoMedida) => void
   colapsada: boolean
   aoAlternarColapso: () => void
   buscaAberto: boolean
@@ -40,11 +44,32 @@ const CLASSE_ATIVA =
 const CLASSE_HOVER =
   'transition-colors hover:bg-muted hover:text-foreground dark:hover:bg-primary/60 dark:hover:text-primary-foreground'
 
+function IconeMedida() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="size-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeDasharray="4 3"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <path d="M4 20 20 4" />
+      <path d="M4 16v4h4" />
+      <path d="M20 8V4h-4" />
+    </svg>
+  )
+}
+
 export function FerramentasToolbar({
   modo,
   aoEscolherModo,
   formaDesenho,
   aoEscolherForma,
+  modoMedida,
+  aoEscolherMedida,
   colapsada,
   aoAlternarColapso,
   buscaAberto,
@@ -57,6 +82,7 @@ export function FerramentasToolbar({
 }: FerramentasToolbarProps) {
   const [posicao, setPosicao] = useState<{ left: number; top: number } | null>(null)
   const [submenuAberto, setSubmenuAberto] = useState(false)
+  const [submenuMedida, setSubmenuMedida] = useState(false)
   const [montado, setMontado] = useState(!colapsada)
   const [visivel, setVisivel] = useState(!colapsada)
   const arrastoRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null)
@@ -127,27 +153,44 @@ export function FerramentasToolbar({
 
   const escolherModo = (novo: ModoFerramenta) => {
     setSubmenuAberto(false)
+    setSubmenuMedida(false)
     aoEscolherModo(novo)
   }
 
   const abrirDesenho = () => {
+    setSubmenuMedida(false)
     setSubmenuAberto(true)
     aoEscolherModo('desenhar')
+  }
+
+  const abrirMedida = () => {
+    setSubmenuAberto(false)
+    setSubmenuMedida(true)
+    aoEscolherModo('medir')
+  }
+
+  const escolherMedida = (novo: ModoMedida) => {
+    aoEscolherMedida(novo)
+    aoEscolherModo('medir')
+    setSubmenuMedida(false)
   }
 
   const escolherForma = (forma: FormaDesenho) => {
     aoEscolherForma(forma)
     aoEscolherModo('desenhar')
     setSubmenuAberto(false)
+    setSubmenuMedida(false)
   }
 
   const abrirBusca = () => {
     setSubmenuAberto(false)
+    setSubmenuMedida(false)
     aoAbrirBusca()
   }
 
   const alternarColapso = () => {
     setSubmenuAberto(false)
+    setSubmenuMedida(false)
     aoFecharBusca()
     aoAlternarColapso()
   }
@@ -194,7 +237,7 @@ export function FerramentasToolbar({
           <div
             data-testid="ferramentas-principal"
             className={`flex items-center gap-1 transition-all duration-300 ease-out ${
-              submenuAberto || buscaAberto
+              submenuAberto || buscaAberto || submenuMedida
                 ? 'pointer-events-none translate-y-6 opacity-0'
                 : 'translate-y-0 opacity-100'
             }`}
@@ -243,22 +286,9 @@ export function FerramentasToolbar({
                 aria-label="Medir distância entre pontos"
                 aria-pressed={modo === 'medir'}
                 className={modo === 'medir' ? CLASSE_ATIVA : CLASSE_HOVER}
-                onClick={() => escolherModo('medir')}
+                onClick={abrirMedida}
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="size-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeDasharray="4 3"
-                  strokeLinecap="round"
-                  aria-hidden="true"
-                >
-                  <path d="M4 20 20 4" />
-                  <path d="M4 16v4h4" />
-                  <path d="M20 8V4h-4" />
-                </svg>
+                <IconeMedida />
               </Button>
             </TooltipDescricao>
             <TooltipDescricao descricao="Abre a busca de espécies e locais no mapa">
@@ -338,6 +368,57 @@ export function FerramentasToolbar({
                 onClick={() => escolherForma('livre')}
               >
                 <Pencil className="size-4" aria-hidden="true" />
+              </Button>
+            </TooltipDescricao>
+          </div>
+          <div
+            data-testid="ferramentas-medida"
+            data-aberto={submenuMedida ? 'true' : 'false'}
+            aria-hidden={!submenuMedida}
+            className={`absolute inset-0 flex items-center justify-center gap-1 transition-all duration-300 ease-out ${
+              submenuMedida
+                ? 'translate-y-0 opacity-100'
+                : 'pointer-events-none -translate-y-6 opacity-0'
+            }`}
+          >
+            <TooltipDescricao descricao="Volta para as ferramentas">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="medida-voltar"
+                aria-label="Voltar para as ferramentas"
+                className={CLASSE_HOVER}
+                onClick={() => setSubmenuMedida(false)}
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+              </Button>
+            </TooltipDescricao>
+            <TooltipDescricao descricao="Mede a distância em linha reta entre dois pontos">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="medida-absoluta"
+                data-ativo={modoMedida === 'absoluta' ? 'true' : 'false'}
+                aria-label="Medir distância em linha reta"
+                aria-pressed={modoMedida === 'absoluta'}
+                className={modoMedida === 'absoluta' ? CLASSE_ATIVA : CLASSE_HOVER}
+                onClick={() => escolherMedida('absoluta')}
+              >
+                <IconeMedida />
+              </Button>
+            </TooltipDescricao>
+            <TooltipDescricao descricao="Mede a distância seguindo as ruas e caminhos entre dois pontos">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-testid="medida-rota"
+                data-ativo={modoMedida === 'rota' ? 'true' : 'false'}
+                aria-label="Medir distância por rota"
+                aria-pressed={modoMedida === 'rota'}
+                className={modoMedida === 'rota' ? CLASSE_ATIVA : CLASSE_HOVER}
+                onClick={() => escolherMedida('rota')}
+              >
+                <Route className="size-4" aria-hidden="true" />
               </Button>
             </TooltipDescricao>
           </div>
