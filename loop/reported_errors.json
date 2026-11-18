@@ -1,1 +1,27 @@
-
+[
+  {
+    "timestamp": "2026-11-18T14:33:24+00:00",
+    "documento": "SPEC-0007",
+    "camada": "frontend",
+    "gate": "coherence",
+    "comando": "gate3_coherence.py SPEC-0007 --camada front",
+    "severidade": "medium",
+    "bloqueante": false,
+    "resumo": "iteracao_PI-3: P(true)=0.8738 (esperado False)",
+    "arquivos": [
+      "frontend/src/components/FerramentasToolbar.tsx",
+      "frontend/src/components/MapView.tsx",
+      "frontend/src/lib/api.ts",
+      "frontend/src/lib/tema.ts",
+      "frontend/src/components/CA_4_mapa_escuro.test.tsx",
+      "frontend/src/components/CA_5_medida_submenu.test.tsx",
+      "frontend/src/components/CA_6_medida_absoluta.test.tsx",
+      "frontend/src/components/CA_7_medida_rota.test.tsx",
+      "frontend/src/components/CA_8_medida_fallback.test.tsx",
+      "frontend/src/components/perf_medicao.test.tsx"
+    ],
+    "tentativa": 1,
+    "status": "open",
+    "id": "ERR-0001"
+  }
+]

@@ -1,40 +1,24 @@
 {
-  "spec": "SPEC-0006",
+  "spec": "SPEC-0007",
   "camada": "front",
-  "quando": "2026-11-17T13:40:00+00:00",
+  "quando": "2026-11-18T14:33:24+00:00",
   "arquivos": [
-    "frontend/src/components/CA_4_toolbar_desenho.test.tsx",
-    "frontend/src/components/CA_5_desenho_preview_area.test.tsx",
-    "frontend/src/components/CA_5_selecao_fantasma.test.tsx",
-    "frontend/src/components/CarrosselEspecie.tsx",
     "frontend/src/components/FerramentasToolbar.tsx",
-    "frontend/src/components/FiltroAnimaisPanel.tsx",
-    "frontend/src/components/HeaderBar.tsx",
     "frontend/src/components/MapView.tsx",
-    "frontend/src/components/PainelAreas.tsx",
-    "frontend/src/components/ui/chevron-painel.ts"
+    "frontend/src/lib/api.ts",
+    "frontend/src/lib/tema.ts",
+    "frontend/src/components/CA_4_mapa_escuro.test.tsx",
+    "frontend/src/components/CA_5_medida_submenu.test.tsx",
+    "frontend/src/components/CA_6_medida_absoluta.test.tsx",
+    "frontend/src/components/CA_7_medida_rota.test.tsx",
+    "frontend/src/components/CA_8_medida_fallback.test.tsx",
+    "frontend/src/components/perf_medicao.test.tsx"
   ],
   "chars_estado": 1500,
   "resultados": {
-    "iteracao_PI-1": {
-      "status": "incerto",
-      "p_true": 0.5853
-    },
-    "iteracao_PI-2": {
-      "status": "ok",
-      "p_true": 0.7492
-    },
     "iteracao_PI-3": {
-      "status": "ok",
-      "p_true": 0.8084
-    },
-    "iteracao_PI-4": {
-      "status": "ok",
-      "p_true": 0.8389
-    },
-    "iteracao_PI-5": {
-      "status": "ok",
-      "p_true": 0.8339
+      "status": "violacao",
+      "p_true": 0.8738
     }
   }
 }
