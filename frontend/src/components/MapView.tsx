@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -79,6 +80,27 @@ type AcoesAtalhos = {
 // Mesmo array (referências dos itens preservadas) -> não há o que historizar.
 function mesmasAreas(a: AreaDesenhada[], b: AreaDesenhada[]) {
   return a.length === b.length && a.every((area, indice) => area === b[indice])
+}
+
+type PontoTela = { x: number; y: number }
+
+// Amostra a reta em `quantidade` pontos equidistantes (mesma contagem da rota, para o morphing).
+function amostrarReta(a: PontoTela, b: PontoTela, quantidade: number): PontoTela[] {
+  return Array.from({ length: quantidade }, (_, indice) => {
+    const t = quantidade <= 1 ? 0 : indice / (quantidade - 1)
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+  })
+}
+
+function interpolarLinhas(inicio: PontoTela[], alvo: PontoTela[], t: number): PontoTela[] {
+  return inicio.map((ponto, indice) => {
+    const destino = alvo[indice] ?? alvo[alvo.length - 1]
+    return { x: ponto.x + (destino.x - ponto.x) * t, y: ponto.y + (destino.y - ponto.y) * t }
+  })
+}
+
+function pontosParaAtributo(pontos: PontoTela[]): string {
+  return pontos.map(({ x, y }) => `${x},${y}`).join(' ')
 }
 
 // Centro do bounding box de um anel (ignora o ponto de fechamento repetido).
@@ -2317,6 +2339,58 @@ export function MapView({
   })()
   const mostrarRota = modoMedida === 'rota' && Boolean(rota && pontosRota)
 
+  const linhaRotaRef = useRef<SVGPolylineElement | null>(null)
+  const animacaoRotaRef = useRef<{ rota: RotaMedida | null; quadro: number }>({
+    rota: null,
+    quadro: 0,
+  })
+
+  // Morphing: a reta da distância absoluta se transforma suavemente na polyline da rota.
+  useLayoutEffect(() => {
+    const animacao = animacaoRotaRef.current
+    if (!mostrarRota || !rota) {
+      cancelAnimationFrame(animacao.quadro)
+      animacao.quadro = 0
+      animacao.rota = null
+      return
+    }
+    const elemento = linhaRotaRef.current
+    const mapa = mapRef.current
+    if (!elemento || !pontosRota || !medicao?.b || !mapa) {
+      return
+    }
+    if (animacao.rota === rota) {
+      return
+    }
+    cancelAnimationFrame(animacao.quadro)
+    animacao.rota = rota
+    const alvo = pontosRota.split(' ').map((par) => {
+      const [x, y] = par.split(',').map(Number)
+      return { x, y }
+    })
+    if (alvo.length < 2) {
+      elemento.setAttribute('points', pontosRota)
+      return
+    }
+    const inicio = amostrarReta(
+      mapa.project(medicao.a.ponto.geometry.coordinates) as PontoTela,
+      mapa.project(medicao.b.ponto.geometry.coordinates) as PontoTela,
+      alvo.length,
+    )
+    elemento.setAttribute('points', pontosParaAtributo(inicio))
+    const duracao = 450
+    const t0 = performance.now()
+    const passo = (agora: number) => {
+      const bruto = Math.min(1, (agora - t0) / duracao)
+      const suave = bruto < 0.5 ? 4 * bruto ** 3 : 1 - (-2 * bruto + 2) ** 3 / 2
+      elemento.setAttribute('points', pontosParaAtributo(interpolarLinhas(inicio, alvo, suave)))
+      animacao.quadro = bruto < 1 ? requestAnimationFrame(passo) : 0
+    }
+    animacao.quadro = requestAnimationFrame(passo)
+  }, [mostrarRota, rota, pontosRota, medicao])
+
+  useEffect(() => () => cancelAnimationFrame(animacaoRotaRef.current.quadro), [])
+
   const hullPreview =
     formaDesenho === 'livre'
       ? convexHull(pontosPreview.map((ponto) => [ponto.x, ponto.y])).map(([x, y]) => ({ x, y }))
@@ -2645,6 +2719,7 @@ export function MapView({
           aria-hidden="true"
         >
           <polyline
+            ref={linhaRotaRef}
             data-testid="linha-rota"
             fill="none"
             stroke="#d97706"
@@ -2708,21 +2783,23 @@ export function MapView({
             top: (linhaMedicao.a.y + linhaMedicao.b.y) / 2 - 14,
           }}
         >
-          {rota
-            ? formatarKm(rota.distancia_m / 1000)
-            : formatarKm(
-                distanciaKm(
-                  medicao.a.ponto.geometry.coordinates,
-                  medicao.b.ponto.geometry.coordinates,
-                ),
-              )}{' '}
-          km
+          <span key={mostrarRota ? 'rota' : 'absoluta'} className="animate-in fade-in duration-300">
+            {rota
+              ? formatarKm(rota.distancia_m / 1000)
+              : formatarKm(
+                  distanciaKm(
+                    medicao.a.ponto.geometry.coordinates,
+                    medicao.b.ponto.geometry.coordinates,
+                  ),
+                )}{' '}
+            km
+          </span>
         </div>
       )}
       {modoMedida === 'rota' && rotaErro && (
         <div
           data-testid="aviso-rota"
-          className="absolute bottom-16 left-1/2 z-30 -translate-x-1/2 rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground shadow"
+          className="absolute bottom-16 left-1/2 z-30 -translate-x-1/2 animate-in fade-in duration-300 rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground shadow"
         >
           Rota indisponível — mostrando distância em linha reta
         </div>
