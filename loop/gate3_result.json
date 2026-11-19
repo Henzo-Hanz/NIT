@@ -1,44 +1,24 @@
 {
-  "spec": "SPEC-0006",
+  "spec": "SPEC-0007",
   "camada": "front",
-  "quando": "2026-11-16T14:08:57+00:00",
+  "quando": "2026-11-18T14:33:24+00:00",
   "arquivos": [
-    "frontend/src/components/CA_1_atalhos_copiar_colar.test.tsx",
-    "frontend/src/components/CA_5_editar_area.test.tsx",
-    "frontend/src/components/CA_5_pontos_edicao_vivo.test.tsx",
-    "frontend/src/components/CA_5_redimensionamento_qualquer_direcao.test.tsx",
-    "frontend/src/components/CA_5_selecao_fantasma.test.tsx",
+    "frontend/src/components/FerramentasToolbar.tsx",
     "frontend/src/components/MapView.tsx",
-    "frontend/src/components/PainelAreas.tsx",
-    "frontend/src/utils/geo.ts",
-    "frontend/vite.config.ts",
-    "frontend/src/components/CA_5_selecao_area_clique.test.tsx",
-    "frontend/src/components/CA_6_colar_no_mouse.test.tsx",
-    "frontend/src/components/CA_7_desselecionar_sem_alcas.test.tsx",
-    "frontend/src/components/CA_8_mover_elipse_livre.test.tsx",
-    "frontend/src/components/CA_9_rotacao_elipse.test.tsx"
+    "frontend/src/lib/api.ts",
+    "frontend/src/lib/tema.ts",
+    "frontend/src/components/CA_4_mapa_escuro.test.tsx",
+    "frontend/src/components/CA_5_medida_submenu.test.tsx",
+    "frontend/src/components/CA_6_medida_absoluta.test.tsx",
+    "frontend/src/components/CA_7_medida_rota.test.tsx",
+    "frontend/src/components/CA_8_medida_fallback.test.tsx",
+    "frontend/src/components/perf_medicao.test.tsx"
   ],
   "chars_estado": 1500,
   "resultados": {
-    "iteracao_PI-1": {
-      "status": "incerto",
-      "p_true": 0.602
-    },
-    "iteracao_PI-2": {
-      "status": "ok",
-      "p_true": 0.7498
-    },
     "iteracao_PI-3": {
-      "status": "ok",
-      "p_true": 0.7661
-    },
-    "iteracao_PI-4": {
-      "status": "ok",
-      "p_true": 0.8395
-    },
-    "iteracao_PI-5": {
-      "status": "ok",
-      "p_true": 0.8131
+      "status": "violacao",
+      "p_true": 0.8738
     }
   }
 }

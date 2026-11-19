@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MapView } from './MapView'
 
 const estadoMapa = vi.hoisted(() => ({
   instancias: [] as any[],
   disparoImediato: true,
+  offset: { x: 0, y: 0 },
 }))
 
 vi.mock('maplibre-gl', () => {
@@ -18,7 +19,13 @@ vi.mock('maplibre-gl', () => {
     addSource = vi.fn()
     addLayer = vi.fn()
     setLayoutProperty = vi.fn()
-    project = vi.fn(() => ({ x: 120, y: 180 }))
+    project = vi.fn(
+      () =>
+        ({
+          x: 120 + estadoMapa.offset.x,
+          y: 180 + estadoMapa.offset.y,
+        }) as { x: number; y: number },
+    )
     unproject = vi.fn(([x, y]: [number, number]) => [x, y])
     getSource = vi.fn(() => ({ setData: vi.fn() }))
     dragPan = { enable: vi.fn(), disable: vi.fn() }
@@ -82,6 +89,8 @@ afterEach(() => {
   cleanup()
   document.body.innerHTML = ''
   estadoMapa.instancias.length = 0
+  estadoMapa.offset.x = 0
+  estadoMapa.offset.y = 0
   vi.unstubAllGlobals()
   vi.clearAllMocks()
 })
@@ -144,5 +153,32 @@ describe('CA-5: preview ao vivo do desenho e área com tamanho estimado', () => 
     expect(screen.getAllByTestId(/^area-item-/)).toHaveLength(2)
     expect(screen.getByTestId('area-tamanho-1')).toHaveTextContent('km²')
     expect(screen.getByTestId('area-tamanho-2')).toHaveTextContent('km²')
+  })
+
+  it('o rótulo acompanha o pan do mapa', async () => {
+    const usuario = userEvent.setup()
+    configurarFetch()
+    render(<MapView />)
+    await usuario.click(screen.getByTestId('ferramenta-desenhar'))
+
+    await desenhar(screen.getByTestId('mapa-container'), AREA_1)
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('area-tamanho')).toBeInTheDocument()
+    })
+    const rotulo = screen.getByTestId('area-tamanho')
+    expect(rotulo.style.left).toBe('120px')
+    expect(rotulo.style.top).toBe('172px')
+
+    // Pan: o offset da projeção muda e o mapa dispara 'move' — o rótulo
+    // deve se reposicionar para o centroide projetado com o novo offset.
+    estadoMapa.offset.x = 40
+    estadoMapa.offset.y = 25
+    act(() => {
+      estadoMapa.instancias[0]?.registro.get('move')?.()
+    })
+
+    expect(rotulo.style.left).toBe('160px')
+    expect(rotulo.style.top).toBe('197px')
   })
 })

@@ -77,10 +77,10 @@ describe('CA-4: tooltips (hover) e estado de hover da toolbar', () => {
       ['ferramenta-medir', 'Medir'],
       ['ferramenta-pesquisar', 'Pesquisar'],
     ]
-    for (const [testid, nome] of rotulos) {
+    for (const [testid] of rotulos) {
       const botao = screen.getByTestId(testid)
-      expect(botao).toHaveAttribute('title', nome)
       expect(botao.getAttribute('aria-label')).toBeTruthy()
+      expect(botao).not.toHaveAttribute('title')
     }
   })
 
@@ -124,11 +124,12 @@ describe('CA-4: tooltips (hover) e estado de hover da toolbar', () => {
       ['desenho-circulo', 'Círculo'],
       ['desenho-livre', 'Livre'],
     ])
-    for (const [testid, nome] of ativos) {
+    for (const [testid] of ativos) {
       const botao = screen.getByTestId(testid)
-      expect(botao).toHaveAttribute('title', nome)
+      expect(botao.getAttribute('aria-label')).toBeTruthy()
+      expect(botao).not.toHaveAttribute('title')
     }
-    expect(screen.getByTestId('desenho-voltar')).toHaveAttribute('title', 'Voltar')
+    expect(screen.getByTestId('desenho-voltar').getAttribute('aria-label')).toBeTruthy()
     expect(screen.getByTestId('desenho-voltar').className).toContain('hover:bg-muted')
     expect(screen.getByTestId('desenho-voltar').className).toContain('dark:hover:bg-primary/60')
     const quadrado = screen.getByTestId('desenho-retangulo')
@@ -153,11 +154,9 @@ describe('CA-4: tooltips (hover) e estado de hover da toolbar', () => {
 
     await usuario.click(screen.getByTestId('ferramenta-pesquisar'))
     const voltar = screen.getByTestId('busca-voltar')
-    expect(voltar).toHaveAttribute('title', 'Voltar')
     expect(voltar).toHaveAttribute('aria-label', 'Voltar para as ferramentas')
     expect(voltar.className).toContain('hover:bg-muted')
     expect(voltar.className).toContain('dark:hover:bg-primary/60')
     expect(document.activeElement).toBe(screen.getByTestId('campo-busca'))
-    expect(screen.getByTestId('ferramenta-pesquisar')).toHaveAttribute('title', 'Pesquisar')
   })
 })

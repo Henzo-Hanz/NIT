@@ -26,7 +26,7 @@
       "accent_foreground": { "token": "--accent-foreground", "valor": "oklch(0.4 0.09 195)", "classe": "text-accent-foreground", "uso": "texto sobre accent (pill sempre com tabular-nums)" },
       "destructive": { "token": "--destructive", "valor": "oklch(0.577 0.245 27.325)", "classe": "text-destructive", "uso": "exclusao/erro" },
       "ring": { "token": "--ring", "valor": "oklch(0.55 0.11 254)", "classe": "ring-ring", "uso": "anel de foco (sempre ring-2)" },
-      "surface_escura_neutra": { "token": "(literal Tailwind)", "valor": "neutral-900", "classe": "bg-neutral-900", "uso": "painel/carrossel de destaque sobre pagina clara; texto interno em text-neutral-100/white (contraste AA); sem translucido no fundo" },
+      "surface_escura_neutra": { "token": "(literal Tailwind)", "valor": "neutral-900", "classe": "bg-neutral-900", "uso": "painel neutro escuro de destaque sobre pagina clara (hero-filho); texto interno em text-neutral-100/white (contraste AA); sem translucido no fundo. O carrossel de especies NAO usa mais este token (ver paleta_institucional)" },
       "scrim_legenda": { "token": "(literal Tailwind)", "valor": "bg-black/55", "classe": "bg-black/55", "uso": "unico alfa permitido: scrim de legenda sobre foto, rounded-md, text-left" }
     },
     "modo_escuro": {
@@ -42,6 +42,26 @@
       "ring": "oklch(0.556 0 0)",
       "nota": "Trocar aspas por valores no .dark do index.css; classes Tailwind sao identicas"
     }
+  },
+  "paleta_institucional": {
+    "fonte": "frontend/src/components/ui/paleta-piaui.ts (exports PALETA_PIAUI e corDaPaleta(indice))",
+    "origem": "cores da logo do Governo do Piaui; valores hex aproximados a olho (substituiveis pelos oficiais do manual da marca em um unico arquivo)",
+    "ordem_fixa": ["azul", "amarelo", "vermelho", "verde"],
+    "ciclo": "o painel N usa corDaPaleta(N): indice % 4; uma sequencia de carrosseis pinta azul, amarelo, vermelho, verde e RECOMECA no azul (ex.: parou no amarelo, o proximo e vermelho)",
+    "cores": {
+      "azul":     { "claro": "#1878BE", "escuro": "#0E4D7C", "texto_claro_tema": "white",          "texto_escuro_tema": "#CBE6F8" },
+      "amarelo":  { "claro": "#F5B31E", "escuro": "#7A5E12", "texto_claro_tema": "#3F2D00 (escuro, por contraste AA)", "texto_escuro_tema": "#F6E4B5" },
+      "vermelho": { "claro": "#DB3B25", "escuro": "#7C2214", "texto_claro_tema": "white",          "texto_escuro_tema": "#F5CFC7" },
+      "verde":    { "claro": "#2E9E4F", "escuro": "#1C5B33", "texto_claro_tema": "white",          "texto_escuro_tema": "#CFEAD8" }
+    },
+    "aplicacao_carrossel": {
+      "fundo_painel": "cor.fundo (ex.: 'bg-[#1878BE] dark:bg-[#0E4D7C]') — substitui bg-card/bg-neutral-900 no section",
+      "titulo": "cor.titulo (truncate uppercase tracking-[0.18em] mantidos)",
+      "chip_contador": "cor.chip (pill translucida sobre a cor: white/15 no claro; white/10 no escuro; no amarelo claro chip bg-black/10 com texto escuro)",
+      "setas": "cor.setas (botao circular translucido da propria cor: bg-white/20 hover:bg-white/30; no amarelo claro bg-black/10; tamanho size-7 e foco ring inalterados)",
+      "cards_fotos": "cards continuam bg-card/borda própria sobre o fundo colorido"
+    },
+    "proibido": "usar as cores da paleta fora dos componentes que recebem indice (hoje: CarrosselEspecie) sem registrar aqui; nunca misturar cores da paleta no MESMO painel"
   },
   "tipografia": {
     "familias": {
@@ -84,7 +104,7 @@
   "componentes": {
     "pill_badge_solido": {
       "classe": "rounded-full bg-accent px-2 py-0.5 text-[11px] sm:text-xs font-semibold tabular-nums text-accent-foreground",
-      "uso": "numero puro (SEM prefixo/hifen) de contador: total de especie, itens de grupo. Versao hero: px-3 py-1 text-xs",
+      "uso": "numero puro (SEM prefixo/hifen) de contador sobre superficie neutra: badge do hero de pagina (px-3 py-1 text-xs), contadores de secao. O chip de contador DENTRO de carrossel usa cor.chip da paleta_institucional (translucido sobre a cor do painel)",
       "proibido": "texto tipo '- 6'; numero nunca exige sinal"
     },
     "card": {
@@ -92,8 +112,8 @@
       "uso": "item clicavel e empty-state; hover: hover:shadow-md (elevacao) + transicao duration-300; foco: focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     },
     "painel_destaque": {
-      "classe": "rounded-2xl bg-neutral-900 p-4 sm:p-5 shadow-sm",
-      "uso": "carrossel de especie / bloco hero-filho sobre pagina clara. Texto interno claro: titulo 'text-neutral-100', descricao 'text-neutral-300'. Filhos com border/bg-card continuam visiveis (borda clara sobre fundo escuro). Sem translucido no fundo do painel"
+      "classe": "rounded-2xl p-4 sm:p-5 shadow-sm + corDaPaleta(indice).fundo (paleta_institucional) OU 'rounded-2xl bg-neutral-900 p-4 sm:p-5 shadow-sm' para painel neutro",
+      "uso": "carrossel de especie: fundo da paleta institucional ciclando por indice (titulo/chip/setas vindos da mesma cor escolhida — ver paleta_institucional.aplicacao_carrossel). Bloco hero-filho neutro sobre pagina clara: bg-neutral-900 com texto 'text-neutral-100'/'text-neutral-300'. Sem translucido no fundo do painel"
     },
     "scrim_de_legenda": {
       "classe": "rounded-md bg-black/55 px-3 py-2 text-left",
@@ -105,7 +125,30 @@
     },
     "botao_icone_circular": {
       "classe": "grid size-7 place-items-center rounded-full border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-      "uso": "seta prev/next de carrossel; icone lucide size-4 dentro"
+      "uso": "botao circular neutro sobre superficie bg-card (icone lucide size-4 dentro). NOTA: as setas prev/next de carrossel NAO usam mais este padrao — usam cor.setas da paleta_institucional (translucidas sobre o fundo colorido)"
+    },
+    "botao_recolher_painel": {
+      "classe": "shadcn Button variant='ghost' (icon-xs no PainelAreas, icon-sm no FiltroAnimaisPanel) + CHEVRON_PAINEL",
+      "chevron_painel": "constante compartilhada em frontend/src/components/ui/chevron-painel.ts: 'transition-colors hover:bg-muted hover:text-foreground dark:hover:bg-primary/60 dark:hover:text-primary-foreground'",
+      "uso": "UNICO padrao de seta recolher/expandir de paineis (Filtros, Areas e futuros): sempre importar CHEVRON_PAINEL, nunca recriar hover; icone lucide chevron size-3/size-4, aria-expanded + aria-label + title obrigatorios"
+    },
+    "toolbar_ferramentas": {
+      "colapso": "botao ferramenta-recolher: chevron UNICO (ChevronUp) que rotaciona — colapsado rotate-0 (seta para cima), aberto rotate-90 (seta para a direita); transition-transform duration-300 cubic-bezier(0.22,1,0.36,1)",
+      "conteudo": "saida E entrada animadas no MESMO ritmo do chevron: wrapper 'overflow-hidden transition-all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]' com 'max-w-0 opacity-0 pointer-events-none' <-> 'max-w-[calc(100vw-4rem)] opacity-100'; desmonte so apos 300ms (setTimeout); entrada com rAF DUPLO (1 rAF so dispara antes do primeiro paint e pula a animacao)",
+      "container": "transition-all duration-300 mesma timing function para a largura acompanhar",
+      "uso": "padrao para qualquer barra recolhivel: colapso/expansao sempre sincronizados com o indicador, nunca desmonte seco"
+    },
+    "input_busca_toolbar": {
+      "classe": "h-7 w-full rounded-lg border bg-background pl-3 pr-8 text-xs shadow-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+      "uso": "campo de busca DENTRO da toolbar: h-7 alinha com os botoes size-7 da linha (h-9 transborda e colide com a borda); rounded-lg no mesmo raio dos botoes; ring-inset CONTIDO no campo (ring externo sangra sobre a borda da toolbar); icone decorativo size-3.5 absoluto right-3"
+    },
+    "nav_header": {
+      "classe": "nav 'hidden flex-nowrap items-center gap-1 md:flex'; links 'whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary-foreground/15'",
+      "uso": "menu principal do header: labels NUNCA quebram em 2 linhas (whitespace-nowrap) e ficam alinhados verticalmente (items-center)"
+    },
+    "toggle_tema": {
+      "classe": "shadcn Button variant='outline' size='sm' + 'border bg-background text-foreground shadow-sm hover:bg-muted'",
+      "uso": "botao claro/escuro do header: nunca solto sobre o fundo primary do header (fica soterrado); borda/sombra dao contraste nos dois temas"
     },
     "input_busca": {
       "classe": "h-11 w-full rounded-full border bg-card pl-4 pr-11 text-sm shadow-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring",
@@ -123,13 +166,14 @@
     "transicoes": {
       "cores": "transition-colors (hover de botao/texto)",
       "aura": "transition-all duration-300 (card de carrossel: mover/escalar/opacidade)",
+      "expandir_recolher": "transition-transform/all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] — chevron rotacionando e conteudo montado/desmontado em sincronia (ver toolbar_ferramentas); rAF duplo na entrada",
       "sombra": "transition-shadow (foco de input)",
       "imagem": "transition-transform duration-500 (zoom no hover da foto, group-hover:scale-105)"
     },
     "foco": "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none em TODO elemento clicavel custom (button, input, card)"
   },
   "api_publica_resumo": {
-    "cor_sofrida": "bg-neutral-900 (painel escuro) + text-neutral-100/300 (texto claro) + bg-black/55 (scrim)",
+    "cor_sofrida": "carrossel: paleta_institucional ciclando (corDaPaleta(indice)) + bg-black/55 (scrim); painel neutro: bg-neutral-900 + text-neutral-100/300",
     "badge_numero": "pill accent, numero puro tabular-nums",
     "superficie_normal": "bg-card border shadow-sm",
     "empty_state": "rounded-xl border bg-card p-4 text-sm text-muted-foreground",

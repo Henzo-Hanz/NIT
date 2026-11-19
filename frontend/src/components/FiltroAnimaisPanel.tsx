@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CHEVRON_PAINEL } from '@/components/ui/chevron-painel'
 import type { EspecieDaArea } from '@/lib/api'
 
 export type FiltroEspecie = 'todas' | 'mais' | 'menos' | 'especifica'
@@ -79,7 +80,7 @@ export function FiltroAnimaisPanel({
           aria-label={aberto ? 'Recolher filtros' : 'Expandir filtros'}
           aria-expanded={aberto}
           title={aberto ? 'Recolher' : 'Expandir'}
-          className={CLASSE_HOVER}
+          className={CHEVRON_PAINEL}
           onClick={() => setAberto((atual) => !atual)}
         >
           {aberto ? (

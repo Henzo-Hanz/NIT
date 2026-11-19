@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 import mimetypes
+import os
 import re
 from urllib.error import URLError
 from urllib.parse import quote
@@ -445,5 +446,86 @@ def busca_pontos(request):
         {
             'especies': especies,
             'pontos': {'type': 'FeatureCollection', 'features': features},
+        }
+    )
+
+
+OSRM_URL_PADRAO = 'https://router.project-osrm.org'
+OSRM_TIMEOUT_S = 10
+COORDENADA_TEXTO = re.compile(r'^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$')
+
+
+class OSRMIndisponivel(Exception):
+    pass
+
+
+def _url_osrm():
+    # Permite apontar para um OSRM de teste sem mudar código.
+    return os.environ.get('OSRM_BASE_URL', OSRM_URL_PADRAO).rstrip('/')
+
+
+def _coordenada(valor):
+    texto = (valor or '').strip() if isinstance(valor, str) else ''
+    if not COORDENADA_TEXTO.match(texto):
+        return None
+    lon_texto, lat_texto = texto.split(',')
+    lon, lat = float(lon_texto), float(lat_texto)
+    if not (-180 <= lon <= 180):
+        return None
+    if not (-90 <= lat <= 90):
+        return None
+    return lon, lat
+
+
+def _consultar_osrm(de, ate):
+    url = (
+        f'{_url_osrm()}/route/v1/driving/'
+        f'{de[0]},{de[1]};{ate[0]},{ate[1]}'
+        '?overview=full&geometries=geojson'
+    )
+    try:
+        with urlopen(url, timeout=OSRM_TIMEOUT_S) as resposta:
+            dados = json.loads(resposta.read().decode('utf-8'))
+    except (URLError, TimeoutError, OSError, ValueError):
+        raise OSRMIndisponivel from None
+
+    rotas = dados.get('routes') if isinstance(dados, dict) else None
+    if not isinstance(rotas, list) or not rotas:
+        raise OSRMIndisponivel
+    rota = rotas[0]
+    if not isinstance(rota, dict):
+        raise OSRMIndisponivel
+
+    distancia = rota.get('distance')
+    geometria = rota.get('geometry')
+    if not _e_numero(distancia) or distancia <= 0:
+        raise OSRMIndisponivel
+    if not isinstance(geometria, dict) or geometria.get('type') != 'LineString':
+        raise OSRMIndisponivel
+    coordenadas = geometria.get('coordinates')
+    if not isinstance(coordenadas, list) or len(coordenadas) < 2:
+        raise OSRMIndisponivel
+    return float(distancia), coordenadas
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def rota(request):
+    de = _coordenada(request.query_params.get('de'))
+    ate = _coordenada(request.query_params.get('ate'))
+    if de is None or ate is None:
+        return Response(
+            {'erro': "Informe 'de' e 'ate' no formato lon,lat com coordenadas válidas."},
+            status=400,
+        )
+    try:
+        distancia, coordenadas = _consultar_osrm(de, ate)
+    except OSRMIndisponivel:
+        # Mensagem genérica: nunca expõe URL interna, corpo do OSRM ou stacktrace.
+        return Response({'erro': 'Serviço de rotas indisponível.'}, status=502)
+    return Response(
+        {
+            'distancia_m': distancia,
+            'geometria': {'type': 'LineString', 'coordinates': coordenadas},
         }
     )

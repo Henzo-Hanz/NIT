@@ -14,14 +14,17 @@ import {
   FerramentasToolbar,
   type FormaDesenho,
   type ModoFerramenta,
+  type ModoMedida,
 } from '@/components/FerramentasToolbar'
 import { FiltroAnimaisPanel, type FiltroEspecie } from '@/components/FiltroAnimaisPanel'
 import { PainelAreas, type AreaDesenhada, type ModeloElipse } from '@/components/PainelAreas'
 import { areaKm2, anelDaElipse, convexHull, distanciaKm, formatarKm, formatarKm2 } from '@/utils/geo'
 import { CENTRO_LITORAL_PI, ZOOM_INICIAL } from '@/lib/constantes-mapa'
+import { escutarTema, temaSalvo, type Tema } from '@/lib/tema'
 import {
   buscarGeometrias,
   buscarEspecies,
+  buscarRota,
   consultarArea,
   consultarBusca,
   type ConsultaArea,
@@ -30,6 +33,7 @@ import {
   type PontoDaArea,
   type PontoDaBusca,
   type ResultadoBusca,
+  type RotaMedida,
   type TipoGeometria,
 } from '@/lib/api'
 
@@ -127,6 +131,21 @@ const TILES_VOYAGER = [
   'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
   'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
 ]
+
+const TILES_ESCURO = [
+  'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png',
+  'https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png',
+  'https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png',
+]
+
+function tilesDoBasemap(apiKey: string | undefined, tema: Tema): string[] {
+  const base = tema === 'escuro' ? TILES_ESCURO : TILES_VOYAGER
+  return apiKey ? base.map((tile) => `${tile}?key=${apiKey}`) : base
+}
+
+function temaDoDocumento(): Tema {
+  return document.documentElement.classList.contains('dark') ? 'escuro' : 'claro'
+}
 
 function conectarCadeiaDeIcones(pin: HTMLElement) {
   // O pin tenta os ícones das espécies do ponto em ordem (o primeiro que
@@ -298,10 +317,8 @@ function rodadaPrefetch(baixados: Set<string>, fila: FilaPrefetch) {
   }
 }
 
-function construirEstilo(apiKey: string | undefined) {
-  const tiles = apiKey
-    ? TILES_VOYAGER.map((tile) => `${tile}?key=${apiKey}`)
-    : TILES_VOYAGER
+function construirEstilo(apiKey: string | undefined, tema: Tema) {
+  const tiles = tilesDoBasemap(apiKey, tema)
   return {
     version: 8 as const,
     sources: {
@@ -458,6 +475,9 @@ export function MapView({
   const [formaDesenho, setFormaDesenho] = useState<FormaDesenho>('livre')
   const [posArea, setPosArea] = useState<{ x: number; y: number } | null>(null)
   const [medicao, setMedicao] = useState<{ a: MarcaMedicao; b: MarcaMedicao | null } | null>(null)
+  const [modoMedida, setModoMedida] = useState<ModoMedida>('absoluta')
+  const [rota, setRota] = useState<RotaMedida | null>(null)
+  const [rotaErro, setRotaErro] = useState(false)
   const [resultado, setResultado] = useState<ConsultaArea | null>(null)
   const [filtro, setFiltro] = useState<FiltroEspecie>('todas')
   const [animalDigitado, setAnimalDigitado] = useState('')
@@ -478,7 +498,7 @@ export function MapView({
   const baixadosPrefetchRef = useRef<Set<string>>(new Set())
   const filaPrefetchRef = useRef<FilaPrefetch>({ pendentes: [], ocioso: false })
   const cartoKey = import.meta.env.VITE_CARTO_API_KEY as string | undefined
-  const [estiloAtual, setEstiloAtual] = useState(() => construirEstilo(cartoKey))
+  const [estiloAtual, setEstiloAtual] = useState(() => construirEstilo(cartoKey, temaSalvo()))
   const [reiniciar, setReiniciar] = useState(0)
   const podeTentarSemKey = useRef(Boolean(cartoKey))
   const areaEmDestaque =
@@ -1212,7 +1232,7 @@ export function MapView({
     map.on('error', () => {
       if (podeTentarSemKey.current) {
         podeTentarSemKey.current = false
-        setEstiloAtual(construirEstilo(undefined))
+        setEstiloAtual(construirEstilo(undefined, temaSalvo()))
         setReiniciar((atual) => atual + 1)
         return
       }
@@ -1221,6 +1241,7 @@ export function MapView({
     map.on('load', () => setCarregado(true))
     map.on('move', () => {
       atualizarPosicoes(map)
+      atualizarPosicaoArea(map)
       if (bolhaAreaRef.current && pontoAtivoRef.current) {
         const projetado = map.project(pontoAtivoRef.current.geometry.coordinates)
         setPosBolhaArea({ x: projetado.x, y: projetado.y })
@@ -1244,7 +1265,26 @@ export function MapView({
       setBolhaAreaAberta(false)
       setPosBolhaArea(null)
     }
-  }, [reiniciar, estiloAtual, atualizarPosicoes])
+  }, [reiniciar, estiloAtual, atualizarPosicoes, atualizarPosicaoArea])
+
+  useEffect(() => {
+    return escutarTema(() => {
+      const mapa = mapRef.current
+      if (!mapa || typeof mapa.getSource !== 'function') {
+        return
+      }
+      const tema = temaDoDocumento()
+      const apiKeyAtual = podeTentarSemKey.current ? cartoKey : undefined
+      const fonte = mapa.getSource('basemap') as
+        | { setTiles?: (tiles: string[]) => void }
+        | undefined
+      if (fonte && typeof fonte.setTiles === 'function') {
+        fonte.setTiles(tilesDoBasemap(apiKeyAtual, tema))
+        return
+      }
+      setEstiloAtual(construirEstilo(apiKeyAtual, tema))
+    })
+  }, [cartoKey])
 
   useEffect(() => {
     const map = mapRef.current
@@ -1337,6 +1377,33 @@ export function MapView({
     document.addEventListener('keydown', aoTeclear)
     return () => document.removeEventListener('keydown', aoTeclear)
   }, [modo])
+
+  useEffect(() => {
+    if (modoMedida !== 'rota' || !medicao?.b) {
+      setRota(null)
+      setRotaErro(false)
+      return
+    }
+    let vivo = true
+    setRota(null)
+    setRotaErro(false)
+    buscarRota(
+      medicao.a.ponto.geometry.coordinates,
+      medicao.b.ponto.geometry.coordinates,
+    ).then((resultado) => {
+      if (!vivo) {
+        return
+      }
+      if (!resultado) {
+        setRotaErro(true)
+        return
+      }
+      setRota(resultado)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [modoMedida, medicao])
 
   // Edição de área (só no modo arrastar): intercepta o mousedown em CAPTURA,
   // antes do próprio MapLibre, para impedir o pan quando o cursor pega o
@@ -2228,6 +2295,28 @@ export function MapView({
     ? { a: posicaoDaMarca(medicao.a), b: posicaoDaMarca(medicao.b) }
     : null
 
+  const pontosRota = (() => {
+    const mapa = mapRef.current
+    if (modoMedida !== 'rota' || !rota || !mapa) {
+      return null
+    }
+    const coordenadas = rota.geometria.coordinates
+    const total = coordenadas.length
+    if (!total) {
+      return null
+    }
+    const passo = Math.max(1, Math.ceil(total / 200))
+    const pontos: string[] = []
+    coordenadas.forEach((coordenada, indice) => {
+      if (indice % passo === 0 || indice === total - 1) {
+        const projetado = mapa.project(coordenada) as { x: number; y: number }
+        pontos.push(`${projetado.x},${projetado.y}`)
+      }
+    })
+    return pontos.join(' ')
+  })()
+  const mostrarRota = modoMedida === 'rota' && Boolean(rota && pontosRota)
+
   const hullPreview =
     formaDesenho === 'livre'
       ? convexHull(pontosPreview.map((ponto) => [ponto.x, ponto.y])).map(([x, y]) => ({ x, y }))
@@ -2296,6 +2385,8 @@ export function MapView({
     removerPinArea()
     setModo(novo)
     setMedicao(null)
+    setRota(null)
+    setRotaErro(false)
     setPontosPreview([])
     setDicaMedir(false)
     setSobreArea(false)
@@ -2528,7 +2619,7 @@ export function MapView({
           )}
         </svg>
       )}
-      {linhaMedicao && (
+      {linhaMedicao && !mostrarRota && (
         <svg
           data-testid="overlay-medicao"
           className="pointer-events-none absolute inset-0 z-10 h-full w-full"
@@ -2547,11 +2638,30 @@ export function MapView({
           />
         </svg>
       )}
+      {mostrarRota && (
+        <svg
+          data-testid="overlay-rota"
+          className="pointer-events-none absolute inset-0 z-10 h-full w-full"
+          aria-hidden="true"
+        >
+          <polyline
+            data-testid="linha-rota"
+            fill="none"
+            stroke="#d97706"
+            strokeWidth={2}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            points={pontosRota ?? ''}
+          />
+        </svg>
+      )}
       <FerramentasToolbar
         modo={modo}
         aoEscolherModo={escolherModo}
         formaDesenho={formaDesenho}
         aoEscolherForma={setFormaDesenho}
+        modoMedida={modoMedida}
+        aoEscolherMedida={setModoMedida}
         colapsada={colapsada}
         aoAlternarColapso={() => setColapsada((atual) => !atual)}
         buscaAberto={buscaAberto}
@@ -2580,7 +2690,7 @@ export function MapView({
         especieAplicada={nomeEspecieAplicada}
         aoPiscar={piscar}
       />
-      {areaEmDestaque && posArea && (
+      {areaEmDestaque && posArea && !edicao && (
         <div
           data-testid="area-tamanho"
           className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-full border bg-background px-2 py-0.5 text-xs font-medium shadow"
@@ -2598,10 +2708,23 @@ export function MapView({
             top: (linhaMedicao.a.y + linhaMedicao.b.y) / 2 - 14,
           }}
         >
-          {formatarKm(
-            distanciaKm(medicao.a.ponto.geometry.coordinates, medicao.b.ponto.geometry.coordinates),
-          )}{' '}
+          {rota
+            ? formatarKm(rota.distancia_m / 1000)
+            : formatarKm(
+                distanciaKm(
+                  medicao.a.ponto.geometry.coordinates,
+                  medicao.b.ponto.geometry.coordinates,
+                ),
+              )}{' '}
           km
+        </div>
+      )}
+      {modoMedida === 'rota' && rotaErro && (
+        <div
+          data-testid="aviso-rota"
+          className="absolute bottom-16 left-1/2 z-30 -translate-x-1/2 rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground shadow"
+        >
+          Rota indisponível — mostrando distância em linha reta
         </div>
       )}
       {modo === 'medir' && dicaMedir && (

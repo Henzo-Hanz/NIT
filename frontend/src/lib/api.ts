@@ -159,3 +159,27 @@ export async function consultarArea(parametros: {
     return null
   }
 }
+
+export type RotaMedida = {
+  distancia_m: number
+  geometria: { type: 'LineString'; coordinates: [number, number][] }
+}
+
+export async function buscarRota(
+  de: [number, number],
+  ate: [number, number],
+): Promise<RotaMedida | null> {
+  try {
+    const resposta = await fetch(`/api/rota/?de=${de[0]},${de[1]}&ate=${ate[0]},${ate[1]}`)
+    if (!resposta.ok) {
+      return null
+    }
+    const corpo = (await resposta.json()) as RotaMedida
+    if (!Array.isArray(corpo?.geometria?.coordinates) || corpo.geometria.coordinates.length < 2) {
+      return null
+    }
+    return corpo
+  } catch {
+    return null
+  }
+}

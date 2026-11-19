@@ -161,13 +161,14 @@ export function EspeciesPage() {
         )}
 
         <div data-testid="especies-grid" className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {grupos.map((grupo) => (
+          {grupos.map((grupo, indice) => (
             <CarrosselEspecie
               key={grupo.chave}
               testid={`carrossel-${grupo.chave}`}
               titulo={grupo.titulo}
               itens={grupo.itens}
               onAbrir={setSlugAberto}
+              indice={indice}
             />
           ))}
         </div>
