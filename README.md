@@ -29,11 +29,60 @@ Acompanhamento: [Kanban do NIT — Status do Projeto](https://trello.com/b/Y46Sx
 
 ## Layout (alvo, monorepo)
 
-- `backend/` — Django API (a criar)
-- `frontend/` — React + Vite SPA (a criar)
+- `backend/` — Django API 
+- `frontend/` — React + Vite SPA 
 - `loop/` — specs, scripts e gates do loop
 - `docs/` — decisões de arquitetura e referências
 
 ## Aparência Atual :
 
-![Aparência](https://github.com/Henzo-Hanz/NIT/blob/main/images/V0.png)
+![Aparência](https://github.com/Henzo-Hanz/NIT/blob/main/images/V0.1-first_implementation.png)
+
+### Grid de especies implementado :
+
+![Aparência_grid](https://github.com/Henzo-Hanz/NIT/blob/main/images/Rota_especies_grid.png)
+
+## Como baixar e testar :
+
+### Baixe todo o conteúdo do repositório via git:
+```bash
+Git pull https://github.com/Henzo-Hanz/NIT.git
+```
+### entre no backend:
+```bash
+cd backend/
+```
+### Baixe as dependências, sincronize com o repositório e rode o servidor local do backend:
+```bash
+uv sync && uv run manage.py run server
+```
+
+### Após rodar o comando anterior com sucesso vá para a pasta do frontend:
+```bash
+cd .. && cd frontend/
+```
+
+### instale as dependências do frontend:
+```bash
+npm i  #install implícito
+```
+### crie sua chave para a API de OpenStreetMap no Carto:
+vá em [Get your api key](https://carto.com/basemaps/apikey/) para criar sua chave de api e salve em `.env.local` para o mapa funcionar corretamente.
+
+```bash
+touch .env.local && echo VITE_CARTO_API_KEY=YOUR_CARTO_API_KEY && tee -a .env.local  # if is a unix like system
+
+# if is in windows just do "echo VITE_CARTO_API_KEY=YOUR_CARTO_API_KEY > env.local"   
+```
+
+### agora suba o servidor localmente :
+```bash
+npm run dev # irá abrir no localhost:5173/ só abrir no navegador e tudo estará funcionando como deveria
+
+# se quiser que todos na rede possam testar o projeto use com o argumento -- --host:
+npm run dev -- --host
+# e ele irá mostrar o ip disponível para todos na rede acessem pelo navegador
+```
+
+# _Prontinho! Você ja pode testar o nosso projeto!_ 🎉
+
